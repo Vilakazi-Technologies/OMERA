@@ -1,0 +1,18 @@
+{
+  "name": "Omera by VILATECH",
+  "short_name": "Omera",
+  "description": "South African AI — chat and voice-powered form filling by VILATECH.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/vilatech-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

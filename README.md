@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VILATECH AI
 
-## Getting Started
+Stakeholder-ready web app for **VILATECH AI** — ChatGPT-style chat plus **voice-powered form filling** for South African users.
 
-First, run the development server:
+## Run locally
 
 ```bash
+cd vilatech-ai
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stakeholder demo script
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Home** → *Try for free* → enter email (optional) → *Continue*
+2. **Chat** → try a suggestion or ask about Metropolitan / languages
+3. **Form fill** (sidebar) → upload any PDF → answer questions via mic or keyboard
+4. Show **language selector** (eleven official languages; Lelapa when API key is set)
+5. **Add to Home Screen** on mobile (PWA manifest) for “app” experience
 
-## Learn More
+## AI chat (OpenAI)
 
-To learn more about Next.js, take a look at the following resources:
+1. Copy `.env.example` → `.env.local`
+2. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`, default `gpt-4o-mini`)
+3. Restart `npm run dev`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Without a key, chat stays in **demo mode** (canned streaming replies). On Vercel, add the same variables under Project → Settings → Environment Variables, then redeploy.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Check status: `GET /api/health` → `{ chat: { mode: "openai" | "demo" } }`
 
-## Deploy on Vercel
+## Voice (server)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Set `LELAPA_API_KEY` in `.env.local` / Vercel for live transcription. Without it, voice uses demo transcripts.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Supabase (chat history + forms)
+
+Migration: `supabase/migrations/20261005100000_omera_platform.sql` (applied to project `mjxfpovawoztumfcblhm` — `meeting-pro-web`).
+
+Vercel / `.env.local`:
+
+- `SUPABASE_URL` — e.g. `https://mjxfpovawoztumfcblhm.supabase.co`
+- `SUPABASE_SERVICE_ROLE_KEY` — **server only**, never `NEXT_PUBLIC_`
+
+After login, chats and form sessions persist via API routes. `/api/health` reports `database.configured`.
+
+## Deploy
+
+```bash
+npm run build
+npm start
+```
+
+Deploy to Vercel or any Node host; set `LELAPA_API_KEY` in project env.
+
+## This week vs next month
+
+| Ready now | Next milestone |
+|-----------|----------------|
+| Product UI (web + PWA) | Filled PDF export |
+| Form Q&A flow | Real PDF field detection |
+| Demo chat streaming | OpenAI / Anthropic production chat |
+| Lelapa integration hook | Full 11-language STT coverage |
+
+Built by **VILATECH** — South Africa.
