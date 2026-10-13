@@ -1,6 +1,9 @@
-# VILATECH AI
+# OMERA (VILATECH AI)
 
-Stakeholder-ready web app for **VILATECH AI** — ChatGPT-style chat plus **voice-powered form filling** for South African users.
+Stakeholder-ready web app for **Omera** — ChatGPT-style chat plus **voice-powered form filling** for South African users.
+
+**Production:** [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app)  
+**Organization:** [Vilakazi-Technologies/OMERA](https://github.com/Vilakazi-Technologies/OMERA)
 
 ## Run locally
 
@@ -52,7 +55,7 @@ npm run build
 npm start
 ```
 
-Deploy to Vercel or any Node host; set `LELAPA_API_KEY` in project env.
+Vercel project: **vilatech-ai** (linked via `.vercel` locally; not committed). Set env vars from `.env.example`, then `npx vercel deploy --prod` or connect this repo in the Vercel dashboard for Git-based deploys.
 
 ## This week vs next month
 
