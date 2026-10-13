@@ -5,6 +5,8 @@ Stakeholder-ready web app for **Omera** — ChatGPT-style chat plus **voice-powe
 **Production:** [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app)  
 **Organization:** [Vilakazi-Technologies/OMERA](https://github.com/Vilakazi-Technologies/OMERA)
 
+**Integrator handover:** see [`XAVANI-INSTRUCTIONS.md`](./XAVANI-INSTRUCTIONS.md) for product vision, priorities, and definition of done.
+
 ## Run locally
 
 ```bash
