@@ -16,6 +16,11 @@ it("accepts bounded user messages and rejects privileged roles", () => {
     { ...valid, replyLanguageId: "invalid" },
     { ...valid, conversationId: "not-a-uuid" },
     { ...valid, extra: true },
+    { messages: [{ role: "user", content: "x", extra: true }] },
+    { messages: [
+      ...Array.from({ length: 4 }, () => ({ role: "user", content: "x".repeat(8000) })),
+      { role: "user", content: "x" },
+    ] },
   ]) {
     expect(chatRequestSchema.safeParse(body).success).toBe(false);
   }
