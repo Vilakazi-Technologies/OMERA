@@ -1,6 +1,6 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
-  PDFButton, PDFCheckBox, PDFDocument, PDFDropdown, PDFField,
+  PDFButton, PDFCheckBox, PDFDocument, PDFDropdown, PDFField, PDFName,
   PDFRadioGroup, PDFSignature, PDFTextField,
 } from "pdf-lib";
 
@@ -39,8 +39,8 @@ async function load(bytes: Uint8Array) {
   if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("INVALID_PDF");
   const pdf = await PDFDocument.load(bytes, { ignoreEncryption: false, updateMetadata: false });
   if (pdf.getPageCount() > 20) throw new Error("PDF_PAGE_LIMIT");
+  if (pdf.catalog.getAcroForm()?.dict.has(PDFName.of("XFA"))) throw new Error("UNSUPPORTED_XFA");
   const form = pdf.getForm();
-  if (form.hasXFA()) throw new Error("UNSUPPORTED_XFA");
   const fields = form.getFields().map(describe).filter((field): field is PdfFieldInfo => field !== null);
   if (!fields.length) throw new Error("NO_FILLABLE_FIELDS");
   if (fields.length > 100) throw new Error("PDF_FIELD_LIMIT");

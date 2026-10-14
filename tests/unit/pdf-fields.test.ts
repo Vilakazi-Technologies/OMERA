@@ -534,13 +534,16 @@ it("confirms real XFA data exists before pdf-lib getForm silently removes it", a
   expect(acroForm.has(PDFName.of("XFA"))).toBe(false);
 });
 
-// Reported source defect; keep the required rejection contract without expanding the glyph-only fix.
-it.fails.each(["inspect", "fill"])("rejects actual XFA in %s (known defect: getForm strips XFA before the guard)", async (operation) => {
+it.each(["inspect", "fill"])("rejects actual XFA in %s before the library removes it", async (operation) => {
   const source = await xfaFixture();
+  const before = Buffer.from(source);
   const result = operation === "inspect"
     ? inspectPdfFields(source)
     : fillPdfFields(source, {}, await fontFixture);
   await expect(result).rejects.toThrow("UNSUPPORTED_XFA");
+  expect(Buffer.compare(Buffer.from(source), before)).toBe(0);
+  const reopened = await PDFDocument.load(source);
+  expect(reopened.catalog.lookup(PDFName.of("AcroForm"), PDFDict).has(PDFName.of("XFA"))).toBe(true);
 });
 
 it("rejects an encryption-marker fixture (structural guard evidence, not real encryption)", async () => {
