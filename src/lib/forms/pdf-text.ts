@@ -1,5 +1,11 @@
+import { PDFParse } from "pdf-parse";
+
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const pdfParse = (await import("pdf-parse")).default;
-  const result = await pdfParse(buffer);
-  return (result.text ?? "").trim();
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const result = await parser.getText({ pageJoiner: "" });
+    return result.text.trim();
+  } finally {
+    await parser.destroy();
+  }
 }
