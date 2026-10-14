@@ -12,6 +12,15 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/validation/private/
+/validation/runs/
+
+# Local state.
+/.local/
+SESSION_HANDOFF.md
+.full-review/
 
 # next.js
 /.next/
