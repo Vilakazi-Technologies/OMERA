@@ -41,7 +41,7 @@ async function load(bytes: Uint8Array) {
   if (pdf.getPageCount() > 20) throw new Error("PDF_PAGE_LIMIT");
   const form = pdf.getForm();
   if (form.hasXFA()) throw new Error("UNSUPPORTED_XFA");
-  const fields = form.getFields().sort((left, right) => left.ref.objectNumber - right.ref.objectNumber).map(describe).filter((field): field is PdfFieldInfo => field !== null);
+  const fields = form.getFields().map(describe).filter((field): field is PdfFieldInfo => field !== null);
   if (!fields.length) throw new Error("NO_FILLABLE_FIELDS");
   if (fields.length > 100) throw new Error("PDF_FIELD_LIMIT");
   return { pdf, form, fields };

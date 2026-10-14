@@ -25,7 +25,7 @@ it("writes exact answers into the original PDF fields", async () => {
   const source = await fixture();
   const fields = await inspectPdfFields(source);
   expect(fields.map((field) => field.id)).toEqual([
-    "applicant.full_name", "contact.permission", "business.type", "contact.method",
+    "applicant.full_name", "contact.permission", "contact.method", "business.type",
   ]);
   const font = new Uint8Array(await readFile("assets/fonts/NotoSans-Regular.ttf"));
   const output = await fillPdfFields(source, {
@@ -312,4 +312,23 @@ it("keeps every input and font byte unchanged, including Uint8Array subview guar
   expect(pdf.getForm().getCheckBox("permission").isChecked()).toBe(false);
   expect(pdf.getForm().getDropdown("category").getSelected()).toEqual(["Retail"]);
   expect(pdf.getForm().getRadioGroup("method").getSelected()).toBe("Phone");
+});
+
+import { PDFArray, PDFName } from "pdf-lib";
+
+it("preserves source AcroForm traversal instead of object-number order", async () => {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage();
+  const form = pdf.getForm();
+  const first = form.createTextField("created.first");
+  first.addToPage(page, { x: 40, y: 700, width: 120, height: 20 });
+  const second = form.createTextField("other.second");
+  second.addToPage(page, { x: 40, y: 660, width: 120, height: 20 });
+  const roots = form.acroForm.dict.lookup(PDFName.of("Fields"), PDFArray);
+  form.acroForm.dict.set(PDFName.of("Fields"), pdf.context.obj([roots.get(1), roots.get(0)]));
+  const source = await pdf.save();
+  const loaded = await PDFDocument.load(source);
+  const expected = loaded.getForm().getFields().map((field) => field.getName());
+  expect(expected).toEqual(["other.second", "created.first"]);
+  expect((await inspectPdfFields(source)).map((field) => field.id)).toEqual(expected);
 });
