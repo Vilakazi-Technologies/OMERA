@@ -154,7 +154,7 @@ it("accepts exactly 2000000 audio bytes", async () => {
   const file = body.get("file");
   if (!(file instanceof File)) throw new Error("Expected File");
   expect(file.size).toBe(2000000);
-  expect(new Uint8Array(await file.arrayBuffer())).toEqual(audio);
+  expect(Buffer.compare(Buffer.from(await file.arrayBuffer()), Buffer.from(audio))).toBe(0);
 });
 
 const invalidResponses: { label: string; data: unknown }[] = [
