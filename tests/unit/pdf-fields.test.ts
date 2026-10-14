@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument } from "pdf-lib";
 import { expect, it } from "vitest";
 import { fillPdfFields, inspectPdfFields } from "@/lib/forms/pdf-fields";
@@ -314,7 +315,7 @@ it("keeps every input and font byte unchanged, including Uint8Array subview guar
   expect(pdf.getForm().getRadioGroup("method").getSelected()).toBe("Phone");
 });
 
-import { PDFArray, PDFName } from "pdf-lib";
+import { PDFArray, PDFDict, PDFName } from "pdf-lib";
 
 it("preserves source AcroForm traversal instead of object-number order", async () => {
   const pdf = await PDFDocument.create();
@@ -331,4 +332,221 @@ it("preserves source AcroForm traversal instead of object-number order", async (
   const expected = loaded.getForm().getFields().map((field) => field.getName());
   expect(expected).toEqual(["other.second", "created.first"]);
   expect((await inspectPdfFields(source)).map((field) => field.id)).toEqual(expected);
+});
+
+// C10-B glyph regressions exercise real PDFs and the embedded font.
+it.each(["🌍", "漢"])("rejects missing text glyph %j instead of storing a replacement appearance", async (value) => {
+  await expect(fillPdfFields(await contractFixture(), { name: value }, await fontFixture))
+    .rejects.toThrow("UNSUPPORTED_CHARACTER");
+});
+
+async function unicodeChoiceFixture(kind: "dropdown" | "radio", options: string[]) {
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  const font = await pdf.embedFont(await fontFixture, { subset: true });
+  const page = pdf.addPage([400, 300]);
+  const form = pdf.getForm();
+  if (kind === "dropdown") {
+    const field = form.createDropdown("unicode.choice");
+    field.addOptions(options);
+    field.addToPage(page, { x: 30, y: 200, width: 300, height: 24, font });
+  } else {
+    const field = form.createRadioGroup("unicode.choice");
+    options.forEach((value, index) => {
+      field.addOptionToPage(value, page, { x: 30 + 40 * index, y: 200, width: 20, height: 20 });
+    });
+  }
+  form.updateFieldAppearances(font);
+  return pdf.save({ updateFieldAppearances: false });
+}
+
+it.each(["dropdown", "radio"] as const)("rejects missing glyphs in actual Unicode %s options", async (kind) => {
+  const source = await unicodeChoiceFixture(kind, ["Ṱhendo Muḓau", "🌍", "漢"]);
+  expect((await inspectPdfFields(source))[0].options).toEqual(["Ṱhendo Muḓau", "🌍", "漢"]);
+  for (const value of ["🌍", "漢"]) {
+    await expect(fillPdfFields(source, { "unicode.choice": value }, await fontFixture))
+      .rejects.toThrow("UNSUPPORTED_CHARACTER");
+  }
+});
+
+
+// C10-B boundary/unsupported-form tests are characterization, not behavioral RED.
+it.each(["dropdown", "radio"] as const)("keeps supported Tshivenda %s choices exact", async (kind) => {
+  const value = "  Ṱhendo Muḓau  ";
+  const source = await unicodeChoiceFixture(kind, [value]);
+  const output = await fillPdfFields(source, { "unicode.choice": value }, await fontFixture);
+  const form = (await PDFDocument.load(output)).getForm();
+  if (kind === "dropdown") expect(form.getDropdown("unicode.choice").getSelected()).toEqual([value]);
+  else expect(form.getRadioGroup("unicode.choice").getSelected()).toBe(value);
+});
+
+it.each(["dropdown", "radio"] as const)("validates exact %s options before missing glyphs", async (kind) => {
+  const source = await unicodeChoiceFixture(kind, ["Ṱhendo Muḓau"]);
+  await expect(fillPdfFields(source, { "unicode.choice": "🌍" }, await fontFixture))
+    .rejects.toThrow("INVALID_CHOICE");
+});
+
+it.each(["\r", "\n", "\t", "Ṱhendo\r\nMuḓau\t00123"])("preserves stored layout controls %j", async (value) => {
+  const form = await readFilled(await contractFixture(), { name: value });
+  expect(form.getTextField("name").getText()).toBe(value);
+});
+
+it("preserves maxLength precedence before glyph rejection", async () => {
+  await expect(fillPdfFields(await contractFixture({ maxLength: 5 }), { name: "漢漢漢漢漢漢" }, await fontFixture))
+    .rejects.toThrow("VALUE_TOO_LONG");
+});
+
+async function boundaryFixture(pages = 1, fields = 1) {
+  const pdf = await PDFDocument.create();
+  for (let index = 0; index < pages; index++) pdf.addPage([200, 200]);
+  const form = pdf.getForm();
+  for (let index = 0; index < fields; index++) form.createTextField(`field_${index}`);
+  return pdf.save();
+}
+
+async function rejectBoth(source: Uint8Array, error: string) {
+  await expect(inspectPdfFields(source)).rejects.toThrow(error);
+  await expect(fillPdfFields(source, {}, await fontFixture)).rejects.toThrow(error);
+}
+
+it("accepts a valid PDF padded to exactly 4000000 bytes without modifying its bytes", async () => {
+  const source = await boundaryFixture();
+  const padded = new Uint8Array(4000000).fill(0x20);
+  padded.set(source);
+  const before = Buffer.from(padded);
+  expect(await inspectPdfFields(padded)).toStrictEqual([
+    { id: "field_0", kind: "text", required: false, initialValue: "", maxLength: undefined },
+  ]);
+  const output = await fillPdfFields(padded, { field_0: "Ṱhendo Muḓau" }, await fontFixture);
+  expect((await PDFDocument.load(output)).getForm().getTextField("field_0").getText()).toBe("Ṱhendo Muḓau");
+  expect(Buffer.compare(Buffer.from(padded), before)).toBe(0);
+});
+
+it("rejects a valid PDF padded to 4000001 bytes", async () => {
+  const padded = new Uint8Array(4000001).fill(0x20);
+  padded.set(await boundaryFixture());
+  await rejectBoth(padded, "INVALID_PDF_SIZE");
+});
+
+it("rejects empty bytes before PDF parsing", async () => {
+  await rejectBoth(new Uint8Array(), "INVALID_PDF_SIZE");
+});
+
+it("rejects incorrect PDF magic on an otherwise valid PDF", async () => {
+  const source = await boundaryFixture();
+  source[0] = 0x21;
+  await rejectBoth(source, "INVALID_PDF");
+});
+
+it("accepts exactly 20 pages and 100 fillable fields, preserving exact IDs and page sizes", async () => {
+  const source = await boundaryFixture(20, 100);
+  const expected = Array.from({ length: 100 }, (_, index) => `field_${index}`);
+  expect((await inspectPdfFields(source)).map((field) => field.id)).toEqual(expected);
+  const output = await fillPdfFields(source, { field_99: "00123" }, await fontFixture);
+  const pdf = await PDFDocument.load(output);
+  expect(pdf.getPageCount()).toBe(20);
+  expect(pdf.getPages().map((page) => page.getSize())).toEqual(
+    Array.from({ length: 20 }, () => ({ width: 200, height: 200 })),
+  );
+  expect(pdf.getForm().getFields().map((field) => field.getName())).toEqual(expected);
+  expect(pdf.getForm().getTextField("field_99").getText()).toBe("00123");
+});
+
+it("rejects 21 pages", async () => {
+  await rejectBoth(await boundaryFixture(21), "PDF_PAGE_LIMIT");
+});
+
+it("rejects 101 fillable fields", async () => {
+  await rejectBoth(await boundaryFixture(1, 101), "PDF_FIELD_LIMIT");
+});
+
+async function ignoredFieldsFixture(includeFillable: boolean) {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([200, 200]);
+  const form = pdf.getForm();
+  form.createButton("action.print");
+  const readOnly = form.createTextField("locked.value");
+  readOnly.setText("Keep exactly");
+  readOnly.enableReadOnly();
+  if (includeFillable) form.createTextField("answer");
+  return pdf.save();
+}
+
+it("excludes buttons and read-only fields from answer targets and preserves them", async () => {
+  const source = await ignoredFieldsFixture(true);
+  expect((await inspectPdfFields(source)).map((field) => field.id)).toEqual(["answer"]);
+  for (const id of ["action.print", "locked.value"]) {
+    await expect(fillPdfFields(source, { [id]: "Do not write" }, await fontFixture))
+      .rejects.toThrow("UNKNOWN_FIELD");
+  }
+  const pdf = await PDFDocument.load(await fillPdfFields(source, { answer: "00123" }, await fontFixture));
+  expect(pdf.getForm().getFields().map((field) => field.getName())).toEqual([
+    "action.print", "locked.value", "answer",
+  ]);
+  expect(pdf.getForm().getTextField("locked.value").getText()).toBe("Keep exactly");
+  expect(pdf.getForm().getTextField("locked.value").isReadOnly()).toBe(true);
+  expect(pdf.getForm().getTextField("answer").getText()).toBe("00123");
+});
+
+it.each([false, true])("rejects a form with no supported fillable fields (ignored fields: %s)", async (ignored) => {
+  await rejectBoth(ignored ? await ignoredFieldsFixture(false) : await boundaryFixture(1, 0), "NO_FILLABLE_FIELDS");
+});
+
+it.each(["rich text", "editable dropdown", "multiselect dropdown", "option list"])(
+  "rejects real library %s fields", async (kind) => {
+    const pdf = await PDFDocument.create();
+    pdf.addPage([200, 200]);
+    const form = pdf.getForm();
+    if (kind === "rich text") form.createTextField("unsupported").enableRichFormatting();
+    else if (kind === "option list") form.createOptionList("unsupported").addOptions(["A", "B"]);
+    else {
+      const dropdown = form.createDropdown("unsupported");
+      dropdown.addOptions(["A", "B"]);
+      if (kind === "editable dropdown") dropdown.enableEditing();
+      else dropdown.enableMultiselect();
+    }
+    await rejectBoth(await pdf.save(), "UNSUPPORTED_FIELD_TYPE");
+  },
+);
+
+it("rejects an actual signature field dictionary even when read-only", async () => {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([200, 200]);
+  const signature = pdf.getForm().createTextField("signature");
+  signature.enableReadOnly();
+  signature.acroField.dict.set(PDFName.of("FT"), PDFName.of("Sig"));
+  const source = await pdf.save();
+  expect((await PDFDocument.load(source)).getForm().getFields()[0].constructor.name).toBe("PDFSignature");
+  await rejectBoth(source, "SIGNATURE_REQUIRES_REVIEW");
+});
+
+async function xfaFixture() {
+  const pdf = await PDFDocument.load(await boundaryFixture());
+  pdf.getForm().acroForm.dict.set(PDFName.of("XFA"), pdf.context.obj("<xfa>structural fixture</xfa>"));
+  return pdf.save({ updateFieldAppearances: false });
+}
+
+it("confirms real XFA data exists before pdf-lib getForm silently removes it", async () => {
+  const reopened = await PDFDocument.load(await xfaFixture());
+  const acroForm = reopened.catalog.lookup(PDFName.of("AcroForm"), PDFDict);
+  expect(acroForm.has(PDFName.of("XFA"))).toBe(true);
+  expect(reopened.getForm().hasXFA()).toBe(false);
+  expect(acroForm.has(PDFName.of("XFA"))).toBe(false);
+});
+
+// Reported source defect; keep the required rejection contract without expanding the glyph-only fix.
+it.fails.each(["inspect", "fill"])("rejects actual XFA in %s (known defect: getForm strips XFA before the guard)", async (operation) => {
+  const source = await xfaFixture();
+  const result = operation === "inspect"
+    ? inspectPdfFields(source)
+    : fillPdfFields(source, {}, await fontFixture);
+  await expect(result).rejects.toThrow("UNSUPPORTED_XFA");
+});
+
+it("rejects an encryption-marker fixture (structural guard evidence, not real encryption)", async () => {
+  const pdf = await PDFDocument.load(await boundaryFixture());
+  pdf.context.trailerInfo.Encrypt = pdf.context.register(pdf.context.obj({ Filter: "Standard" }));
+  const source = await pdf.save({ useObjectStreams: false });
+  expect(new TextDecoder().decode(source)).toContain("/Encrypt");
+  await rejectBoth(source, "encrypted");
 });

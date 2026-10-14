@@ -63,6 +63,13 @@ export async function fillPdfFields(
   }
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, { subset: true });
+  const supportedCodepoints = new Set(font.getCharacterSet());
+  function validateGlyphs(value: string) {
+    for (const character of value) {
+      if (character === "\r" || character === "\n" || character === "\t") continue;
+      if (!supportedCodepoints.has(character.codePointAt(0)!)) throw new Error("UNSUPPORTED_CHARACTER");
+    }
+  }
   for (const info of fields) {
     const supplied = Object.prototype.hasOwnProperty.call(answers, info.id);
     const value = supplied ? answers[info.id] : info.initialValue;
@@ -80,10 +87,11 @@ export async function fillPdfFields(
     if (info.maxLength !== undefined && value.length > info.maxLength) throw new Error("VALUE_TOO_LONG");
     if (info.kind === "text") {
       if (!(field instanceof PDFTextField)) throw new Error("FIELD_TYPE_MISMATCH");
-      font.encodeText(value);
+      validateGlyphs(value);
       field.setText(value);
     } else {
       if (value && !info.options?.includes(value)) throw new Error("INVALID_CHOICE");
+      validateGlyphs(value);
       if (field instanceof PDFDropdown || field instanceof PDFRadioGroup) {
         if (value) field.select(value);
         else field.clear();
