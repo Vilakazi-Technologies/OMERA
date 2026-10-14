@@ -9,4 +9,6 @@ it("requires an explicit non-production demo mode", () => {
     .toBe("demo");
   expect(runtimeMode("test-key", { NODE_ENV: "development", OMERA_DEMO_MODE: "true" }))
     .toBe("live");
+  expect(runtimeMode(undefined, { NODE_ENV: "development", OMERA_DEMO_MODE: "false" })).toBe("unavailable");
+  expect(runtimeMode(undefined, { OMERA_DEMO_MODE: "true" })).toBe("demo");
 });
