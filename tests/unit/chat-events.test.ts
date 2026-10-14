@@ -125,3 +125,42 @@ it.each([
   await expect(nextReader.read()).resolves.toEqual({ done: true, value: undefined });
   nextReader.releaseLock();
 });
+
+function openBytesStream(text: string, rejectCancel: boolean, cancellations: string[]) {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(text));
+    },
+    cancel() {
+      cancellations.push("cancel");
+      if (rejectCancel) return Promise.reject(new Error("CANCEL_FAILURE"));
+    },
+  });
+}
+
+it.each([
+  ["success", false],
+  ["success", true],
+  ["rejection", false],
+  ["rejection", true],
+] as const)("cancels an open producer after %s with rejectCancel=%s", async (outcome, rejectCancel) => {
+  const cancellations: string[] = [];
+  const text = outcome === "success"
+    ? 'data: {"token":"ok"}\n\ndata: [DONE]\n\n'
+    : 'data: {"error":"private provider detail"}\n\n';
+  const stream = openBytesStream(text, rejectCancel, cancellations);
+  const tokens: string[] = [];
+  const result = consumeChatEvents(stream, (token) => tokens.push(token));
+  if (outcome === "success") {
+    await expect(result).resolves.toBeUndefined();
+    expect(tokens).toEqual(["ok"]);
+  } else {
+    await expect(result).rejects.toMatchObject({ message: "CHAT_UNAVAILABLE" });
+    expect(tokens).toEqual([]);
+  }
+  expect(cancellations).toEqual(["cancel"]);
+  expect(stream.locked).toBe(false);
+  const nextReader = stream.getReader();
+  await expect(nextReader.read()).resolves.toEqual({ done: true, value: undefined });
+  nextReader.releaseLock();
+});
