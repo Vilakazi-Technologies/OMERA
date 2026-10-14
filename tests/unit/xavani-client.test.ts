@@ -605,3 +605,13 @@ describe("C05-B abort, consumer cancellation and timeout characterization", () =
     expect(service.mock).toHaveBeenCalledTimes(2);
   });
 });
+
+it.each([false, true])("cancels an incorrectly typed upstream response when cancel rejects=%s", async (rejectCancel) => {
+  const upstream = openResponse([encoder.encode("private upstream detail")], rejectCancel, "application/json");
+  expect(await chatText(upstream.response)).toBe(unavailable);
+  expect(upstream.cancel).toHaveBeenCalledTimes(1);
+  expect(upstream.body.locked).toBe(false);
+  const reader = upstream.body.getReader();
+  await expect(reader.read()).resolves.toEqual({ done: true, value: undefined });
+  reader.releaseLock();
+});

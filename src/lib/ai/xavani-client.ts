@@ -107,6 +107,7 @@ function choice(value: unknown): Record<string, unknown> {
 
 async function* tokens(response: Response): AsyncGenerator<string> {
   if (!response.headers.get("content-type")?.startsWith("text/event-stream") || !response.body) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error("INVALID_XAVANI_STREAM");
   }
   const reader = response.body.getReader();
