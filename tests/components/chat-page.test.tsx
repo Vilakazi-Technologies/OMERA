@@ -17,6 +17,11 @@ vi.mock("@/lib/omera-sync", () => ({
 import ChatPage from "@/app/(platform)/chat/page";
 import { useApp } from "@/context/app-provider";
 import {
+  persistCompletedAnswer,
+  persistConversationTitle,
+  persistMessage,
+} from "@/lib/omera-sync";
+import {
   authAppValue,
   authFixtureFns,
   resetAuthFixture,
@@ -188,5 +193,34 @@ describe("chat page stream lifecycle", () => {
       vi.mocked(fetch).mock.calls[1][1]!.body as string,
     );
     expect(explicitBody.replyLanguageId).toBe("zul");
+  });
+
+  it("a_failed_save_is_visible_and_retryable", async () => {
+    resetAuthFixture({ persistence: "supabase" });
+    let persistCalls = 0;
+    const flakyPersist = async () => {
+      persistCalls += 1;
+      if (persistCalls <= 3) throw new Error("PERSIST_MESSAGE_FAILED:500");
+      return undefined;
+    };
+    vi.mocked(persistMessage).mockImplementation(flakyPersist);
+    vi.mocked(persistConversationTitle).mockImplementation(flakyPersist);
+    vi.mocked(persistCompletedAnswer).mockImplementation(async () => {
+      await flakyPersist();
+      return true;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, body: tokenStream(["Saved?"]) }) as Response),
+    );
+    render(<ChatPage />);
+    await sendDraft("Remember this.");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/couldn't save/i);
+    fireEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+    expect(persistCalls).toBeGreaterThan(3);
   });
 });

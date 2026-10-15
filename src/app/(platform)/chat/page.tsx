@@ -5,6 +5,7 @@ import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
 import { useApp } from "@/context/app-provider";
 import { consumeChatEvents } from "@/lib/ai/chat-events";
+import { boundChatHistory } from "@/lib/ai/chat-history";
 import {
   persistCompletedAnswer,
   persistConversationTitle,
@@ -22,6 +23,9 @@ function timestamp(): number {
   return Date.now();
 }
 
+const SAVE_FAILED_MESSAGE =
+  "Couldn't save this chat. Your messages are visible but may not persist.";
+
 export default function ChatPage() {
   const {
     activeId,
@@ -34,7 +38,39 @@ export default function ChatPage() {
   } = useApp();
   const [streaming, setStreaming] = useState(false);
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [prevConversationId, setPrevConversationId] = useState<string | undefined>(undefined);
+  const pendingSavesRef = useRef<(() => Promise<unknown>)[]>([]);
+
+  /** Track a persistence write so its failure stays visible and retryable. */
+  function trackSave(save: () => Promise<unknown>) {
+    pendingSavesRef.current.push(save);
+    void save().then(
+      () => {
+        pendingSavesRef.current = pendingSavesRef.current.filter(
+          (pending) => pending !== save,
+        );
+      },
+      () => {
+        setSaveError(SAVE_FAILED_MESSAGE);
+      },
+    );
+  }
+
+  async function retrySaves() {
+    const saves = pendingSavesRef.current;
+    pendingSavesRef.current = [];
+    setSaveError(null);
+    for (const save of saves) {
+      try {
+        await save();
+      } catch {
+        pendingSavesRef.current.push(save);
+        setSaveError(SAVE_FAILED_MESSAGE);
+        return;
+      }
+    }
+  }
   const abortRef = useRef<AbortController | null>(null);
   const assistantIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -112,7 +148,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           conversationId: convId,
           replyLanguageId,
-          messages: baseMessages.map((m) => ({
+          messages: boundChatHistory(baseMessages).map((m) => ({
             role: m.role,
             content: m.content,
           })),
@@ -137,7 +173,16 @@ export default function ChatPage() {
       });
       if (controller.signal.aborted) return;
       if (assistantText.trim() && persistence === "supabase") {
-        await persistCompletedAnswer(convId, assistantId, assistantText, true);
+        try {
+          await persistCompletedAnswer(convId, assistantId, assistantText, true);
+        } catch {
+          // A completed stream with a failed save is a save failure, not
+          // a send failure: keep the answer visible and say so.
+          pendingSavesRef.current.push(() =>
+            persistCompletedAnswer(convId, assistantId, assistantText, true),
+          );
+          if (!controller.signal.aborted) setSaveError(SAVE_FAILED_MESSAGE);
+        }
       }
     } catch {
       if (!controller.signal.aborted) {
@@ -173,9 +218,9 @@ export default function ChatPage() {
     });
 
     if (persistence === "supabase") {
-      void persistMessage(conversation.id, "user", text);
+      trackSave(() => persistMessage(conversation.id, "user", text));
       if (conversation.title === "New chat") {
-        void persistConversationTitle(conversation.id, title);
+        trackSave(() => persistConversationTitle(conversation.id, title));
       }
     }
 
@@ -267,6 +312,36 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setFailedDraft(null)}
+                className="rounded-xl px-3 py-1.5 text-xs text-white/60 transition hover:text-white"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {saveError !== null && (
+        <div
+          role="alert"
+          className="mx-auto w-full max-w-3xl px-4 pb-2"
+        >
+          <div className="liquid-card rounded-2xl p-3 text-sm">
+            <p className="text-white/80">{saveError}</p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void retrySaves()}
+                className="rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-white/90"
+              >
+                Retry save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pendingSavesRef.current = [];
+                  setSaveError(null);
+                }}
                 className="rounded-xl px-3 py-1.5 text-xs text-white/60 transition hover:text-white"
               >
                 Dismiss
