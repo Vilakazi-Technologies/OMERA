@@ -1,33 +1,35 @@
 const LELAPA_TRANSLATE_URL = "https://api.lelapa.ai/v1/translate/process";
 
+/** Documented transcription routes. Every other language has no route. */
+const TRANSCRIBE_ROUTES = new Set(["eng", "afr", "zul", "sot"]);
+
 type TranscribeResult = {
   text: string;
-  provider: "lelapa" | "demo";
+  provider: "lelapa";
   detectedLanguage?: string;
 };
 
-/** Demo transcript snippets for stakeholder demos when no API key is set. */
-const DEMO_BY_LANG: Record<string, string> = {
-  eng: "My first name is Thabo and my surname is Mokoena.",
-  afr: "My naam is Thabo en my van is Mokoena.",
-  zul: "Igama lami nguThabo futhi isibongo sami nguMokoena.",
-  xho: "Igama lam nguThabo kunye nesibongo sam nguMokoena.",
-  sot: "Lebitso la ka ke Thabo mme fane la ka ke Mokoena.",
-};
+/**
+ * Voice route for a product language ID, or undefined when the
+ * language has no documented route. Unknown languages never fall
+ * back to English.
+ */
+export function transcribeRoute(languageId: string): string | undefined {
+  return TRANSCRIBE_ROUTES.has(languageId) ? languageId : undefined;
+}
 
 export async function transcribeAudio(
   audioBase64: string,
   languageId: string,
   mimeType: string,
 ): Promise<TranscribeResult> {
+  const route = transcribeRoute(languageId);
+  if (!route) {
+    throw new Error("UNSUPPORTED_LANGUAGE");
+  }
   const token = process.env.LELAPA_API_KEY;
-
   if (!token) {
-    return {
-      text: DEMO_BY_LANG[languageId] ?? DEMO_BY_LANG.eng,
-      provider: "demo",
-      detectedLanguage: languageId,
-    };
+    throw new Error("VOICE_UNAVAILABLE");
   }
 
   const buffer = Buffer.from(audioBase64, "base64");
@@ -35,7 +37,7 @@ export async function transcribeAudio(
 
   const form = new FormData();
   form.append("file", blob, "recording.webm");
-  form.append("language", mapTranscribeLang(languageId));
+  form.append("language", route);
 
   const res = await fetch("https://api.lelapa.ai/v1/transcribe/process", {
     method: "POST",
@@ -91,14 +93,4 @@ export async function translateToEnglish(
     translation?: { translated_text: string }[];
   };
   return data.translation?.[0]?.translated_text ?? text;
-}
-
-function mapTranscribeLang(languageId: string): string {
-  const map: Record<string, string> = {
-    eng: "eng",
-    afr: "afr",
-    zul: "zul",
-    sot: "sot",
-  };
-  return map[languageId] ?? "eng";
 }
