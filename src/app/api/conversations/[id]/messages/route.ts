@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getUserIdFromCookies } from "@/lib/auth/session";
+import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
+import { requireIdentity } from "@/lib/auth/require-identity";
+import { createAuthContext } from "@/lib/supabase/server";
 import { getConversation, insertMessage } from "@/lib/db/conversations";
 import { isSupabaseConfigured } from "@/lib/supabase/admin";
 
@@ -7,23 +9,26 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, { params }: Params) {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
   }
-  const userId = await getUserIdFromCookies();
-  if (!userId) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  const { id } = await params;
-  const conversation = await getConversation(id, userId);
-  if (!conversation) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  try {
+    const auth = await createAuthContext();
+    const identity = await requireIdentity(auth);
+    const { id } = await params;
+    const conversation = await getConversation(id, identity.userId);
+    if (!conversation) throw new ApiError("NOT_FOUND", 404);
 
-  const body = (await req.json()) as {
-    role: "user" | "assistant" | "system";
-    content: string;
-  };
+    const body = (await req.json()) as {
+      role: "user" | "assistant" | "system";
+      content: string;
+    };
 
-  const message = await insertMessage(id, body.role, body.content);
-  return NextResponse.json({ message });
+    const message = await insertMessage(id, body.role, body.content);
+    return auth.applyCookies(NextResponse.json({ message }));
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }
