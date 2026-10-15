@@ -3,39 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-const updateConversation = vi.fn();
-const createConversation = vi.fn();
-
-const appState = {
-  languageId: "eng",
-  languageExplicit: false,
-};
+const { updateConversation } = authFixtureFns;
 
 vi.mock("@/context/app-provider", () => ({
-  useApp: () => ({
-    activeId: "conv-1",
-    createConversation,
-    conversations: [
-      {
-        id: "conv-1",
-        title: "New chat",
-        mode: "chat",
-        messages: [],
-        updatedAt: Date.now(),
-      },
-    ],
-    updateConversation,
-    persistence: "local",
-    languageId: appState.languageId,
-    languageExplicit: appState.languageExplicit,
-    setLanguageId: (id: string) => {
-      appState.languageId = id;
-      appState.languageExplicit = true;
-    },
-    setLanguageExplicit: (explicit: boolean) => {
-      appState.languageExplicit = explicit;
-    },
-  }),
+  useApp: vi.fn(),
 }));
 vi.mock("@/lib/omera-sync", () => ({
   persistMessage: vi.fn(async () => undefined),
@@ -44,6 +15,12 @@ vi.mock("@/lib/omera-sync", () => ({
 }));
 
 import ChatPage from "@/app/(platform)/chat/page";
+import { useApp } from "@/context/app-provider";
+import {
+  authAppValue,
+  authFixtureFns,
+  resetAuthFixture,
+} from "../fixtures/authenticated-app";
 
 function sseBytes(text: string): Uint8Array {
   return new TextEncoder().encode(text);
@@ -80,8 +57,8 @@ function jsonResponse(body: unknown, status: number): Response {
 }
 
 beforeEach(() => {
-  appState.languageId = "eng";
-  appState.languageExplicit = false;
+  resetAuthFixture();
+  vi.mocked(useApp).mockImplementation(() => authAppValue() as never);
   if (
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID !== "function"

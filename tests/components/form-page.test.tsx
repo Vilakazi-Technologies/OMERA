@@ -4,15 +4,12 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/context/app-provider", () => ({
-  useApp: () => ({
-    languageId: "eng",
-    setLanguageId: vi.fn(),
-    languageExplicit: false,
-    setLanguageExplicit: vi.fn(),
-  }),
+  useApp: vi.fn(),
 }));
 
 import FormFillPage from "@/app/(platform)/form/page";
+import { useApp } from "@/context/app-provider";
+import { authAppValue, resetAuthFixture } from "../fixtures/authenticated-app";
 
 const FIELDS = [
   {
@@ -85,6 +82,8 @@ async function answer(text: string) {
 }
 
 beforeEach(() => {
+  resetAuthFixture();
+  vi.mocked(useApp).mockImplementation(() => authAppValue() as never);
   localStorage.clear();
   if (typeof URL.createObjectURL !== "function") {
     (URL as unknown as Record<string, unknown>).createObjectURL = () => "";

@@ -16,14 +16,12 @@ vi.mock("@/hooks/use-voice-recorder", () => ({
 }));
 
 vi.mock("@/context/app-provider", () => ({
-  useApp: () => ({
-    languageId: "zul",
-    setLanguageId: vi.fn(),
-    languageExplicit: true,
-  }),
+  useApp: vi.fn(),
 }));
 
 import { ChatComposer } from "@/components/chat-composer";
+import { useApp } from "@/context/app-provider";
+import { authAppValue, resetAuthFixture } from "../fixtures/authenticated-app";
 
 const CLIP = {
   wav: new Uint8Array([1, 2]),
@@ -33,6 +31,8 @@ const CLIP = {
 };
 
 beforeEach(() => {
+  resetAuthFixture({ languageId: "zul", languageExplicit: true });
+  vi.mocked(useApp).mockImplementation(() => authAppValue() as never);
   startMock.mockReset();
   stopMock.mockReset();
   stopMock.mockResolvedValue(CLIP);
