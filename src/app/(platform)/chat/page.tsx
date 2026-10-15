@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
 import { useApp } from "@/context/app-provider";
-import { persistConversationTitle, persistMessage } from "@/lib/omera-sync";
+import { consumeChatEvents } from "@/lib/ai/chat-events";
+import {
+  persistCompletedAnswer,
+  persistConversationTitle,
+  persistMessage,
+} from "@/lib/omera-sync";
 import type { ChatMessage } from "@/lib/types";
 
 const SUGGESTIONS = [
@@ -22,11 +27,16 @@ export default function ChatPage() {
     persistence,
   } = useApp();
   const [streaming, setStreaming] = useState(false);
+  const [failedDraft, setFailedDraft] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const assistantIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const conversation =
     conversations.find((c) => c.id === activeId) ??
     conversations.find((c) => c.mode === "chat");
+
+  const conversationId = conversation?.id;
 
   useEffect(() => {
     if (!conversation && conversations.length === 0) {
@@ -34,11 +44,96 @@ export default function ChatPage() {
     }
   }, [conversation, conversations.length, createConversation]);
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    assistantIdRef.current = null;
+    setStreaming(false);
+    setFailedDraft(null);
+  }, [conversationId]);
+
   const messages = conversation?.messages ?? [];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  async function streamAssistant(
+    convId: string,
+    baseMessages: ChatMessage[],
+    assistantId: string,
+    draftText: string,
+  ) {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    assistantIdRef.current = assistantId;
+    setStreaming(true);
+    setFailedDraft(null);
+    let assistantText = "";
+
+    updateConversation(convId, {
+      messages: [
+        ...baseMessages,
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          createdAt: Date.now(),
+        },
+      ],
+    });
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: convId,
+          messages: baseMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) throw new Error("CHAT_REQUEST_FAILED");
+      await consumeChatEvents(res.body, (token) => {
+        if (controller.signal.aborted) return;
+        assistantText += token;
+        updateConversation(convId, {
+          messages: [
+            ...baseMessages,
+            {
+              id: assistantId,
+              role: "assistant",
+              content: assistantText,
+              createdAt: Date.now(),
+            },
+          ],
+        });
+      });
+      if (controller.signal.aborted) return;
+      if (assistantText.trim() && persistence === "supabase") {
+        await persistCompletedAnswer(convId, assistantId, assistantText, true);
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        setFailedDraft(draftText);
+      }
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setStreaming(false);
+      }
+    }
+  }
 
   async function sendMessage(text: string) {
     if (!conversation || streaming) return;
@@ -68,73 +163,23 @@ export default function ChatPage() {
       }
     }
 
-    setStreaming(true);
-    const assistantId = crypto.randomUUID();
-    let assistantText = "";
+    await streamAssistant(
+      conversation.id,
+      nextMessages,
+      crypto.randomUUID(),
+      text,
+    );
+  }
 
-    updateConversation(conversation.id, {
-      messages: [
-        ...nextMessages,
-        {
-          id: assistantId,
-          role: "assistant",
-          content: "",
-          createdAt: Date.now(),
-        },
-      ],
-    });
-
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversationId: conversation.id,
-        messages: nextMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      }),
-    });
-
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6);
-          if (payload === "[DONE]") break;
-          try {
-            const { token } = JSON.parse(payload) as { token: string };
-            assistantText += token;
-            updateConversation(conversation.id, {
-              messages: [
-                ...nextMessages,
-                {
-                  id: assistantId,
-                  role: "assistant",
-                  content: assistantText,
-                  createdAt: Date.now(),
-                },
-              ],
-            });
-          } catch {
-            /* ignore partial json */
-          }
-        }
-      }
-    }
-
-    if (persistence === "supabase" && assistantText.trim()) {
-      void persistMessage(conversation.id, "assistant", assistantText);
-    }
-
-    setStreaming(false);
+  async function retrySend() {
+    if (!conversation || streaming) return;
+    const draft = failedDraft;
+    if (!draft) return;
+    const failedId = assistantIdRef.current;
+    const base = failedId
+      ? messages.filter((m) => m.id !== failedId)
+      : messages;
+    await streamAssistant(conversation.id, base, crypto.randomUUID(), draft);
   }
 
   return (
@@ -181,6 +226,31 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {failedDraft !== null && (
+        <div className="mx-auto w-full max-w-3xl px-4 pb-2">
+          <div className="liquid-card rounded-2xl p-3 text-sm">
+            <p className="text-white/80">Message failed to send.</p>
+            <p className="mt-1 line-clamp-2 text-white/50">{failedDraft}</p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void retrySend()}
+                className="rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-white/90"
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={() => setFailedDraft(null)}
+                className="rounded-xl px-3 py-1.5 text-xs text-white/60 transition hover:text-white"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ChatComposer onSend={sendMessage} disabled={streaming} />
     </>
