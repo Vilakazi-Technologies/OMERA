@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { apiErrorResponse } from "@/lib/http/api-error";
+import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { OMERA_USER_COOKIE } from "@/lib/auth/session";
 import { createAuthContext } from "@/lib/supabase/server";
 
 export async function POST() {
   try {
     const auth = await createAuthContext();
-    await auth.supabase.auth.signOut();
+    const { error: signOutError } = await auth.supabase.auth.signOut();
+    // A failed provider sign-out must stay a failure: clearing cookies
+    // and reporting success would leave a live session behind a lie.
+    if (signOutError) throw new ApiError("SIGN_OUT_FAILED", 502);
     auth.cookies.setAll([
       {
         name: OMERA_USER_COOKIE,
