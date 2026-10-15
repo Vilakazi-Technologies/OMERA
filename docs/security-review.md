@@ -2,10 +2,12 @@
 
 `npm audit` reports **8 vulnerabilities (7 high, 1 critical)**. No fix is
 applied in this change: every available fix requires `npm audit fix --force`
-and installs breaking changes (Next.js 15 -> 16 major line movement and an
-eslint-config-next major bump). A Next.js major bump is a release decision,
-not a hygiene task, because it can change App Router behavior that the I1-I5
-integration packs depend on (route handlers, cookie handling, streaming).
+and moves version lines outside what the lockfile pins (Next.js 16.2.12 to
+16.4.1, plus an eslint-config-next line change). Even a minor Next.js bump
+can change App Router runtime behavior that the I1-I5 integration packs
+depend on (route handlers, cookie handling, streaming, image optimization),
+so the update needs an isolated branch with full gate verification and
+explicit owner sign-off — not a silent in-place fix.
 
 Owner approval is required before any update. Do not run
 `npm audit fix --force` without it.
@@ -22,7 +24,7 @@ Owner approval is required before any update. Do not run
 | 6 | next@16.2.12 | high (via next) | GHSA-f87g-xv8r-7p7x — information disclosure in metadata image routes (dynamicParams bypass) | next@16.4.1 | Same as above |
 | 7 | next@16.2.12 | high (via next) | GHSA-rmcj8-r9mp-w47p / GHSA-cjq9-62q9-8jv4 — SSG/ISR cache poisoning (DoS) / SSRF in Image Optimization | next@16.4.1 | Same as above |
 | 8a | postcss (nested under next) / sharp (nested under next) | high | GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849, GHSA-f88m-g3jw-g9cj, GHSA-g89c-p67h-r497, GHSA-2jg2-4ch7-h545, GHSA-wq5f-xc86-pv6w (postcss XSS/source-map reads; sharp libvips/libheif/librsvg) | next@16.4.1 | Same as above (nested deps move with Next.js) |
-| 8b | braces@3.0.3 (via eslint-config-next 14.2.x chain) | high | GHSA-vfj7-8cjw-p6xm — stack-exhaustion DoS via nested patterns | eslint-config-next@14.2.35 | Major eslint-config bump; lint behavior risk |
+| 8b | braces@3.0.3 (via eslint-config-next chain) | high | GHSA-vfj7-8cjw-p6xm — stack-exhaustion DoS via nested patterns | eslint-config-next line change | Lint behavior risk |
 
 Note: the top-level `postcss@8.5.30` (via @tailwindcss/postcss) is past the
 vulnerable range; the flagged postcss/sharp copies are nested under `next`.
@@ -31,9 +33,11 @@ vulnerable range; the flagged postcss/sharp copies are nested under `next`.
 
 1. Stage a Next.js 16.2.x -> 16.4.x bump on an isolated branch; run the full
    suite (`lint`, `typecheck`, `test`, `test:coverage`, `build`) plus the
-   BLOCKED integration/browser gates once their environments exist.
+   BLOCKED integration/browser gates once their environments exist. Treat
+   the minor line the same as a major for verification purposes: the
+   integration packs depend on exact route-handler and streaming behavior.
 2. Re-run `npm audit`; confirm zero high/critical findings.
-3. Pick up the eslint-config-next major bump in the same branch and re-run
+3. Pick up the eslint-config-next line change in the same branch and re-run
    `npm run lint` (lint behavior may change).
 4. Obtain explicit owner sign-off before merging: the bump ships new runtime
    behavior to production.
