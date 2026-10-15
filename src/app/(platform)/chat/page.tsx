@@ -13,9 +13,9 @@ import {
 import type { ChatMessage } from "@/lib/types";
 
 const SUGGESTIONS = [
-  "How does voice form filling work?",
-  "Which South African languages do you support?",
-  "We're at Metropolitan — can staff fill forms quietly?",
+  "Help me validate a business idea before I spend money.",
+  "Help me obtain my first paying customer.",
+  "Help me improve pricing and cash flow.",
 ];
 
 export default function ChatPage() {
@@ -208,12 +208,11 @@ export default function ChatPage() {
         {messages.length === 0 ? (
           <div className="mx-auto flex max-w-2xl flex-col items-center pt-[10vh] text-center">
             <h2 className="text-2xl font-semibold text-white sm:text-3xl">
-              What can I help you with today?
+              What does your business need next?
             </h2>
             <p className="mt-2 max-w-md text-sm text-slate-400">
-              Ask anything — or open{" "}
-              <span className="text-white">Form fill</span> to complete a
-              document by voice.
+              Ask for practical business guidance, or use Form fill to complete
+              a supported PDF.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
