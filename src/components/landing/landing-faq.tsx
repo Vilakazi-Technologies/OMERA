@@ -13,23 +13,23 @@ const FAQ_ITEMS = [
   },
   {
     q: "Which languages are supported?",
-    a: "Omera is designed for all eleven official South African languages, with continuous expansion across voice and text so more people can use the product in the language they prefer.",
+    a: "Typed input works in all eleven official South African languages. Voice input follows the documented support status, and measured speech quality is unrecorded until product recordings are evaluated.",
   },
   {
     q: "How does form filling work?",
-    a: "Upload your PDF or document. Omera analyses the fields, then asks you one question at a time in text. You respond by typing or speaking. You review answers before anything is finalised.",
+    a: "Upload your fillable PDF. Omera analyses the fields, then asks you one question at a time in text. You respond by typing or speaking where a voice route exists. Scanned documents need an approved template. You review answers before anything is finalised.",
   },
   {
     q: "Is my data safe?",
-    a: "Omera is built with POPIA in mind. We minimise what we store, encrypt data in transit, and provide clear privacy terms. Enterprise deployments can include dedicated hosting and retention policies.",
+    a: "Omera asks only for the answers your form needs, and you review every answer before anything is finalised. The privacy policy and terms describe what is stored and how to request deletion.",
   },
   {
     q: "Can my company use Omera for internal forms?",
-    a: "Yes. Teams in insurance, financial services, HR, and operations use form workflows to reduce typing load. Contact VILATECH for pilots and custom integrations.",
+    a: "Teams in insurance, financial services, HR, and operations can run a pilot of the form workflow to reduce typing load. Contact VILATECH for pilots and custom integrations.",
   },
   {
     q: "Do I need to install an app?",
-    a: "Omera runs in your browser and can be added to your home screen on mobile. A dedicated app experience is on the roadmap using the same account.",
+    a: "Omera runs in your browser and can be added to your home screen on mobile.",
   },
 ];
 

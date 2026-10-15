@@ -31,33 +31,33 @@ const FEATURES = [
   },
   {
     icon: FileText,
-    title: "Voice-powered forms",
+    title: "Voice-supported forms",
     body:
-      "Upload PDFs and official documents. Omera reads the fields and walks you through each answer.",
+      "Upload a fillable PDF form. Omera reads the fields and walks you through each answer.",
   },
   {
     icon: Mic,
     title: "Speak your answers",
     body:
-      "Answer by voice in the language you are comfortable with. Questions stay on screen for quiet offices.",
+      "Answer by voice where a voice route exists for your language. Questions stay on screen for quiet offices.",
   },
   {
     icon: Globe2,
-    title: "Eleven official languages",
+    title: "11 spoken languages",
     body:
-      "Built for multilingual South Africa — from English and Afrikaans to isiZulu, Sesotho, and more.",
+      "Typed input in all eleven official languages; voice input where a documented voice route exists.",
   },
   {
     icon: Shield,
-    title: "POPIA-conscious",
+    title: "Review before anything is final",
     body:
-      "Clear privacy terms, minimal retention, and enterprise options for regulated industries.",
+      "Clear privacy terms and terms of use; you confirm every answer before export.",
   },
   {
     icon: Building2,
-    title: "Built for teams",
+    title: "Pilots for teams",
     body:
-      "Insurance, HR, and operations teams that process the same forms every month.",
+      "For insurance, HR, and operations teams that process the same forms every month — scoped per pilot through VILATECH.",
   },
 ];
 
@@ -65,7 +65,7 @@ const STEPS = [
   {
     step: "01",
     title: "Upload your form",
-    body: "PDF, Word, or a clear photo. Omera maps the fields it needs to complete.",
+    body: "A fillable PDF form. Omera maps the fields it needs to complete.",
     icon: Upload,
   },
   {
@@ -216,10 +216,10 @@ export function LandingPage() {
           <ScrollReveal>
             <LandingSectionHeader
               eyebrow="Languages"
-              title="Built for all eleven official languages of South Africa"
+              title="Eleven official languages, typed everywhere"
             >
-              Omera is built so more people can participate in their home
-              language — without switching to English first.
+              Typed input works in every language; voice input follows the
+              documented support status.
             </LandingSectionHeader>
           </ScrollReveal>
           <ScrollReveal className="mt-10" delay={0.12}>
@@ -246,11 +246,10 @@ export function LandingPage() {
                   Trust
                 </p>
                 <h2 className="mt-3 font-serif text-2xl font-medium text-white sm:text-3xl">
-                  Enterprise-ready foundations
+                  From VILATECH in Johannesburg
                 </h2>
                 <p className="mt-4 text-sm leading-relaxed text-white/45 sm:text-base">
-                  Omera is developed by VILATECH, a Johannesburg software studio
-                  building products for regulated and high-trust environments.
+                  Omera is developed by VILATECH, a Johannesburg software studio.
                 </p>
               </div>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0 lg:shrink-0">

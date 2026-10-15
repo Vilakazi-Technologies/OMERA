@@ -23,7 +23,7 @@ export function LandingStatement() {
             </p>
             <p>
               The product is built by VILATECH in Johannesburg, for organisations
-              that require clarity, compliance, and dignity in every digital
+              that require clarity and dignity in every digital
               interaction.
             </p>
           </div>
