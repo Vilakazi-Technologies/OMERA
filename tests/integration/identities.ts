@@ -1,7 +1,7 @@
+import { integrationTarget } from "./setup";
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createOmeraUserForAuthId } from "@/lib/db/users";
-import { integrationTarget } from "./setup";
 
 /**
  * The admin client must resolve to the validated isolated target.

@@ -1,3 +1,4 @@
+import "./setup";
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
