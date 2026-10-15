@@ -105,10 +105,11 @@ export async function getConversation(conversationId: string, userId: string) {
 
 export async function touchConversation(conversationId: string) {
   const supabase = getSupabaseAdmin();
-  await supabase
+  const { error } = await supabase
     .from("omera_conversations")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", conversationId);
+  if (error) throw error;
 }
 
 export async function updateConversationMeta(
@@ -116,7 +117,11 @@ export async function updateConversationMeta(
   patch: { title?: string },
 ) {
   const supabase = getSupabaseAdmin();
-  await supabase.from("omera_conversations").update(patch).eq("id", conversationId);
+  const { error } = await supabase
+    .from("omera_conversations")
+    .update(patch)
+    .eq("id", conversationId);
+  if (error) throw error;
 }
 
 export async function insertMessage(
@@ -124,6 +129,7 @@ export async function insertMessage(
   role: "user" | "assistant" | "system",
   content: string,
 ) {
+  if (role === "system") throw new Error("SYSTEM_MESSAGES_REJECTED");
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("omera_messages")
