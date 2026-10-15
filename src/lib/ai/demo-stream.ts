@@ -1,3 +1,5 @@
+import { runtimeMode } from "@/lib/ai/runtime-mode";
+
 const DEMO_REPLIES: Record<string, string> = {
   default:
     "I'm **Omera**, a **VILATECH** product built in South Africa. I can help with everyday questions, work, and — our specialty — **filling in forms by voice**. Open **Form fill** in the sidebar to upload a PDF and answer by speaking.",
@@ -19,8 +21,15 @@ function pickReply(prompt: string): string {
   return DEMO_REPLIES.default;
 }
 
-/** SSE stream matching the web client (`{ token }` chunks). */
-export function createDemoChatStream(lastUserMessage: string): ReadableStream<Uint8Array> {
+/** SSE stream matching the web client (`{ token }` chunks). Demo-only: it
+ * runs exclusively in explicit local demo mode and never in production. */
+export function createDemoChatStream(
+  lastUserMessage: string,
+  env: NodeJS.ProcessEnv = process.env,
+): ReadableStream<Uint8Array> {
+  if (runtimeMode(env.XAVANI_API_KEY, env) !== "demo") {
+    throw new Error("DEMO_MODE_DISABLED");
+  }
   const content = pickReply(lastUserMessage);
   const encoder = new TextEncoder();
 
