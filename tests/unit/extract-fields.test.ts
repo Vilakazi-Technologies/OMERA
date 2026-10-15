@@ -25,10 +25,15 @@ const INSPECTED: PdfFieldInfo[] = [
 ];
 
 it("a_failed_analysis_returns_no_demo_fields", async () => {
-  vi.mocked(completeXavaniJson).mockResolvedValueOnce([
-    { id: "full_name", label: "Igama", prompt: "Ngubani igama lakho?" },
-    // permission and method omitted: strict coverage must reject, never demo.
-  ] as never);
+  vi.mocked(completeXavaniJson).mockImplementationOnce(
+    async (_config, _system, _input, parse) =>
+      parse({
+        fields: [
+          { id: "full_name", label: "Igama", prompt: "Ngubani igama lakho?" },
+          // permission and method omitted: strict coverage must reject, never demo.
+        ],
+      } as never),
+  );
   const error = await extractFormFields(INSPECTED, {
     languageId: "zul",
   }).catch((failure: unknown) => failure);
