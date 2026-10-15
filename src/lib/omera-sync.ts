@@ -1,5 +1,23 @@
 type ChatRole = "user" | "assistant";
 
+/**
+ * Check every save status. A non-OK response or an unreadable body is a
+ * visible failure — callers never treat it as a silent success.
+ */
+export async function assertSaveResponse(
+  response: Response,
+  failureCode: string,
+): Promise<unknown> {
+  if (!response.ok) {
+    throw new Error(`${failureCode}:${response.status}`);
+  }
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`${failureCode}:INVALID_JSON`);
+  }
+}
+
 async function persistJson(
   url: string,
   body: unknown,
@@ -10,10 +28,7 @@ async function persistJson(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!response.ok) {
-    throw new Error(`${failureCode}:${response.status}`);
-  }
-  return response.json();
+  return assertSaveResponse(response, failureCode);
 }
 
 /**
@@ -58,18 +73,15 @@ export async function persistConversationTitle(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
   });
-  if (!response.ok) {
-    throw new Error(`PERSIST_TITLE_FAILED:${response.status}`);
-  }
-  return response.json();
+  return assertSaveResponse(response, "PERSIST_TITLE_FAILED");
 }
 
 export async function persistFormSession(
   sessionId: string,
   patch: {
-    fields?: unknown;
+    answers: Record<string, string | boolean>;
+    revision: number;
     currentIndex?: number;
-    status?: "in_progress" | "completed";
   },
 ) {
   const response = await fetch(`/api/forms/sessions/${sessionId}`, {
@@ -77,8 +89,5 @@ export async function persistFormSession(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  if (!response.ok) {
-    throw new Error(`PERSIST_FORM_SESSION_FAILED:${response.status}`);
-  }
-  return response.json();
+  return assertSaveResponse(response, "PERSIST_FORM_SESSION_FAILED");
 }

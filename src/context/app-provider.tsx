@@ -34,6 +34,8 @@ type AppContextValue = {
   refreshConversations: () => Promise<void>;
   formSession: FormSession | null;
   setFormSession: (s: FormSession | null) => void;
+  syncError: string | null;
+  clearSyncError: () => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -86,6 +88,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [formSession, setFormSession] = useState<FormSession | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const clearSyncError = useCallback(() => setSyncError(null), []);
 
   const clearPrivateState = useCallback(() => {
     setConversations([]);
@@ -141,10 +146,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshConversations = useCallback(async () => {
     if (persistence !== "supabase" || !userId) return;
-    const res = await fetch("/api/conversations");
-    if (!res.ok) return;
-    const data = (await res.json()) as { conversations: Conversation[] };
-    setConversations(data.conversations ?? []);
+    try {
+      const res = await fetch("/api/conversations");
+      if (!res.ok) {
+        setSyncError(`REFRESH_CONVERSATIONS_FAILED:${res.status}`);
+        return;
+      }
+      const data = (await res.json()) as { conversations: Conversation[] };
+      setConversations(data.conversations ?? []);
+      setSyncError(null);
+    } catch {
+      setSyncError("REFRESH_CONVERSATIONS_FAILED:fetch");
+    }
   }, [persistence, userId]);
 
   useEffect(() => {
@@ -177,18 +190,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const createConversation = useCallback(
     async (mode: "chat" | "form") => {
+      // Supabase persistence never falls back to local conversations
+      // silently: a database failure is recorded visibly and thrown.
       if (persistence === "supabase" && userId) {
-        const res = await fetch("/api/conversations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { conversation: Conversation };
-          setConversations((prev) => [data.conversation, ...prev]);
-          setActiveId(data.conversation.id);
-          return data.conversation.id;
+        let res: Response;
+        try {
+          res = await fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          });
+        } catch {
+          setSyncError("CREATE_CONVERSATION_FAILED:fetch");
+          throw new Error("CREATE_CONVERSATION_FAILED:fetch");
         }
+        if (!res.ok) {
+          setSyncError(`CREATE_CONVERSATION_FAILED:${res.status}`);
+          throw new Error(`CREATE_CONVERSATION_FAILED:${res.status}`);
+        }
+        const data = (await res.json()) as { conversation: Conversation };
+        setConversations((prev) => [data.conversation, ...prev]);
+        setActiveId(data.conversation.id);
+        setSyncError(null);
+        return data.conversation.id;
       }
 
       const id = crypto.randomUUID();
@@ -242,6 +266,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshConversations,
       formSession,
       setFormSession,
+      syncError,
+      clearSyncError,
     }),
     [
       userName,
@@ -261,6 +287,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateConversation,
       refreshConversations,
       formSession,
+      syncError,
+      clearSyncError,
     ],
   );
 
