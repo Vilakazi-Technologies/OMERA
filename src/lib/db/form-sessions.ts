@@ -98,18 +98,32 @@ export async function updateFormSession(
     currentIndex?: number;
     status?: FormDocumentStatus;
     revision?: number;
+    documentSha256?: string;
+    storagePath?: string | null;
   },
 ): Promise<FormSessionRecord> {
   const supabase = getSupabaseAdmin();
+  // Strip undefined keys explicitly: a status-only completion update must
+  // never express a fields_json overwrite, regardless of how the database
+  // client serializes missing values.
+  const update: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (patch.fields !== undefined) update["fields_json"] = patch.fields;
+  if (patch.currentIndex !== undefined) {
+    update["current_index"] = patch.currentIndex;
+  }
+  if (patch.status !== undefined) update["status"] = patch.status;
+  if (patch.revision !== undefined) update["revision"] = patch.revision;
+  if (patch.documentSha256 !== undefined) {
+    update["document_sha256"] = patch.documentSha256;
+  }
+  if (patch.storagePath !== undefined) {
+    update["storage_path"] = patch.storagePath;
+  }
   const { data, error } = await supabase
     .from("omera_form_sessions")
-    .update({
-      fields_json: patch.fields,
-      current_index: patch.currentIndex,
-      status: patch.status,
-      revision: patch.revision,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", sessionId)
     .eq("user_id", userId)
     .select(FULL_COLUMNS)

@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   createFormSession,
   deleteFormSession,
   getFormSession,
+  updateFormSession,
 } from "@/lib/db/form-sessions";
 import {
   FORMS_BUCKET,
@@ -58,6 +60,12 @@ describe("form deletion", () => {
       fileName: "delete-a.pdf",
       bytes,
       contentType: "application/pdf",
+    });
+    // The row must reference the uploaded object: deletion reports the
+    // stored path, and export resolves the original bytes through it.
+    await updateFormSession(sessionAId, userA.userId, {
+      storagePath: pathA,
+      documentSha256: createHash("sha256").update(bytes).digest("hex"),
     });
     const sessionB = await createFormSession({
       userId: userB.userId,
