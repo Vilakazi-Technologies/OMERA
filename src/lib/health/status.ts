@@ -71,7 +71,11 @@ export function overallStatus(input: {
   database: DatabaseHealth;
 }): OverallStatus {
   if (input.xavani.state === "unavailable") return "unavailable";
-  if (input.database.configured && input.database.reachable !== true) {
+  // Persistence is a core capability: an unconfigured database is
+  // unavailable, not merely degraded. A configured but unreachable
+  // database degrades the service instead.
+  if (!input.database.configured) return "unavailable";
+  if (input.database.reachable !== true) {
     return "degraded";
   }
   return "ok";

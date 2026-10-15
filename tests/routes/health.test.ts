@@ -22,7 +22,9 @@ function healthyDb() {
   vi.mocked(isSupabaseConfigured).mockReturnValue(true);
   vi.mocked(getSupabaseAdmin).mockReturnValue({
     from: () => ({
-      select: async () => ({ error: null }),
+      select: () => ({
+        limit: async () => ({ error: null }),
+      }),
     }),
   } as unknown as ReturnType<typeof getSupabaseAdmin>);
 }
@@ -31,7 +33,9 @@ function failingDb() {
   vi.mocked(isSupabaseConfigured).mockReturnValue(true);
   vi.mocked(getSupabaseAdmin).mockReturnValue({
     from: () => ({
-      select: async () => ({ error: new Error("connection refused") }),
+      select: () => ({
+        limit: async () => ({ error: new Error("connection refused") }),
+      }),
     }),
   } as unknown as ReturnType<typeof getSupabaseAdmin>);
 }
@@ -85,6 +89,8 @@ it("an_unverified_provider_reports_configured", async () => {
   healthyDb();
   const response = await GET();
   const body = (await response.json()) as {
+    status: string;
+    database: { configured: boolean; reachable: boolean | null };
     chat: {
       state: string;
       configured: boolean;
@@ -96,4 +102,42 @@ it("an_unverified_provider_reports_configured", async () => {
   expect(body.chat.state).toBe("configured");
   expect(body.chat.compatibility).toBe("unverified");
   expect(body.chat.inference).toBe("unverified");
+  expect(body.database.configured).toBe(true);
+  expect(body.database.reachable).toBe(true);
+  expect(body.status).toBe("ok");
+});
+
+it("an_unconfigured_database_returns_unavailable", async () => {
+  process.env.XAVANI_API_KEY = "xavani-test-key";
+  process.env.XAVANI_BASE_URL = "https://xavani.example/";
+  vi.mocked(isSupabaseConfigured).mockReturnValue(false);
+  const response = await GET();
+  const body = (await response.json()) as {
+    status: string;
+    database: { configured: boolean; reachable: boolean | null };
+  };
+  expect(body.database.configured).toBe(false);
+  expect(body.database.reachable).toBe(null);
+  expect(vi.mocked(getSupabaseAdmin)).not.toHaveBeenCalled();
+  expect(body.status).toBe("unavailable");
+});
+
+it("the_probe_reads_the_application_conversations_table", async () => {
+  process.env.XAVANI_API_KEY = "xavani-test-key";
+  process.env.XAVANI_BASE_URL = "https://xavani.example/";
+  const probedTables: string[] = [];
+  vi.mocked(isSupabaseConfigured).mockReturnValue(true);
+  vi.mocked(getSupabaseAdmin).mockReturnValue({
+    from: (table: string) => {
+      probedTables.push(table);
+      return {
+        select: () => ({
+          limit: async () => ({ error: null }),
+        }),
+      };
+    },
+  } as unknown as ReturnType<typeof getSupabaseAdmin>);
+  const response = await GET();
+  expect(response.status).toBe(200);
+  expect(probedTables).toEqual(["omera_conversations"]);
 });
