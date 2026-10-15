@@ -1,94 +1,33 @@
-/** South Africa's eleven official languages — UI + speech routing. */
+/** South Africa's eleven official languages — UI registry. */
+import type { SpeechRoute } from "@/lib/speech/capabilities";
+
 export type SaLanguage = {
   id: string;
   name: string;
   nativeName: string;
-  /** Lelapa Vulavula transcribe code when supported; null = Whisper fallback via API */
-  lelapaTranscribe?: string;
-  lelapaTranslate?: string;
-  speechStatus: "live" | "beta" | "planned";
+  /** Typed input is available for every language. */
+  text: true;
+  /**
+   * Voice route: "supported" (production), "beta" (beta route), or
+   * "unavailable" (no voice route — never reroute to another language).
+   */
+  speech: SpeechRoute;
+  /** Measured speech quality; none until product recordings are evaluated. */
+  measured: null;
 };
 
 export const SA_LANGUAGES: SaLanguage[] = [
-  {
-    id: "eng",
-    name: "English",
-    nativeName: "English",
-    lelapaTranscribe: "eng",
-    lelapaTranslate: "eng_Latn",
-    speechStatus: "live",
-  },
-  {
-    id: "afr",
-    name: "Afrikaans",
-    nativeName: "Afrikaans",
-    lelapaTranscribe: "afr",
-    lelapaTranslate: "afr_Latn",
-    speechStatus: "live",
-  },
-  {
-    id: "zul",
-    name: "isiZulu",
-    nativeName: "isiZulu",
-    lelapaTranscribe: "zul",
-    lelapaTranslate: "zul_Latn",
-    speechStatus: "live",
-  },
-  {
-    id: "xho",
-    name: "isiXhosa",
-    nativeName: "isiXhosa",
-    lelapaTranslate: "xho_Latn",
-    speechStatus: "beta",
-  },
-  {
-    id: "nso",
-    name: "Sepedi",
-    nativeName: "Sepedi",
-    lelapaTranslate: "nso_Latn",
-    speechStatus: "beta",
-  },
-  {
-    id: "sot",
-    name: "Sesotho",
-    nativeName: "Sesotho",
-    lelapaTranscribe: "sot",
-    lelapaTranslate: "sot_Latn",
-    speechStatus: "live",
-  },
-  {
-    id: "tsn",
-    name: "Setswana",
-    nativeName: "Setswana",
-    lelapaTranslate: "tsn_Latn",
-    speechStatus: "beta",
-  },
-  {
-    id: "ssw",
-    name: "siSwati",
-    nativeName: "siSwati",
-    lelapaTranslate: "ssw_Latn",
-    speechStatus: "planned",
-  },
-  {
-    id: "ven",
-    name: "Tshivenda",
-    nativeName: "Tshivenda",
-    speechStatus: "planned",
-  },
-  {
-    id: "tso",
-    name: "Xitsonga",
-    nativeName: "Xitsonga",
-    lelapaTranslate: "tso_Latn",
-    speechStatus: "beta",
-  },
-  {
-    id: "nbl",
-    name: "isiNdebele",
-    nativeName: "isiNdebele",
-    speechStatus: "planned",
-  },
+  { id: "eng", name: "English", nativeName: "English", text: true, speech: "supported", measured: null },
+  { id: "afr", name: "Afrikaans", nativeName: "Afrikaans", text: true, speech: "beta", measured: null },
+  { id: "zul", name: "isiZulu", nativeName: "isiZulu", text: true, speech: "supported", measured: null },
+  { id: "xho", name: "isiXhosa", nativeName: "isiXhosa", text: true, speech: "unavailable", measured: null },
+  { id: "nso", name: "Sepedi", nativeName: "Sepedi", text: true, speech: "unavailable", measured: null },
+  { id: "sot", name: "Sesotho", nativeName: "Sesotho", text: true, speech: "beta", measured: null },
+  { id: "tsn", name: "Setswana", nativeName: "Setswana", text: true, speech: "unavailable", measured: null },
+  { id: "ssw", name: "siSwati", nativeName: "siSwati", text: true, speech: "unavailable", measured: null },
+  { id: "ven", name: "Tshivenda", nativeName: "Tshivenda", text: true, speech: "unavailable", measured: null },
+  { id: "tso", name: "Xitsonga", nativeName: "Xitsonga", text: true, speech: "unavailable", measured: null },
+  { id: "nbl", name: "isiNdebele", nativeName: "isiNdebele", text: true, speech: "unavailable", measured: null },
 ];
 
 export function getLanguage(id: string): SaLanguage {

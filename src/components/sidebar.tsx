@@ -26,10 +26,8 @@ export function Sidebar() {
     activeId,
     setActiveId,
     createConversation,
-    userName,
-    setUserName,
-    setUserId,
-    setPersistence,
+    userId,
+    logout,
   } = useApp();
 
   useEffect(() => {
@@ -152,18 +150,14 @@ export function Sidebar() {
           <div className="flex items-center gap-2">
             <VilatechLogo size={22} />
             <p className="truncate text-xs text-white/45">
-              {userName ?? "Signed in"}
+              {userId ? `Verified · ${userId.slice(0, 8)}` : "Not signed in"}
             </p>
           </div>
           <button
             type="button"
-          onClick={() => {
-            void fetch("/api/auth/logout", { method: "POST" });
-            setUserName(null);
-            setUserId(null);
-            setPersistence("local");
-            router.push("/login");
-          }}
+            onClick={() => {
+              void logout().finally(() => router.push("/login"));
+            }}
             className="mt-3 flex items-center gap-2 text-xs text-white/40 hover:text-white/70"
           >
             <LogOut className="size-3.5" />

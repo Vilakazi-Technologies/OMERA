@@ -28,8 +28,10 @@ export function HeroTypingLine({ className }: { className?: string }) {
     if (!deleting && text === phrase) {
       timeout = setTimeout(() => setDeleting(true), PAUSE_MS);
     } else if (deleting && text === "") {
-      setPhraseIndex((i) => (i + 1) % PHRASES.length);
-      setDeleting(false);
+      timeout = setTimeout(() => {
+        setPhraseIndex((i) => (i + 1) % PHRASES.length);
+        setDeleting(false);
+      }, DELETE_MS);
     } else if (deleting) {
       timeout = setTimeout(
         () => setText(phrase.slice(0, text.length - 1)),

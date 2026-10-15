@@ -12,17 +12,20 @@ export function OmeraPreloaderGate({ children }: { children: React.ReactNode }) 
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      if (sessionStorage.getItem(PRELOADER_KEY)) {
+    const timer = setTimeout(() => {
+      try {
+        if (sessionStorage.getItem(PRELOADER_KEY)) {
+          setReady(true);
+          return;
+        }
+      } catch {
         setReady(true);
         return;
       }
-    } catch {
+      setShow(true);
       setReady(true);
-      return;
-    }
-    setShow(true);
-    setReady(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!ready) {

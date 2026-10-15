@@ -1,21 +1,38 @@
 import { NextResponse } from "next/server";
-import { getOpenAIConfig } from "@/lib/ai/config";
-import { isSupabaseConfigured } from "@/lib/supabase/admin";
+import {
+  databaseReachable,
+  overallStatus,
+  xavaniHealth,
+} from "@/lib/health/status";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
+
+export const runtime = "nodejs";
+
+/** Hard bound on the database reachability probe. */
+const DB_TIMEOUT_MS = 2000;
 
 export async function GET() {
-  const openai = getOpenAIConfig();
+  const xavani = xavaniHealth();
+  const dbConfigured = isSupabaseConfigured();
+  let dbReachable: boolean | null = null;
+  if (dbConfigured) {
+    dbReachable = await databaseReachable(async () => {
+      const admin = getSupabaseAdmin();
+      const { error } = await admin
+        .from("conversations")
+        .select("id", { count: "exact", head: true })
+        .limit(1);
+      if (error) throw error;
+    }, DB_TIMEOUT_MS);
+  }
+  const database = { configured: dbConfigured, reachable: dbReachable };
   return NextResponse.json({
-    status: "ok",
+    status: overallStatus({ xavani, database }),
     service: "omera",
-    chat: {
-      mode: openai.enabled ? "openai" : "demo",
-      model: openai.enabled ? openai.model : null,
-    },
+    chat: xavani,
     voice: {
       configured: Boolean(process.env.LELAPA_API_KEY?.trim()),
     },
-    database: {
-      configured: isSupabaseConfigured(),
-    },
+    database,
   });
 }

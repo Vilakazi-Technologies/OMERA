@@ -1,40 +1,31 @@
 import { NextResponse } from "next/server";
-import { OMERA_USER_COOKIE } from "@/lib/auth/session";
-import { upsertOmeraUser } from "@/lib/db/users";
-import { isSupabaseConfigured } from "@/lib/supabase/admin";
+import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
+import { readJsonBody } from "@/lib/http/read-body";
+import { requireRequestOrigin } from "@/lib/auth/request-origin";
+import { createAuthContext } from "@/lib/supabase/server";
 
-export async function POST(req: Request) {
-  const body = (await req.json()) as {
-    email?: string;
-    displayName?: string;
-  };
+const NO_STORE = { "Cache-Control": "private, no-store" };
 
-  const displayName = body.displayName?.trim() || "Omera user";
-  const email = body.email?.trim() || null;
-
-  if (!isSupabaseConfigured()) {
-    const res = NextResponse.json({
-      userId: null,
-      displayName,
-      persistence: "local",
-    });
-    return res;
+/**
+ * Legacy entry point, closed to identity issuance. An unverified email only
+ * starts an OTP challenge and always receives the same neutral response with
+ * no identity cookie. Verified clients use `/api/auth/verify` + `/api/auth/session`.
+ */
+export async function POST(request: Request) {
+  try {
+    requireRequestOrigin(request);
+    const body = (await readJsonBody(request)) as { email?: unknown };
+    const email =
+      typeof body.email === "string" ? body.email.trim() : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new ApiError("INVALID_REQUEST", 400);
+    }
+    const auth = await createAuthContext();
+    await auth.supabase.auth.signInWithOtp({ email });
+    return auth.applyCookies(
+      NextResponse.json({ ok: true }, { headers: NO_STORE }),
+    );
+  } catch (error) {
+    return apiErrorResponse(error);
   }
-
-  const userId = await upsertOmeraUser(displayName, email);
-  const res = NextResponse.json({
-    userId,
-    displayName,
-    persistence: "supabase",
-  });
-
-  res.cookies.set(OMERA_USER_COOKIE, userId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 400,
-  });
-
-  return res;
 }

@@ -3,29 +3,35 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
-import { useApp } from "@/context/app-provider";
 
 export default function PlatformLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { userName } = useApp();
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   useEffect(() => {
-    setReady(true);
-  }, []);
+    let cancelled = false;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setVerified(true);
+        } else {
+          router.replace("/login");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) router.replace("/login");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
-  useEffect(() => {
-    if (!ready) return;
-    if (!userName) {
-      router.replace("/login");
-    }
-  }, [ready, userName, router]);
-
-  if (!ready || !userName) {
+  if (!verified) {
     return (
       <div className="flex h-dvh items-center justify-center bg-[#050505] text-sm text-white/45">
         Loading Omera…

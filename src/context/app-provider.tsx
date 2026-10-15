@@ -17,10 +17,15 @@ type AppContextValue = {
   setUserId: (id: string | null) => void;
   persistence: "local" | "supabase";
   setPersistence: (mode: "local" | "supabase") => void;
+  sessionChecked: boolean;
+  refreshSession: () => Promise<boolean>;
+  logout: () => Promise<void>;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   languageId: string;
   setLanguageId: (id: string) => void;
+  languageExplicit: boolean;
+  setLanguageExplicit: (explicit: boolean) => void;
   conversations: Conversation[];
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -29,6 +34,8 @@ type AppContextValue = {
   refreshConversations: () => Promise<void>;
   formSession: FormSession | null;
   setFormSession: (s: FormSession | null) => void;
+  syncError: string | null;
+  clearSyncError: () => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -36,107 +43,178 @@ const AppContext = createContext<AppContextValue | null>(null);
 const STORAGE_KEY = "omera-app-v2";
 
 type Persisted = {
-  userName: string | null;
-  userId: string | null;
-  persistence: "local" | "supabase";
   conversations: Conversation[];
   languageId: string;
+  languageExplicit: boolean;
 };
 
 function loadPersisted(): Persisted {
   if (typeof window === "undefined") {
-    return {
-      userName: null,
-      userId: null,
-      persistence: "local",
-      conversations: [],
-      languageId: "eng",
-    };
+    return { conversations: [], languageId: "eng", languageExplicit: false };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {
-        userName: null,
-        userId: null,
-        persistence: "local",
-        conversations: [],
-        languageId: "eng",
-      };
-    }
-    return JSON.parse(raw) as Persisted;
-  } catch {
+    if (!raw) return { conversations: [], languageId: "eng", languageExplicit: false };
+    const parsed = JSON.parse(raw) as Partial<Persisted>;
     return {
-      userName: null,
-      userId: null,
-      persistence: "local",
-      conversations: [],
-      languageId: "eng",
+      conversations: Array.isArray(parsed.conversations)
+        ? parsed.conversations
+        : [],
+      languageId:
+        typeof parsed.languageId === "string" ? parsed.languageId : "eng",
+      languageExplicit: parsed.languageExplicit === true,
     };
+  } catch {
+    return { conversations: [], languageId: "eng", languageExplicit: false };
+  }
+}
+
+function clearLocalCache() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable; in-memory state is still cleared.
   }
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [hydrated, setHydrated] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [persistence, setPersistence] = useState<"local" | "supabase">("local");
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [languageId, setLanguageId] = useState("eng");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [languageId, setLanguageIdState] = useState(() => loadPersisted().languageId);
+  const [languageExplicit, setLanguageExplicit] = useState(() => loadPersisted().languageExplicit);
+  const [conversations, setConversations] = useState<Conversation[]>(() => loadPersisted().conversations);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [formSession, setFormSession] = useState<FormSession | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const clearSyncError = useCallback(() => setSyncError(null), []);
+
+  const clearPrivateState = useCallback(() => {
+    setConversations([]);
+    setActiveId(null);
+    setFormSession(null);
+    clearLocalCache();
+  }, []);
+
+  const clearIdentity = useCallback(() => {
+    setUserId(null);
+    setUserName(null);
+    setPersistence("local");
+    clearPrivateState();
+  }, [clearPrivateState]);
+
+  const setLanguageId = useCallback((id: string) => {
+    setLanguageIdState(id);
+    setLanguageExplicit(true);
+  }, []);
+
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    let sessionUserId: string | null = null;
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { userId: string };
+        if (typeof data.userId === "string" && data.userId) {
+          sessionUserId = data.userId;
+        }
+      }
+    } catch {
+      sessionUserId = null;
+    }
+    if (!sessionUserId) {
+      clearIdentity();
+      return false;
+    }
+    setUserId((current) => {
+      if (current && current !== sessionUserId) clearPrivateState();
+      return sessionUserId;
+    });
+    setPersistence("supabase");
+    return true;
+  }, [clearIdentity, clearPrivateState]);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      clearIdentity();
+    }
+  }, [clearIdentity]);
 
   const refreshConversations = useCallback(async () => {
     if (persistence !== "supabase" || !userId) return;
-    const res = await fetch("/api/conversations");
-    if (!res.ok) return;
-    const data = (await res.json()) as { conversations: Conversation[] };
-    setConversations(data.conversations ?? []);
+    try {
+      const res = await fetch("/api/conversations");
+      if (!res.ok) {
+        setSyncError(`REFRESH_CONVERSATIONS_FAILED:${res.status}`);
+        return;
+      }
+      const data = (await res.json()) as { conversations: Conversation[] };
+      setConversations(data.conversations ?? []);
+      setSyncError(null);
+    } catch {
+      setSyncError("REFRESH_CONVERSATIONS_FAILED:fetch");
+    }
   }, [persistence, userId]);
 
   useEffect(() => {
-    const data = loadPersisted();
-    setUserName(data.userName);
-    setUserId(data.userId);
-    setPersistence(data.persistence);
-    setConversations(data.conversations);
-    setLanguageId(data.languageId);
-    setHydrated(true);
-  }, []);
+    const task = setTimeout(() => {
+      void refreshSession().finally(() => setSessionChecked(true));
+    }, 0);
+    return () => clearTimeout(task);
+  }, [refreshSession]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (typeof window === "undefined") return;
     const payload: Persisted = {
-      userName,
-      userId,
-      persistence,
       conversations,
       languageId,
+      languageExplicit,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [hydrated, userName, userId, persistence, conversations, languageId]);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Private state stays in memory when storage is unavailable.
+    }
+  }, [conversations, languageId, languageExplicit]);
 
   useEffect(() => {
-    if (hydrated && persistence === "supabase" && userId) {
-      refreshConversations();
+    if (sessionChecked && persistence === "supabase" && userId) {
+      const task = setTimeout(() => {
+        void refreshConversations();
+      }, 0);
+      return () => clearTimeout(task);
     }
-  }, [hydrated, persistence, userId, refreshConversations]);
+  }, [sessionChecked, persistence, userId, refreshConversations]);
 
   const createConversation = useCallback(
     async (mode: "chat" | "form") => {
+      // Supabase persistence never falls back to local conversations
+      // silently: a database failure is recorded visibly and thrown.
       if (persistence === "supabase" && userId) {
-        const res = await fetch("/api/conversations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { conversation: Conversation };
-          setConversations((prev) => [data.conversation, ...prev]);
-          setActiveId(data.conversation.id);
-          return data.conversation.id;
+        let res: Response;
+        try {
+          res = await fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          });
+        } catch {
+          setSyncError("CREATE_CONVERSATION_FAILED:fetch");
+          throw new Error("CREATE_CONVERSATION_FAILED:fetch");
         }
+        if (!res.ok) {
+          setSyncError(`CREATE_CONVERSATION_FAILED:${res.status}`);
+          throw new Error(`CREATE_CONVERSATION_FAILED:${res.status}`);
+        }
+        const data = (await res.json()) as { conversation: Conversation };
+        setConversations((prev) => [data.conversation, ...prev]);
+        setActiveId(data.conversation.id);
+        setSyncError(null);
+        return data.conversation.id;
       }
 
       const id = crypto.randomUUID();
@@ -173,10 +251,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUserId,
       persistence,
       setPersistence,
+      sessionChecked,
+      refreshSession,
+      logout,
       sidebarOpen,
       setSidebarOpen,
       languageId,
       setLanguageId,
+      languageExplicit,
+      setLanguageExplicit,
       conversations,
       activeId,
       setActiveId,
@@ -185,20 +268,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshConversations,
       formSession,
       setFormSession,
+      syncError,
+      clearSyncError,
     }),
     [
       userName,
       userId,
       persistence,
-      setPersistence,
+      sessionChecked,
+      refreshSession,
+      logout,
       sidebarOpen,
       languageId,
+      setLanguageId,
+      languageExplicit,
+      setLanguageExplicit,
       conversations,
       activeId,
       createConversation,
       updateConversation,
       refreshConversations,
       formSession,
+      syncError,
+      clearSyncError,
     ],
   );
 

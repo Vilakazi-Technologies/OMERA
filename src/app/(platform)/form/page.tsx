@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Download,
@@ -10,25 +10,211 @@ import {
 import { ChatComposer } from "@/components/chat-composer";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
-import { extractFieldFromSpeech } from "@/lib/form-demo";
-import { persistFormSession } from "@/lib/omera-sync";
-import type { FormField } from "@/lib/types";
+import { activeQuestion } from "@/lib/forms/questions";
 import { cn } from "@/lib/cn";
 
-type Step = "upload" | "questions" | "complete";
+type Step = "upload" | "questions" | "review" | "complete";
+
+type ClientField = {
+  id: string;
+  label: string;
+  prompt: string;
+  required: boolean;
+  kind?: "text" | "checkbox" | "choice";
+  options?: string[];
+  value?: string | boolean;
+};
+
+type LocalSession = {
+  sessionId: string;
+  fileName: string;
+  fields: ClientField[];
+  currentIndex: number;
+  languageId: string;
+  revision: number;
+  status: string;
+};
+
+const FORM_REF_KEY = "omera-form-ref";
+
+function normalizeField(raw: unknown): ClientField | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.id !== "string" || !record.id) return null;
+  const value = record.value;
+  return {
+    id: record.id,
+    label: typeof record.label === "string" ? record.label : record.id,
+    prompt:
+      typeof record.prompt === "string"
+        ? record.prompt
+        : `Please provide a value for ${record.id}.`,
+    required: record.required === true,
+    kind:
+      record.kind === "checkbox" || record.kind === "choice"
+        ? record.kind
+        : "text",
+    options: Array.isArray(record.options)
+      ? record.options.filter(
+          (option): option is string => typeof option === "string",
+        )
+      : undefined,
+    value:
+      typeof value === "string" || typeof value === "boolean"
+        ? value
+        : undefined,
+  };
+}
+
+function displayValue(field: ClientField): string {
+  if (typeof field.value === "boolean") return field.value ? "Yes" : "No";
+  return field.value ?? "—";
+}
 
 export default function FormFillPage() {
-  const { languageId, setLanguageId, formSession, setFormSession } = useApp();
-  const [step, setStep] = useState<Step>(formSession ? "questions" : "upload");
+  const { languageId, setLanguageId } = useApp();
+  const [step, setStep] = useState<Step>("upload");
+  const [session, setSession] = useState<LocalSession | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [assistantLine, setAssistantLine] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [restoring, setRestoring] = useState(true);
+  const [editingFromReview, setEditingFromReview] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const currentField: FormField | undefined =
-    formSession?.fields[formSession.currentIndex];
+  // Restore through the server session ID after a refresh. Only the session
+  // reference lives in local storage — never form answers. Identity is
+  // rechecked before any recovered data is shown.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = localStorage.getItem(FORM_REF_KEY);
+        if (!raw) return;
+        let sessionId: string | null = null;
+        try {
+          sessionId = (JSON.parse(raw) as { sessionId?: unknown }).sessionId as string ?? null;
+          if (typeof sessionId !== "string" || !sessionId) return;
+        } catch {
+          localStorage.removeItem(FORM_REF_KEY);
+          return;
+        }
+        const identity = await fetch("/api/auth/session", {
+          cache: "no-store",
+        });
+        if (!identity.ok || cancelled) {
+          if (!cancelled && !identity.ok) {
+            localStorage.removeItem(FORM_REF_KEY);
+          }
+          return;
+        }
+        const res = await fetch(`/api/forms/sessions/${sessionId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) {
+          if (!cancelled && res.status === 404) {
+            localStorage.removeItem(FORM_REF_KEY);
+          }
+          return;
+        }
+        const data = (await res.json()) as { session: Record<string, unknown> };
+        const fields = Array.isArray(data.session.fields)
+          ? (data.session.fields
+              .map(normalizeField)
+              .filter((field): field is ClientField => field !== null))
+          : [];
+        const currentIndex =
+          typeof data.session.currentIndex === "number"
+            ? data.session.currentIndex
+            : 0;
+        if (cancelled) return;
+        setSession({
+          sessionId: String(data.session.id),
+          fileName: String(data.session.fileName ?? "form.pdf"),
+          fields,
+          currentIndex,
+          languageId:
+            typeof data.session.languageId === "string"
+              ? data.session.languageId
+              : languageId,
+          revision:
+            typeof data.session.revision === "number"
+              ? data.session.revision
+              : 1,
+          status:
+            typeof data.session.status === "string"
+              ? data.session.status
+              : "in_progress",
+        });
+        setStep(currentIndex >= fields.length ? "review" : "questions");
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const uploadFile = useCallback(
-    async (file: File) => {
-      setUploading(true);
+  const current = session
+    ? activeQuestion({
+        fields: session.fields,
+        currentIndex: session.currentIndex,
+        languageId: session.languageId,
+      })
+    : null;
+
+  async function savePatch(
+    answers: Record<string, string | boolean>,
+    nextIndex: number,
+  ): Promise<boolean> {
+    if (!session) return false;
+    const res = await fetch(`/api/forms/sessions/${session.sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        answers,
+        revision: session.revision,
+        currentIndex: nextIndex,
+      }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(
+        `Save failed (${body.error ?? res.status}). Your answer was not recorded — try again.`,
+      );
+      return false;
+    }
+    const data = (await res.json()) as {
+      session: Record<string, unknown>;
+      revision: number;
+    };
+    const fields = Array.isArray(data.session.fields)
+      ? (data.session.fields
+          .map(normalizeField)
+          .filter((field): field is ClientField => field !== null))
+      : session.fields;
+    setSession({
+      ...session,
+      fields,
+      currentIndex:
+        typeof data.session.currentIndex === "number"
+          ? data.session.currentIndex
+          : nextIndex,
+      revision: data.revision,
+      status:
+        typeof data.session.status === "string"
+          ? data.session.status
+          : session.status,
+    });
+    return true;
+  }
+
+  async function uploadFile(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
       const body = new FormData();
       body.append("file", file);
       body.append("languageId", languageId);
@@ -36,81 +222,157 @@ export default function FormFillPage() {
         method: "POST",
         body,
       });
-      const data = await res.json();
-      setFormSession({
-        id: data.sessionId ?? crypto.randomUUID(),
-        remoteId: data.sessionId,
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(
+          `Upload failed (${data.error ?? res.status}). Only fillable PDFs are supported.`,
+        );
+        return;
+      }
+      const data = (await res.json()) as {
+        sessionId: string;
+        fileName: string;
+        fields: unknown[];
+        revision: number;
+        status: string;
+      };
+      const fields = data.fields
+        .map(normalizeField)
+        .filter((field): field is ClientField => field !== null);
+      localStorage.setItem(
+        FORM_REF_KEY,
+        JSON.stringify({ sessionId: data.sessionId }),
+      );
+      setSession({
+        sessionId: data.sessionId,
         fileName: data.fileName,
-        fields: data.fields,
+        fields,
         currentIndex: 0,
         languageId,
+        revision: data.revision,
+        status: data.status,
       });
-      setAssistantLine(data.fields[0]?.prompt ?? data.message);
-      setStep("questions");
+      setStep(fields.length ? "questions" : "review");
+    } finally {
       setUploading(false);
-    },
-    [languageId, setFormSession],
-  );
-
-  function applyAnswer(text: string) {
-    if (!formSession || !currentField) return;
-
-    const value = extractFieldFromSpeech(currentField, text);
-    const fields = formSession.fields.map((f, i) =>
-      i === formSession.currentIndex ? { ...f, value } : f,
-    );
-
-    const nextIndex = formSession.currentIndex + 1;
-    if (nextIndex >= fields.length) {
-      const done = { ...formSession, fields, currentIndex: nextIndex };
-      setFormSession(done);
-      if (formSession.remoteId) {
-        void persistFormSession(formSession.remoteId, {
-          fields,
-          currentIndex: nextIndex,
-          status: "completed",
-        });
-      }
-      setAssistantLine(
-        "You're done. Review your answers below, then download the summary.",
-      );
-      setStep("complete");
-      return;
     }
-
-    const updated = {
-      ...formSession,
-      fields,
-      currentIndex: nextIndex,
-    };
-    setFormSession(updated);
-    if (formSession.remoteId) {
-      void persistFormSession(formSession.remoteId, {
-        fields,
-        currentIndex: nextIndex,
-        status: "in_progress",
-      });
-    }
-    setAssistantLine(fields[nextIndex].prompt);
   }
 
-  function downloadSummary() {
-    if (!formSession) return;
-    const lines = formSession.fields.map(
-      (f) => `${f.label}: ${f.value ?? "—"}`,
-    );
-    const blob = new Blob(
-      [
-        `Omera by VILATECH — Form summary\nFile: ${formSession.fileName}\n\n${lines.join("\n")}\n`,
-      ],
-      { type: "text/plain" },
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "omera-form-summary.txt";
-    a.click();
-    URL.revokeObjectURL(url);
+  async function submitAnswer(text: string) {
+    if (!session || !current || saving) return;
+    const field = current.field as ClientField;
+    const value =
+      field.kind === "checkbox"
+        ? /^(yes|y|true|1)\b/i.test(text.trim())
+        : text;
+    setSaving(true);
+    setError(null);
+    try {
+      const nextIndex = session.currentIndex + 1;
+      const saved = await savePatch({ [field.id]: value }, nextIndex);
+      if (!saved) return;
+      if (editingFromReview) {
+        setEditingFromReview(false);
+        setStep("review");
+        return;
+      }
+      setStep(nextIndex >= session.fields.length ? "review" : "questions");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitChoice(value: string | boolean) {
+    if (!session || !current || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const nextIndex = session.currentIndex + 1;
+      const saved = await savePatch({ [current.field.id]: value }, nextIndex);
+      if (!saved) return;
+      if (editingFromReview) {
+        setEditingFromReview(false);
+        setStep("review");
+        return;
+      }
+      setStep(nextIndex >= session.fields.length ? "review" : "questions");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function skipCurrent() {
+    if (!session || !current || saving) return;
+    if (current.field.required) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const nextIndex = session.currentIndex + 1;
+      const saved = await savePatch({}, nextIndex);
+      if (!saved) return;
+      if (editingFromReview) {
+        setEditingFromReview(false);
+        setStep("review");
+        return;
+      }
+      setStep(nextIndex >= session.fields.length ? "review" : "questions");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function goBack() {
+    if (!session || saving) return;
+    setError(null);
+    setSession({
+      ...session,
+      currentIndex: Math.max(0, session.currentIndex - 1),
+    });
+    setStep("questions");
+  }
+
+  function editField(index: number) {
+    if (!session) return;
+    setError(null);
+    setEditingFromReview(true);
+    setSession({ ...session, currentIndex: index });
+    setStep("questions");
+  }
+
+  async function exportPdf() {
+    if (!session || exporting) return;
+    setExporting(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/forms/sessions/${session.sessionId}/export`,
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(
+          `Export failed (${body.error ?? res.status}). The session stays in review — fix the highlighted answers and try again.`,
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = match?.[1] ?? `${session.fileName}-completed.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setStep("complete");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -126,29 +388,45 @@ export default function FormFillPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        {step === "upload" && (
+        {error && (
+          <p
+            role="alert"
+            className="mx-auto mb-4 max-w-lg rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300"
+          >
+            {error}
+          </p>
+        )}
+
+        {restoring && (
           <div className="mx-auto flex max-w-lg flex-col items-center pt-[8vh] text-center">
-            <div
-              className="flex w-full flex-col items-center rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12"
-            >
+            <Loader2 className="size-6 animate-spin text-slate-400" />
+            <p className="mt-3 text-sm text-slate-400">
+              Restoring your session…
+            </p>
+          </div>
+        )}
+
+        {!restoring && step === "upload" && (
+          <div className="mx-auto flex max-w-lg flex-col items-center pt-[8vh] text-center">
+            <div className="flex w-full flex-col items-center rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12">
               <FileUp className="size-10 text-white/80" />
               <h2 className="mt-4 text-lg font-semibold text-white">
                 Upload your form
               </h2>
               <p className="mt-2 text-sm text-slate-400">
-                PDF, Word, or a photo. Omera reads the fields and guides
-                you — question by question.
+                A fillable PDF. Omera reads the fields and guides you —
+                one question at a time.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
                 {uploading ? "Analysing…" : "Choose file"}
                 <input
                   type="file"
                   className="hidden"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  accept=".pdf"
                   disabled={uploading}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) uploadFile(f);
+                    if (f) void uploadFile(f);
                   }}
                 />
               </label>
@@ -159,34 +437,106 @@ export default function FormFillPage() {
           </div>
         )}
 
-        {(step === "questions" || step === "complete") && formSession && (
+        {!restoring && (step === "questions" || step === "review" || step === "complete") && session && (
           <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <p className="text-xs uppercase tracking-wider text-slate-500">
                 Document
               </p>
               <p className="mt-1 truncate text-sm font-medium text-white">
-                {formSession.fileName}
+                {session.fileName}
               </p>
-              {step === "questions" && currentField && (
+              {step === "questions" && current && (
                 <>
                   <p className="mt-6 text-xs text-white/50">
-                    Field {formSession.currentIndex + 1} of{" "}
-                    {formSession.fields.length}
+                    Field {current.index + 1} of {current.total}
                   </p>
                   <div className="mt-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-slate-100">
-                    {assistantLine ?? currentField.prompt}
+                    {current.field.prompt}
+                  </div>
+                  {(current.field as ClientField).kind === "checkbox" ? (
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void submitChoice(true)}
+                        className="flex-1 rounded-full bg-white py-2 text-sm font-medium text-black disabled:opacity-50"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void submitChoice(false)}
+                        className="flex-1 rounded-full border border-white/20 py-2 text-sm text-white disabled:opacity-50"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (current.field as ClientField).kind === "choice" &&
+                    (current.field as ClientField).options?.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {((current.field as ClientField).options ?? []).map(
+                        (option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void submitChoice(option)}
+                            className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white disabled:opacity-50"
+                          >
+                            {option}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="mt-4 flex gap-2">
+                    {session.currentIndex > 0 && (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={goBack}
+                        className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white disabled:opacity-50"
+                      >
+                        Back
+                      </button>
+                    )}
+                    {!current.field.required && (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void skipCurrent()}
+                        className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white disabled:opacity-50"
+                      >
+                        Skip
+                      </button>
+                    )}
                   </div>
                   <p className="mt-3 text-xs text-slate-500">
-                    Type or tap the microphone — questions stay on screen (quiet
-                    for open offices).
+                    Type or tap the microphone — one question per screen
+                    (quiet for open offices).
                   </p>
                 </>
               )}
-              {step === "complete" && (
-                <div className="mt-6 flex items-start gap-2 text-sm text-emerald-400">
-                  <CheckCircle2 className="size-5 shrink-0" />
-                  <p>{assistantLine}</p>
+              {(step === "review" || step === "complete") && (
+                <div className="mt-6">
+                  <h2 className="text-sm font-medium text-white">
+                    {step === "complete"
+                      ? "Your completed PDF has downloaded."
+                      : "Review your answers"}
+                  </h2>
+                  {step === "review" && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Nothing is final until you download the completed PDF.
+                    </p>
+                  )}
+                  {step === "complete" && (
+                    <div className="mt-2 flex items-start gap-2 text-sm text-emerald-400">
+                      <CheckCircle2 className="size-5 shrink-0" />
+                      <p>Saved as a completed PDF — not a text summary.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -196,29 +546,40 @@ export default function FormFillPage() {
                 Captured answers
               </p>
               <ul className="space-y-2">
-                {formSession.fields.map((f) => (
+                {session.fields.map((f, index) => (
                   <li
                     key={f.id}
                     className={cn(
                       "rounded-xl border px-3 py-2 text-sm",
-                      f.value
+                      f.value !== undefined && f.value !== ""
                         ? "border-emerald-500/30 bg-emerald-500/5"
                         : "border-white/8 bg-white/3 text-slate-500",
                     )}
                   >
                     <span className="text-xs text-slate-500">{f.label}</span>
-                    <p className="text-slate-100">{f.value ?? "—"}</p>
+                    <p className="text-slate-100">{displayValue(f)}</p>
+                    {(step === "review" || step === "complete") && (
+                      <button
+                        type="button"
+                        aria-label={`Edit ${f.label}`}
+                        onClick={() => editField(index)}
+                        className="mt-1 text-xs text-indigo-300 underline"
+                      >
+                        Edit
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
-              {step === "complete" && (
+              {(step === "review" || step === "complete") && (
                 <button
                   type="button"
-                  onClick={downloadSummary}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white py-2.5 text-sm font-medium text-black"
+                  onClick={() => void exportPdf()}
+                  disabled={exporting}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white py-2.5 text-sm font-medium text-black disabled:opacity-50"
                 >
                   <Download className="size-4" />
-                  Download summary
+                  {exporting ? "Preparing PDF…" : "Download completed PDF"}
                 </button>
               )}
             </div>
@@ -226,11 +587,12 @@ export default function FormFillPage() {
         )}
       </div>
 
-      {step === "questions" && currentField && (
+      {!restoring && step === "questions" && current && (
         <ChatComposer
-          onSend={applyAnswer}
+          onSend={(text) => void submitAnswer(text)}
           placeholder="Type your answer or use the microphone…"
           showLanguage={false}
+          disabled={saving}
         />
       )}
     </>
