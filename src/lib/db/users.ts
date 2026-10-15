@@ -18,17 +18,22 @@ export async function createOmeraUserForAuthId(
   displayName: string,
 ): Promise<string> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("omera_users")
-    .insert({
+  // Idempotent under concurrent first logins: both racers upsert the same
+  // unique key and then read back the single surviving row, so the loser
+  // never surfaces a unique violation. Duplicates are ignored rather than
+  // updated so a stale display name cannot clobber a newer one.
+  const { error } = await supabase.from("omera_users").upsert(
+    {
       auth_user_id: authUserId,
       email: null,
       display_name: displayName,
-    })
-    .select("id")
-    .single();
+    },
+    { onConflict: "auth_user_id", ignoreDuplicates: true },
+  );
   if (error) throw error;
-  return data.id as string;
+  const winner = await findOmeraUserByAuthId(authUserId);
+  if (!winner) throw new Error("IDENTITY_CREATE_FAILED");
+  return winner;
 }
 
 /**
