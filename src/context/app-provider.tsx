@@ -17,6 +17,9 @@ type AppContextValue = {
   setUserId: (id: string | null) => void;
   persistence: "local" | "supabase";
   setPersistence: (mode: "local" | "supabase") => void;
+  sessionChecked: boolean;
+  refreshSession: () => Promise<boolean>;
+  logout: () => Promise<void>;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   languageId: string;
@@ -36,56 +39,95 @@ const AppContext = createContext<AppContextValue | null>(null);
 const STORAGE_KEY = "omera-app-v2";
 
 type Persisted = {
-  userName: string | null;
-  userId: string | null;
-  persistence: "local" | "supabase";
   conversations: Conversation[];
   languageId: string;
 };
 
 function loadPersisted(): Persisted {
   if (typeof window === "undefined") {
-    return {
-      userName: null,
-      userId: null,
-      persistence: "local",
-      conversations: [],
-      languageId: "eng",
-    };
+    return { conversations: [], languageId: "eng" };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {
-        userName: null,
-        userId: null,
-        persistence: "local",
-        conversations: [],
-        languageId: "eng",
-      };
-    }
-    return JSON.parse(raw) as Persisted;
-  } catch {
+    if (!raw) return { conversations: [], languageId: "eng" };
+    const parsed = JSON.parse(raw) as Partial<Persisted>;
     return {
-      userName: null,
-      userId: null,
-      persistence: "local",
-      conversations: [],
-      languageId: "eng",
+      conversations: Array.isArray(parsed.conversations)
+        ? parsed.conversations
+        : [],
+      languageId:
+        typeof parsed.languageId === "string" ? parsed.languageId : "eng",
     };
+  } catch {
+    return { conversations: [], languageId: "eng" };
+  }
+}
+
+function clearLocalCache() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable; in-memory state is still cleared.
   }
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [hydrated, setHydrated] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [persistence, setPersistence] = useState<"local" | "supabase">("local");
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [languageId, setLanguageId] = useState("eng");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [formSession, setFormSession] = useState<FormSession | null>(null);
+
+  const clearPrivateState = useCallback(() => {
+    setConversations([]);
+    setActiveId(null);
+    setFormSession(null);
+    clearLocalCache();
+  }, []);
+
+  const clearIdentity = useCallback(() => {
+    setUserId(null);
+    setUserName(null);
+    setPersistence("local");
+    clearPrivateState();
+  }, [clearPrivateState]);
+
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    let sessionUserId: string | null = null;
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { userId: string };
+        if (typeof data.userId === "string" && data.userId) {
+          sessionUserId = data.userId;
+        }
+      }
+    } catch {
+      sessionUserId = null;
+    }
+    if (!sessionUserId) {
+      clearIdentity();
+      return false;
+    }
+    setUserId((current) => {
+      if (current && current !== sessionUserId) clearPrivateState();
+      return sessionUserId;
+    });
+    setPersistence("supabase");
+    return true;
+  }, [clearIdentity, clearPrivateState]);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      clearIdentity();
+    }
+  }, [clearIdentity]);
 
   const refreshConversations = useCallback(async () => {
     if (persistence !== "supabase" || !userId) return;
@@ -97,31 +139,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const data = loadPersisted();
-    setUserName(data.userName);
-    setUserId(data.userId);
-    setPersistence(data.persistence);
     setConversations(data.conversations);
     setLanguageId(data.languageId);
-    setHydrated(true);
-  }, []);
+    void refreshSession().finally(() => setSessionChecked(true));
+  }, [refreshSession]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    const payload: Persisted = {
-      userName,
-      userId,
-      persistence,
-      conversations,
-      languageId,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [hydrated, userName, userId, persistence, conversations, languageId]);
-
-  useEffect(() => {
-    if (hydrated && persistence === "supabase" && userId) {
-      refreshConversations();
+    if (typeof window === "undefined") return;
+    const payload: Persisted = { conversations, languageId };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Private state stays in memory when storage is unavailable.
     }
-  }, [hydrated, persistence, userId, refreshConversations]);
+  }, [conversations, languageId]);
+
+  useEffect(() => {
+    if (sessionChecked && persistence === "supabase" && userId) {
+      void refreshConversations();
+    }
+  }, [sessionChecked, persistence, userId, refreshConversations]);
 
   const createConversation = useCallback(
     async (mode: "chat" | "form") => {
@@ -173,6 +210,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUserId,
       persistence,
       setPersistence,
+      sessionChecked,
+      refreshSession,
+      logout,
       sidebarOpen,
       setSidebarOpen,
       languageId,
@@ -190,7 +230,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       userName,
       userId,
       persistence,
-      setPersistence,
+      sessionChecked,
+      refreshSession,
+      logout,
       sidebarOpen,
       languageId,
       conversations,

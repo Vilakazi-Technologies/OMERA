@@ -6,40 +6,67 @@ import { useState } from "react";
 import { OmeraWordmark } from "@/components/omera-wordmark";
 import { useApp } from "@/context/app-provider";
 
+const START_ERROR = "Something went wrong. Try again.";
+const CODE_ERROR = "That code is invalid or expired.";
+
 export default function LoginPage() {
   const router = useRouter();
-  const { setUserName, setUserId, setPersistence, refreshConversations } =
-    useApp();
+  const { setUserId, setPersistence, refreshConversations } = useApp();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function continueToApp() {
+  async function sendCode() {
     setLoading(true);
-    const name = email.trim() || "Omera user";
+    setError(null);
     try {
-      const res = await fetch("/api/auth/bootstrap", {
+      const res = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim() || undefined,
-          displayName: name,
-        }),
+        body: JSON.stringify({ email: email.trim() }),
       });
-      const data = (await res.json()) as {
-        userId: string | null;
-        displayName: string;
-        persistence: "local" | "supabase";
-      };
-      setUserName(data.displayName);
-      setUserId(data.userId);
-      setPersistence(data.persistence);
-      if (data.persistence === "supabase") {
-        await refreshConversations();
+      if (!res.ok) {
+        setError(START_ERROR);
+        return;
       }
+      setStep("code");
     } catch {
-      setUserName(name);
+      setError(START_ERROR);
+    } finally {
+      setLoading(false);
     }
-    router.push("/chat");
+  }
+
+  async function verifyCode() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), token: code.trim() }),
+      });
+      if (!res.ok) {
+        setError(CODE_ERROR);
+        return;
+      }
+      const session = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!session.ok) {
+        setError(START_ERROR);
+        return;
+      }
+      const data = (await session.json()) as { userId: string };
+      setUserId(data.userId);
+      setPersistence("supabase");
+      await refreshConversations();
+      router.push("/chat");
+    } catch {
+      setError(START_ERROR);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -52,25 +79,58 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <label className="mt-8 block text-left text-xs text-white/45">
-          Work email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.co.za"
-            className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-white/25"
-          />
-        </label>
+        {error ? (
+          <p role="alert" className="mt-6 text-center text-xs text-red-300">
+            {error}
+          </p>
+        ) : null}
 
-        <button
-          type="button"
-          onClick={continueToApp}
-          disabled={loading}
-          className="mt-4 w-full rounded-full bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60"
-        >
-          Continue
-        </button>
+        {step === "email" ? (
+          <>
+            <label className="mt-8 block text-left text-xs text-white/45">
+              Work email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.co.za"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-white/25"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => void sendCode()}
+              disabled={loading}
+              className="mt-4 w-full rounded-full bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60"
+            >
+              Send code
+            </button>
+          </>
+        ) : (
+          <>
+            <label className="mt-8 block text-left text-xs text-white/45">
+              One-time code
+              <input
+                type="text"
+                inputMode="numeric"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-white/25"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => void verifyCode()}
+              disabled={loading}
+              className="mt-4 w-full rounded-full bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60"
+            >
+              Verify
+            </button>
+          </>
+        )}
 
         <p className="mt-6 text-center text-xs leading-relaxed text-white/40">
           By continuing you agree to VILATECH&apos;s terms and privacy policy.
