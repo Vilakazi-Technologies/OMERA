@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     ".full-stack-feature/**",
     "test-results/**",
     "playwright-report/**",
+    "coverage/**",
   ]),
 ]);
 
