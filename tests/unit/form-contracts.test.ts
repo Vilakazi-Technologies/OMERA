@@ -1,6 +1,7 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   parseStrictXavaniFields,
+  validateSubmittedAnswers,
   type CanonicalFieldDef,
 } from "@/lib/forms/contracts";
 
@@ -9,6 +10,8 @@ const DEFS: CanonicalFieldDef[] = [
   { id: "permission", kind: "checkbox", required: false },
   { id: "method", kind: "choice", required: false, options: ["Email", "Phone"] },
 ];
+
+const SUBSET_DEFS = DEFS;
 
 function responseFor(
   ids: Array<{ id: string; label?: string; prompt?: string; options?: string[] }>,
@@ -75,4 +78,30 @@ it("exact_coverage_passes", () => {
     { id: "permission", label: "Label permission", prompt: "Question for permission?" },
     { id: "method", label: "Label method", prompt: "Question for method?" },
   ]);
+});
+
+describe("validateSubmittedAnswers", () => {
+  it("an_incremental_subset_without_required_values_passes", () => {
+    expect(() =>
+      validateSubmittedAnswers(SUBSET_DEFS, { method: "Email" }),
+    ).not.toThrow();
+  });
+
+  it("an_unknown_answer_id_is_rejected", () => {
+    expect(() => validateSubmittedAnswers(SUBSET_DEFS, { invented: "x" })).toThrow(
+      "UNKNOWN_ANSWER_ID",
+    );
+  });
+
+  it("an_invalid_choice_is_rejected", () => {
+    expect(() =>
+      validateSubmittedAnswers(SUBSET_DEFS, { method: "Carrier pigeon" }),
+    ).toThrow("INVALID_CHOICE");
+  });
+
+  it("a_wrong_value_type_is_rejected", () => {
+    expect(() =>
+      validateSubmittedAnswers(SUBSET_DEFS, { full_name: true as never }),
+    ).toThrow("INVALID_ANSWER_TYPE");
+  });
 });

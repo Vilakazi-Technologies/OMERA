@@ -6,7 +6,7 @@ import { requireIdentity } from "@/lib/auth/require-identity";
 import { createAuthContext } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
-  validateAnswerPatch,
+  validateSubmittedAnswers,
   type CanonicalFieldDef,
   type FormAnswerValue,
 } from "@/lib/forms/contracts";
@@ -42,11 +42,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 type PatchedStoredField = Omit<StoredFormField, "value"> & {
   value?: string | boolean;
 };
-
-function storedValue(field: StoredFormField): string | boolean | undefined {
-  const raw = (field as { value?: unknown }).value;
-  return typeof raw === "string" || typeof raw === "boolean" ? raw : undefined;
-}
 
 export async function GET(_req: Request, { params }: Params) {
   try {
@@ -102,18 +97,15 @@ export async function PATCH(req: Request, { params }: Params) {
     for (const id of Object.keys(answers)) {
       if (!known.has(id)) throw new ApiError("UNKNOWN_ANSWER_ID", 400);
     }
-    const effective: Record<string, FormAnswerValue> = {};
-    for (const field of session.fields) {
-      if (Object.prototype.hasOwnProperty.call(answers, field.id)) {
-        effective[field.id] = answers[field.id] as FormAnswerValue;
-      } else {
-        const kept = storedValue(field);
-        effective[field.id] =
-          kept ?? (field.kind === "checkbox" ? false : "");
-      }
+    // Incremental progress: only the submitted subset is validated here.
+    // Required completeness is enforced at export, so a partially
+    // answered form can always be saved.
+    const submitted: Record<string, FormAnswerValue> = {};
+    for (const id of Object.keys(answers)) {
+      submitted[id] = answers[id] as FormAnswerValue;
     }
     try {
-      validateAnswerPatch(defs, effective);
+      validateSubmittedAnswers(defs, submitted);
     } catch (error) {
       throw new ApiError(
         error instanceof Error ? error.message : "INVALID_ANSWER",
@@ -134,6 +126,9 @@ export async function PATCH(req: Request, { params }: Params) {
       fields: merged as StoredFormField[],
       currentIndex: nextIndex,
       revision: session.revision + 1,
+      // Newer answers invalidate a previously completed PDF: reopen the
+      // session so export must run again instead of serving stale output.
+      ...(session.status === "completed" ? { status: "review" as const } : {}),
     });
     return auth.applyCookies(
       NextResponse.json({

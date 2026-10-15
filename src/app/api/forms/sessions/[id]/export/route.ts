@@ -11,6 +11,10 @@ import {
   updateFormSession,
 } from "@/lib/db/form-sessions";
 import { fillPdfFields } from "@/lib/forms/pdf-fields";
+import {
+  validateAnswerPatch,
+  type CanonicalFieldDef,
+} from "@/lib/forms/contracts";
 import { FORMS_BUCKET } from "@/lib/forms/storage";
 
 type Params = { params: Promise<{ id: string }> };
@@ -83,6 +87,28 @@ export async function GET(_req: Request, { params }: Params) {
       } else {
         answers[field.id] = typeof raw === "string" ? raw : "";
       }
+    }
+
+    // Required completeness is enforced here, not during incremental
+    // saves: an incomplete session cannot produce a completed PDF.
+    try {
+      const defs: CanonicalFieldDef[] = session.fields.map((field) => ({
+        id: field.id,
+        kind: field.kind ?? "text",
+        required: field.required,
+        options: field.options,
+      }));
+      validateAnswerPatch(defs, answers);
+    } catch (validationError) {
+      await updateFormSession(id, identity.userId, {
+        status: "review",
+      }).catch(() => undefined);
+      throw new ApiError(
+        validationError instanceof Error
+          ? validationError.message
+          : "INCOMPLETE_FORM",
+        422,
+      );
     }
 
     let filled: Uint8Array;

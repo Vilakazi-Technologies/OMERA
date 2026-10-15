@@ -173,6 +173,25 @@ it("another_users_session_returns_404", async () => {
 });
 
 it("a_failed_fill_keeps_the_session_in_review", async () => {
+  // The flow is complete first: every required field answered, session in
+  // review. The fill then fails on its own (bytes the filler rejects),
+  // proving the failure path independent of completeness validation.
+  const corrupt = new TextEncoder().encode("not a pdf at all");
+  vi.mocked(getFormSession).mockResolvedValueOnce(
+    sessionFor(corrupt, { full_name: "Thendo", method: "Email" }),
+  );
+  vi.mocked(getSupabaseAdmin).mockReturnValueOnce(downloadFor(corrupt));
+  const response = await GET(getRequest(), params);
+  expect(response.status).toBe(422);
+  expect(await response.json()).toStrictEqual({ error: "INVALID_PDF" });
+  expect(vi.mocked(updateFormSession)).toHaveBeenCalledWith(
+    SESSION_ID,
+    "omera-user-1",
+    { status: "review" },
+  );
+});
+
+it("an_incomplete_session_is_rejected_before_filling", async () => {
   const source = await fixturePdf();
   vi.mocked(getFormSession).mockResolvedValueOnce(
     sessionFor(source, { full_name: "" }),
@@ -180,7 +199,9 @@ it("a_failed_fill_keeps_the_session_in_review", async () => {
   vi.mocked(getSupabaseAdmin).mockReturnValueOnce(downloadFor(source));
   const response = await GET(getRequest(), params);
   expect(response.status).toBe(422);
-  expect(await response.json()).toStrictEqual({ error: "REQUIRED_FIELD" });
+  expect(await response.json()).toStrictEqual({
+    error: "MISSING_REQUIRED_VALUE",
+  });
   expect(vi.mocked(updateFormSession)).toHaveBeenCalledWith(
     SESSION_ID,
     "omera-user-1",

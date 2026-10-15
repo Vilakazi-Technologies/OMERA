@@ -100,6 +100,36 @@ export function parseStrictXavaniFields(
 }
 
 /**
+ * Validate only the submitted subset of answers: unknown IDs, wrong value
+ * types, and invalid choices are rejected, but missing required values
+ * are allowed. Incremental saves must accept partial progress; required
+ * completeness is enforced at export time by `validateAnswerPatch`.
+ */
+export function validateSubmittedAnswers(
+  defs: CanonicalFieldDef[],
+  answers: Record<string, FormAnswerValue>,
+): void {
+  const byId = new Map(defs.map((def) => [def.id, def]));
+  for (const id of Object.keys(answers)) {
+    const def = byId.get(id);
+    if (!def) throw new Error("UNKNOWN_ANSWER_ID");
+    const value = answers[id];
+    if (def.kind === "checkbox") {
+      if (typeof value !== "boolean") throw new Error("INVALID_ANSWER_TYPE");
+      continue;
+    }
+    if (typeof value !== "string") throw new Error("INVALID_ANSWER_TYPE");
+    if (
+      def.kind === "choice" &&
+      value !== "" &&
+      !(def.options ?? []).includes(value)
+    ) {
+      throw new Error("INVALID_CHOICE");
+    }
+  }
+}
+
+/**
  * Validate an answer patch against the stored field definitions.
  * Unknown IDs, missing required values, wrong value types, and invalid
  * choices are all rejected.

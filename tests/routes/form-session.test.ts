@@ -106,16 +106,19 @@ it("an_unknown_answer_id_returns_400", async () => {
   expect(vi.mocked(applyAnswerPatch)).not.toHaveBeenCalled();
 });
 
-it("a_missing_required_value_returns_400", async () => {
+it("an_incremental_save_without_required_values_succeeds", async () => {
   const response = await PATCH(
     patchRequest({ answers: { method: "Email" }, revision: 3 }),
     { params: Promise.resolve({ id: SESSION_ID }) },
   );
-  expect(response.status).toBe(400);
-  expect(await response.json()).toStrictEqual({
-    error: "MISSING_REQUIRED_VALUE",
-  });
-  expect(vi.mocked(applyAnswerPatch)).not.toHaveBeenCalled();
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as { revision: number };
+  expect(body.revision).toBe(4);
+  expect(vi.mocked(applyAnswerPatch)).toHaveBeenCalledWith(
+    SESSION_ID,
+    "omera-user-1",
+    expect.objectContaining({ revision: 4 }),
+  );
 });
 
 it("an_invalid_choice_returns_400", async () => {
@@ -139,6 +142,23 @@ it("a_stale_revision_returns_409", async () => {
   expect(response.status).toBe(409);
   expect(await response.json()).toStrictEqual({ error: "REVISION_CONFLICT" });
   expect(vi.mocked(applyAnswerPatch)).not.toHaveBeenCalled();
+});
+
+it("a_patch_on_a_completed_session_reopens_review", async () => {
+  vi.mocked(getFormSession).mockResolvedValueOnce({
+    ...stored(),
+    status: "completed",
+  });
+  const response = await PATCH(
+    patchRequest({ answers: { full_name: "Thendo" }, revision: 3 }),
+    { params: Promise.resolve({ id: SESSION_ID }) },
+  );
+  expect(response.status).toBe(200);
+  expect(vi.mocked(applyAnswerPatch)).toHaveBeenCalledWith(
+    SESSION_ID,
+    "omera-user-1",
+    expect.objectContaining({ revision: 4, status: "review" }),
+  );
 });
 
 it("another_users_session_returns_404", async () => {
