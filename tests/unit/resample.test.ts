@@ -10,10 +10,12 @@ class FakeBuffer {
   ) {
     this.data = new Float32Array(length);
   }
-  copyToChannel(source: Float32Array, _channel: number): void {
+  copyToChannel(source: Float32Array, channel: number): void {
+    if (channel !== 0) throw new Error("FakeBuffer is mono");
     this.data.set(source.subarray(0, this.length));
   }
-  getChannelData(_channel: number): Float32Array {
+  getChannelData(channel: number): Float32Array {
+    if (channel !== 0) throw new Error("FakeBuffer is mono");
     return this.data;
   }
 }
@@ -34,12 +36,11 @@ class FakeOfflineAudioContext {
     connect: () => void;
     start: () => void;
   } {
-    const context = this;
     const node = {
       buffer: null as FakeBuffer | null,
       connect(): void {},
-      start(): void {
-        context.source = node as unknown as { buffer: FakeBuffer };
+      start: (): void => {
+        this.source = node as unknown as { buffer: FakeBuffer };
       },
     };
     return node;

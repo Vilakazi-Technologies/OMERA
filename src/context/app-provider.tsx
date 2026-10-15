@@ -83,9 +83,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [persistence, setPersistence] = useState<"local" | "supabase">("local");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [languageId, setLanguageIdState] = useState("eng");
-  const [languageExplicit, setLanguageExplicit] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [languageId, setLanguageIdState] = useState(() => loadPersisted().languageId);
+  const [languageExplicit, setLanguageExplicit] = useState(() => loadPersisted().languageExplicit);
+  const [conversations, setConversations] = useState<Conversation[]>(() => loadPersisted().conversations);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [formSession, setFormSession] = useState<FormSession | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -161,11 +161,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [persistence, userId]);
 
   useEffect(() => {
-    const data = loadPersisted();
-    setConversations(data.conversations);
-    setLanguageIdState(data.languageId);
-    setLanguageExplicit(data.languageExplicit);
-    void refreshSession().finally(() => setSessionChecked(true));
+    const task = setTimeout(() => {
+      void refreshSession().finally(() => setSessionChecked(true));
+    }, 0);
+    return () => clearTimeout(task);
   }, [refreshSession]);
 
   useEffect(() => {
@@ -184,7 +183,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (sessionChecked && persistence === "supabase" && userId) {
-      void refreshConversations();
+      const task = setTimeout(() => {
+        void refreshConversations();
+      }, 0);
+      return () => clearTimeout(task);
     }
   }, [sessionChecked, persistence, userId, refreshConversations]);
 

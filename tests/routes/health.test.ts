@@ -24,8 +24,7 @@ function healthyDb() {
     from: () => ({
       select: async () => ({ error: null }),
     }),
-    // oxlint-disable-next-line no-explicit-any
-  } as any);
+  } as unknown as ReturnType<typeof getSupabaseAdmin>);
 }
 
 function failingDb() {
@@ -34,8 +33,7 @@ function failingDb() {
     from: () => ({
       select: async () => ({ error: new Error("connection refused") }),
     }),
-    // oxlint-disable-next-line no-explicit-any
-  } as any);
+  } as unknown as ReturnType<typeof getSupabaseAdmin>);
 }
 
 beforeEach(() => {

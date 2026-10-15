@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
 import { useApp } from "@/context/app-provider";
@@ -18,6 +18,10 @@ const SUGGESTIONS = [
   "Help me improve pricing and cash flow.",
 ];
 
+function timestamp(): number {
+  return Date.now();
+}
+
 export default function ChatPage() {
   const {
     activeId,
@@ -30,6 +34,7 @@ export default function ChatPage() {
   } = useApp();
   const [streaming, setStreaming] = useState(false);
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
+  const [prevConversationId, setPrevConversationId] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const assistantIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -56,11 +61,18 @@ export default function ChatPage() {
     abortRef.current?.abort();
     abortRef.current = null;
     assistantIdRef.current = null;
-    setStreaming(false);
-    setFailedDraft(null);
   }, [conversationId]);
 
-  const messages = conversation?.messages ?? [];
+  if (prevConversationId !== conversationId) {
+    setPrevConversationId(conversationId);
+    setStreaming(false);
+    setFailedDraft(null);
+  }
+
+  const messages = useMemo(
+    () => conversation?.messages ?? [],
+    [conversation],
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,7 +100,7 @@ export default function ChatPage() {
           id: assistantId,
           role: "assistant",
           content: "",
-          createdAt: Date.now(),
+          createdAt: timestamp(),
         },
       ],
     });
@@ -118,7 +130,7 @@ export default function ChatPage() {
               id: assistantId,
               role: "assistant",
               content: assistantText,
-              createdAt: Date.now(),
+              createdAt: timestamp(),
             },
           ],
         });
@@ -146,7 +158,7 @@ export default function ChatPage() {
       id: crypto.randomUUID(),
       role: "user",
       content: text,
-      createdAt: Date.now(),
+      createdAt: timestamp(),
     };
 
     const nextMessages = [...messages, userMsg];
