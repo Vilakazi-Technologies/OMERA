@@ -29,7 +29,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
     >
       <div
         className={cn(
-          "max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+          "max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap",
           isUser
             ? "bg-white/12 text-white"
             : "liquid text-white/85",

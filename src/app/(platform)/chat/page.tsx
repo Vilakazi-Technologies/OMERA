@@ -25,6 +25,8 @@ export default function ChatPage() {
     conversations,
     updateConversation,
     persistence,
+    languageId,
+    languageExplicit,
   } = useApp();
   const [streaming, setStreaming] = useState(false);
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export default function ChatPage() {
     baseMessages: ChatMessage[],
     assistantId: string,
     draftText: string,
+    replyLanguageId: string | null,
   ) {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -96,6 +99,7 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           conversationId: convId,
+          replyLanguageId,
           messages: baseMessages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -135,7 +139,7 @@ export default function ChatPage() {
     }
   }
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, replyLanguageId: string | null) {
     if (!conversation || streaming) return;
 
     const userMsg: ChatMessage = {
@@ -168,6 +172,7 @@ export default function ChatPage() {
       nextMessages,
       crypto.randomUUID(),
       text,
+      replyLanguageId,
     );
   }
 
@@ -179,7 +184,13 @@ export default function ChatPage() {
     const base = failedId
       ? messages.filter((m) => m.id !== failedId)
       : messages;
-    await streamAssistant(conversation.id, base, crypto.randomUUID(), draft);
+    await streamAssistant(
+      conversation.id,
+      base,
+      crypto.randomUUID(),
+      draft,
+      languageExplicit ? languageId : null,
+    );
   }
 
   return (
@@ -209,7 +220,9 @@ export default function ChatPage() {
                 <button
                   key={s}
                   type="button"
-                  onClick={() => sendMessage(s)}
+                  onClick={() =>
+                    sendMessage(s, languageExplicit ? languageId : null)
+                  }
                   className="liquid rounded-full px-4 py-2 text-xs text-white/70 transition hover:text-white"
                 >
                   {s}

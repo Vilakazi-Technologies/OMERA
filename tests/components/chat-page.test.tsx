@@ -6,6 +6,11 @@ import "@testing-library/jest-dom/vitest";
 const updateConversation = vi.fn();
 const createConversation = vi.fn();
 
+const appState = {
+  languageId: "eng",
+  languageExplicit: false,
+};
+
 vi.mock("@/context/app-provider", () => ({
   useApp: () => ({
     activeId: "conv-1",
@@ -21,8 +26,15 @@ vi.mock("@/context/app-provider", () => ({
     ],
     updateConversation,
     persistence: "local",
-    languageId: "eng",
-    setLanguageId: vi.fn(),
+    languageId: appState.languageId,
+    languageExplicit: appState.languageExplicit,
+    setLanguageId: (id: string) => {
+      appState.languageId = id;
+      appState.languageExplicit = true;
+    },
+    setLanguageExplicit: (explicit: boolean) => {
+      appState.languageExplicit = explicit;
+    },
   }),
 }));
 vi.mock("@/lib/omera-sync", () => ({
@@ -68,6 +80,8 @@ function jsonResponse(body: unknown, status: number): Response {
 }
 
 beforeEach(() => {
+  appState.languageId = "eng";
+  appState.languageExplicit = false;
   if (
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID !== "function"
@@ -166,5 +180,36 @@ describe("chat page stream lifecycle", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     const laterCalls = updateConversation.mock.calls.slice(callsAtUnmount);
     expect(JSON.stringify(laterCalls)).not.toContain("late");
+  });
+
+  it("a_selected_language_is_sent_with_the_request", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => ({ ok: true, body: tokenStream(["Sharp"]) }) as Response,
+      ),
+    );
+    const { rerender } = render(<ChatPage />);
+    await sendDraft("Help me price my service.");
+    await waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    });
+    const defaultBody = JSON.parse(
+      vi.mocked(fetch).mock.calls[0][1]!.body as string,
+    );
+    expect(defaultBody.replyLanguageId).toBeNull();
+
+    fireEvent.change(screen.getByLabelText(/speaking language/i), {
+      target: { value: "zul" },
+    });
+    rerender(<ChatPage />);
+    await sendDraft("Ngisize ngithole ikhasimende lami lokuqala.");
+    await waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    });
+    const explicitBody = JSON.parse(
+      vi.mocked(fetch).mock.calls[1][1]!.body as string,
+    );
+    expect(explicitBody.replyLanguageId).toBe("zul");
   });
 });

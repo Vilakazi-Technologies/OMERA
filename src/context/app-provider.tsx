@@ -24,6 +24,8 @@ type AppContextValue = {
   setSidebarOpen: (open: boolean) => void;
   languageId: string;
   setLanguageId: (id: string) => void;
+  languageExplicit: boolean;
+  setLanguageExplicit: (explicit: boolean) => void;
   conversations: Conversation[];
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -41,15 +43,16 @@ const STORAGE_KEY = "omera-app-v2";
 type Persisted = {
   conversations: Conversation[];
   languageId: string;
+  languageExplicit: boolean;
 };
 
 function loadPersisted(): Persisted {
   if (typeof window === "undefined") {
-    return { conversations: [], languageId: "eng" };
+    return { conversations: [], languageId: "eng", languageExplicit: false };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { conversations: [], languageId: "eng" };
+    if (!raw) return { conversations: [], languageId: "eng", languageExplicit: false };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return {
       conversations: Array.isArray(parsed.conversations)
@@ -57,9 +60,10 @@ function loadPersisted(): Persisted {
         : [],
       languageId:
         typeof parsed.languageId === "string" ? parsed.languageId : "eng",
+      languageExplicit: parsed.languageExplicit === true,
     };
   } catch {
-    return { conversations: [], languageId: "eng" };
+    return { conversations: [], languageId: "eng", languageExplicit: false };
   }
 }
 
@@ -77,7 +81,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [persistence, setPersistence] = useState<"local" | "supabase">("local");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [languageId, setLanguageId] = useState("eng");
+  const [languageId, setLanguageIdState] = useState("eng");
+  const [languageExplicit, setLanguageExplicit] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [formSession, setFormSession] = useState<FormSession | null>(null);
@@ -95,6 +100,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPersistence("local");
     clearPrivateState();
   }, [clearPrivateState]);
+
+  const setLanguageId = useCallback((id: string) => {
+    setLanguageIdState(id);
+    setLanguageExplicit(true);
+  }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     let sessionUserId: string | null = null;
@@ -140,19 +150,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const data = loadPersisted();
     setConversations(data.conversations);
-    setLanguageId(data.languageId);
+    setLanguageIdState(data.languageId);
+    setLanguageExplicit(data.languageExplicit);
     void refreshSession().finally(() => setSessionChecked(true));
   }, [refreshSession]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const payload: Persisted = { conversations, languageId };
+    const payload: Persisted = {
+      conversations,
+      languageId,
+      languageExplicit,
+    };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // Private state stays in memory when storage is unavailable.
     }
-  }, [conversations, languageId]);
+  }, [conversations, languageId, languageExplicit]);
 
   useEffect(() => {
     if (sessionChecked && persistence === "supabase" && userId) {
@@ -217,6 +232,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSidebarOpen,
       languageId,
       setLanguageId,
+      languageExplicit,
+      setLanguageExplicit,
       conversations,
       activeId,
       setActiveId,
@@ -235,6 +252,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       logout,
       sidebarOpen,
       languageId,
+      setLanguageId,
+      languageExplicit,
+      setLanguageExplicit,
       conversations,
       activeId,
       createConversation,

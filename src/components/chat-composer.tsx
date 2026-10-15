@@ -8,7 +8,7 @@ import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { cn } from "@/lib/cn";
 
 type Props = {
-  onSend: (text: string) => void;
+  onSend: (text: string, replyLanguageId: string | null) => void;
   disabled?: boolean;
   placeholder?: string;
   showLanguage?: boolean;
@@ -21,7 +21,7 @@ export function ChatComposer({
   showLanguage = true,
 }: Props) {
   const [text, setText] = useState("");
-  const { languageId, setLanguageId } = useApp();
+  const { languageId, setLanguageId, languageExplicit } = useApp();
   const { recording, error, start, stop } = useVoiceRecorder();
 
   async function handleMic() {
@@ -48,7 +48,7 @@ export function ChatComposer({
   function submit() {
     const trimmed = text.trim();
     if (!trimmed || disabled) return;
-    onSend(trimmed);
+    onSend(trimmed, languageExplicit ? languageId : null);
     setText("");
   }
 
