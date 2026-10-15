@@ -1,44 +1,79 @@
-import OpenAI from "openai";
-import { analyzeFormDemo } from "@/lib/form-demo";
-import type { FormField } from "@/lib/types";
-import { getOpenAIConfig } from "@/lib/ai/config";
+import "server-only";
+import {
+  completeXavaniJson,
+  getXavaniConfig,
+} from "@/lib/ai/xavani-client";
+import {
+  parseStrictXavaniFields,
+  type CanonicalFieldDef,
+} from "@/lib/forms/contracts";
+import type { StoredFormField } from "@/lib/db/form-sessions";
+import type { PdfFieldInfo } from "@/lib/forms/pdf-fields";
 
-const FIELD_SCHEMA = `Return JSON only: { "fields": [ { "id": "snake_case", "label": "Human label", "type": "text|email|phone|date|id", "required": true, "prompt": "Question to ask the user" } ] }`;
+const SYSTEM_PROMPT =
+  "You translate PDF form field labels and questions. " +
+  "Return JSON only: { \"fields\": [ { \"id\": \"exact-canonical-id\", " +
+  "\"label\": \"Translated human label\", \"prompt\": \"Translated question\" } ] }. " +
+  "Reuse every canonical id exactly once: never duplicate, add, omit, or rename an id. " +
+  "Never invent PDF coordinates, page numbers, storage paths, or document metadata. " +
+  "Translate labels and prompts only; field identity always stays canonical.";
 
+const SCHEMA_ERRORS = new Set([
+  "INVALID_XAVANI_FIELDS",
+  "DUPLICATE_FIELD_ID",
+  "ADDED_FIELD_ID",
+  "OMITTED_FIELD_ID",
+  "INVALID_OPTION",
+]);
+
+/**
+ * Interpret codec-inspected fields through the Xavani runtime.
+ * Labels and translated questions come from the model; field identity,
+ * kinds, options, and required flags always come from the C10 inspection.
+ * Never returns demo fields. Fails visibly when translation fails.
+ */
 export async function extractFormFields(
-  fileName: string,
-  documentText: string,
-): Promise<FormField[]> {
-  const { apiKey, enabled } = getOpenAIConfig();
-  if (!enabled || !apiKey || documentText.length < 20) {
-    return analyzeFormDemo(fileName);
-  }
+  inspected: PdfFieldInfo[],
+  options: { languageId: string },
+): Promise<StoredFormField[]> {
+  if (!inspected.length) throw new Error("NO_FIELDS_TO_INTERPRET");
+  const defs: CanonicalFieldDef[] = inspected.map((field) => ({
+    id: field.id,
+    kind: field.kind,
+    required: field.required,
+    options: field.options,
+  }));
 
-  const openai = new OpenAI({ apiKey });
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
-    temperature: 0.2,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You analyse South African forms (PDFs, applications, HR, insurance). " +
-          FIELD_SCHEMA,
-      },
-      {
-        role: "user",
-        content: `File: ${fileName}\n\nDocument text:\n${documentText.slice(0, 12000)}`,
-      },
-    ],
-  });
-
-  const raw = completion.choices[0]?.message?.content ?? "{}";
+  let config;
   try {
-    const parsed = JSON.parse(raw) as { fields?: FormField[] };
-    if (parsed.fields?.length) return parsed.fields;
+    config = getXavaniConfig();
   } catch {
-    /* fallback */
+    throw new Error("FORM_TRANSLATION_FAILED");
   }
-  return analyzeFormDemo(fileName);
+
+  let prompts;
+  try {
+    prompts = await completeXavaniJson(
+      config,
+      SYSTEM_PROMPT,
+      JSON.stringify({ languageId: options.languageId, fields: defs }),
+      (value) => parseStrictXavaniFields(value, defs),
+    );
+  } catch (error) {
+    if (error instanceof Error && SCHEMA_ERRORS.has(error.message)) throw error;
+    throw new Error("FORM_TRANSLATION_FAILED");
+  }
+
+  const translated = new Map(prompts.map((prompt) => [prompt.id, prompt]));
+  return inspected.map((field) => ({
+    id: field.id,
+    label: translated.get(field.id)?.label ?? field.id,
+    type: "text" as const,
+    required: field.required,
+    prompt:
+      translated.get(field.id)?.prompt ??
+      `Please provide a value for ${field.id}.`,
+    kind: field.kind,
+    ...(field.options ? { options: field.options } : {}),
+  }));
 }
