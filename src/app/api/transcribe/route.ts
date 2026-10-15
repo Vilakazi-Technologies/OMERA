@@ -1,41 +1,103 @@
 import { NextResponse } from "next/server";
-import { getLanguage } from "@/lib/languages";
-import { transcribeAudio, translateToEnglish } from "@/lib/lelapa";
+import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
+import { readBody } from "@/lib/http/read-body";
+import { requireRequestOrigin } from "@/lib/auth/request-origin";
+import { requireIdentity } from "@/lib/auth/require-identity";
+import { createAuthContext } from "@/lib/supabase/server";
+import { isKnownLanguage } from "@/lib/speech/capabilities";
+import { SpeechError, transcribeNative } from "@/lib/speech/transcribe";
 
-export async function POST(req: Request) {
+export const runtime = "nodejs";
+
+/** Raw JSON body limit: base64 audio plus metadata. */
+const TRANSCRIBE_BODY_LIMIT = 2800000;
+/** Decoded audio limit: 60 s of 16 kHz 16-bit mono plus WAV header. */
+const TRANSCRIBE_AUDIO_LIMIT = 2000000;
+
+const SUPPORTED_MIME_TYPES = new Set([
+  "audio/wav",
+  "audio/x-wav",
+  "audio/mpeg",
+  "audio/flac",
+  "audio/aac",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/aiff",
+  "audio/opus",
+]);
+
+const NO_STORE = { "Cache-Control": "private, no-store" } as const;
+
+function decodeCanonicalBase64(value: unknown): Uint8Array {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new ApiError("INVALID_AUDIO", 400);
+  }
+  if (
+    value.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(value)
+  ) {
+    throw new ApiError("INVALID_AUDIO", 400);
+  }
+  const decoded = Buffer.from(value, "base64");
+  if (decoded.toString("base64") !== value) {
+    throw new ApiError("INVALID_AUDIO", 400);
+  }
+  return new Uint8Array(decoded);
+}
+
+export async function POST(request: Request) {
   try {
-    const body = (await req.json()) as {
-      audioBase64: string;
-      mimeType?: string;
-      languageId: string;
-    };
+    const auth = await createAuthContext();
+    await requireIdentity(auth);
+    requireRequestOrigin(request);
 
-    if (!body.audioBase64) {
+    const raw = await readBody(request, TRANSCRIBE_BODY_LIMIT);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw));
+    } catch {
+      throw new ApiError("INVALID_JSON", 400);
+    }
+    if (!parsed || typeof parsed !== "object") {
+      throw new ApiError("INVALID_REQUEST", 400);
+    }
+    const { audioBase64, mimeType, languageId } = parsed as Record<string, unknown>;
+
+    if (typeof languageId !== "string" || !isKnownLanguage(languageId)) {
+      throw new ApiError("INVALID_LANGUAGE", 400);
+    }
+    if (typeof mimeType !== "string") {
+      throw new ApiError("INVALID_AUDIO", 400);
+    }
+    const mime = mimeType.split(";")[0].trim().toLowerCase();
+    if (!SUPPORTED_MIME_TYPES.has(mime)) {
+      throw new ApiError("UNSUPPORTED_AUDIO", 415);
+    }
+    const audio = decodeCanonicalBase64(audioBase64);
+    if (!audio.length || audio.length > TRANSCRIBE_AUDIO_LIMIT) {
+      throw new SpeechError("INVALID_AUDIO_SIZE", audio.length ? 413 : 400);
+    }
+
+    const result = await transcribeNative({
+      audio,
+      mimeType: mime,
+      languageId,
+      apiKey: process.env.LELAPA_API_KEY ?? "",
+    });
+
+    return auth.applyCookies(
+      NextResponse.json(
+        { text: result.text, languageId: result.languageId },
+        { headers: NO_STORE },
+      ),
+    );
+  } catch (error) {
+    if (error instanceof SpeechError) {
       return NextResponse.json(
-        { error: "Missing audio" },
-        { status: 400 },
+        { error: error.code },
+        { status: error.status, headers: NO_STORE },
       );
     }
-
-    const lang = getLanguage(body.languageId);
-    const result = await transcribeAudio(
-      body.audioBase64,
-      lang.id,
-      body.mimeType ?? "audio/webm",
-    );
-
-    let text = result.text;
-    if (lang.lelapaTranslate && lang.id !== "eng") {
-      text = await translateToEnglish(text, lang.lelapaTranslate);
-    }
-
-    return NextResponse.json({
-      text,
-      provider: result.provider,
-      languageId: lang.id,
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Transcription failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiErrorResponse(error);
   }
 }
