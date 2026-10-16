@@ -1,5 +1,7 @@
 # Setting up Omera
 
+> **Operator guide (Windows + Vercel + all migrations):** see [`docs/setting-up-omera.md`](./docs/setting-up-omera.md).
+
 This guide helps an operator set up Omera from the source repositories. Omera needs Supabase and Xavani. Voice input also needs Lelapa.
 
 Do not treat an environment variable with text as a verified credential. Test each service before customer use.
@@ -36,9 +38,12 @@ The Omera README uses a project-local Node path. A fresh clone may not contain t
 
 Ask the product owner to confirm the project name, region, and data requirements. Create a dedicated Omera project in the Supabase dashboard.
 
-Open the Supabase SQL Editor. Run this migration once on the new project:
+Open the Supabase SQL Editor. Run **all four** migrations in order on the new project:
 
     supabase/migrations/20261005100000_omera_platform.sql
+    supabase/migrations/20261014090000_omera_identity.sql
+    supabase/migrations/20261014091000_omera_request_limits.sql
+    supabase/migrations/20261014092000_omera_form_documents.sql
 
 The migration creates Omera tables and a private `omera-forms` storage bucket. It enables row-level security and blocks direct client access to Omera tables.
 
