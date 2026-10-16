@@ -73,6 +73,6 @@ describe("auth verify", () => {
     const response = await POST(post({ email: "nobody@nowhere.co" }));
     expect(signInWithOtp).toHaveBeenCalled();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
+    expect(await response.json()).toEqual({ ok: true, method: "email" });
   });
 });

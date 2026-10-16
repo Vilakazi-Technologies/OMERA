@@ -7,6 +7,8 @@ import { OmeraWordmark } from "@/components/omera-wordmark";
 import { useApp } from "@/context/app-provider";
 
 const START_ERROR = "Something went wrong. Try again.";
+const EMAIL_ERROR =
+  "We could not send email. Check Supabase auth settings or try again in a few minutes.";
 const CODE_ERROR = "That code is invalid or expired.";
 
 const CALLBACK_ERRORS: Record<string, string> = {
@@ -39,7 +41,12 @@ function LoginForm() {
         body: JSON.stringify({ email: email.trim() }),
       });
       if (!res.ok) {
-        setError(START_ERROR);
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(
+          body?.error === "EMAIL_DELIVERY_FAILED" ? EMAIL_ERROR : START_ERROR,
+        );
         return;
       }
       setStep("code");
@@ -127,12 +134,27 @@ function LoginForm() {
           </>
         ) : (
           <>
-            <p className="mt-6 text-center text-xs text-white/45">
-              Check your inbox for a 6-digit code sent to{" "}
-              <span className="text-white/70">{email}</span>
+            <div className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-left text-xs leading-relaxed text-white/75">
+              <p className="font-medium text-emerald-100/95">
+                1. Open the email from Supabase / Omera
+              </p>
+              <p className="mt-2">
+                Tap <strong>Confirm your mail</strong>,{" "}
+                <strong>Log in</strong>, or <strong>Magic Link</strong> — you
+                should land in Omera chat.{" "}
+                <strong>No code is required</strong> if the button works.
+              </p>
+              <p className="mt-3 font-medium text-white/80">
+                2. Only if you see a number in the email
+              </p>
+              <p className="mt-1">Enter the 6-digit code below.</p>
+            </div>
+            <p className="mt-4 text-center text-xs text-white/40">
+              Sent to <span className="text-white/60">{email}</span> — check
+              spam. Wait up to 2 minutes.
             </p>
             <label className="mt-4 block text-left text-xs text-white/45">
-              One-time code
+              6-digit code (optional if you used the email link)
               <input
                 type="text"
                 inputMode="numeric"
@@ -153,12 +175,20 @@ function LoginForm() {
             </button>
             <button
               type="button"
+              onClick={() => void sendCode()}
+              disabled={loading}
+              className="mt-3 w-full text-center text-xs text-white/45 hover:text-white/70"
+            >
+              Resend email
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setStep("email");
                 setCode("");
                 setError(null);
               }}
-              className="mt-3 w-full text-center text-xs text-white/45 hover:text-white/70"
+              className="mt-2 w-full text-center text-xs text-white/45 hover:text-white/70"
             >
               Use a different email
             </button>

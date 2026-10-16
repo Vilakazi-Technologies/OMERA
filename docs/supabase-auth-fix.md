@@ -16,9 +16,23 @@ Project → **Authentication** → **Providers** → **Email**
 - Email provider **enabled**
 - For easiest OTP login: turn **off** “Confirm email” if you only want magic link/OTP (optional; test after change)
 
-Project → **Authentication** → **Email templates** → **Confirm signup**
+Project → **Authentication** → **Email templates**
 
-Optional: edit body to say “Your Omera code is {{ .Token }}” and de-emphasize the link.
+Edit **Confirm signup** and **Magic Link** so users get a code **and** a working link. Example body:
+
+```html
+<h2>Sign in to Omera</h2>
+<p>Tap to open Omera (recommended):</p>
+<p><a href="{{ .ConfirmationURL }}">Sign in to Omera</a></p>
+<p>Or enter this code on the login page:</p>
+<p><strong>{{ .Token }}</strong></p>
+```
+
+Without `{{ .Token }}` in the template, emails often have **no code** — only the button/link.
+
+Project → **Authentication** → **SMTP** (optional but recommended for reliable delivery)
+
+Use custom SMTP (e.g. Resend, SendGrid) so messages are not delayed or blocked.
 
 ## User flow
 

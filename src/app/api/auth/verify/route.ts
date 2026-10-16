@@ -26,12 +26,20 @@ export async function POST(request: Request) {
     const token = typeof body.token === "string" ? body.token.trim() : "";
 
     if (token) {
-      const { error } = await auth.supabase.auth.verifyOtp({
-        email,
-        token,
-        type: "email",
-      });
-      if (error) throw new ApiError("INVALID_CODE", 401);
+      const types = ["email", "signup", "magiclink"] as const;
+      let verified = false;
+      for (const type of types) {
+        const { error } = await auth.supabase.auth.verifyOtp({
+          email,
+          token,
+          type,
+        });
+        if (!error) {
+          verified = true;
+          break;
+        }
+      }
+      if (!verified) throw new ApiError("INVALID_CODE", 401);
       return auth.applyCookies(
         NextResponse.json({ ok: true }, { headers: NO_STORE }),
       );
@@ -40,15 +48,26 @@ export async function POST(request: Request) {
     const origin = (process.env.APP_ORIGIN ?? "").replace(/\/$/, "");
     // OTP start is neutral by design: never reveal whether the email exists.
     // First-time users are created automatically (no separate sign-up page).
-    await auth.supabase.auth.signInWithOtp({
+    const { error } = await auth.supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: origin ? `${origin}/auth/callback` : undefined,
       },
     });
+    if (error) {
+      const message = error.message.toLowerCase();
+      if (
+        message.includes("redirect") ||
+        message.includes("email") ||
+        message.includes("smtp") ||
+        message.includes("rate")
+      ) {
+        throw new ApiError("EMAIL_DELIVERY_FAILED", 503);
+      }
+    }
     return auth.applyCookies(
-      NextResponse.json({ ok: true }, { headers: NO_STORE }),
+      NextResponse.json({ ok: true, method: "email" }, { headers: NO_STORE }),
     );
   } catch (error) {
     return apiErrorResponse(error);
