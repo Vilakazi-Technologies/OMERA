@@ -10,9 +10,11 @@ Open: [vilatech-ai → Settings → Environment Variables](https://vercel.com/ay
 |----------|-----------------|-------|
 | `APP_ORIGIN` | You | `https://vilatech-ai.vercel.app` (exact, no trailing slash) |
 | `OMERA_DEMO_MODE` | You | `false` on production |
-| `XAVANI_BASE_URL` | Shivani / XAVANI team | HTTPS origin only, e.g. `https://your-xavani-host/` → stored as origin |
-| `XAVANI_API_KEY` | Shivani / XAVANI team | Server secret; never `NEXT_PUBLIC_` |
-| `XAVANI_MODEL` | Shivani / XAVANI team | Default in code: `omera` — must match service capabilities |
+| `XAVANI_BASE_URL` | Shivani / XAVANI team | Optional if using OpenRouter below |
+| `XAVANI_API_KEY` | Shivani / XAVANI team | Optional; takes priority over OpenRouter when set |
+| `XAVANI_MODEL` | Shivani / XAVANI team | e.g. `omera` |
+| `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) | Developer-provided; server only |
+| `OPENROUTER_MODEL` | Developer | e.g. `nvidia/nemotron-3.5-super-vl:free` |
 | `LELAPA_API_KEY` | Lelapa dashboard | Voice transcription (optional but needed for mic) |
 | `SUPABASE_URL` | Supabase → Project Settings → API | Same as project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → API → service_role | **Server only** |
@@ -31,11 +33,11 @@ Redeploy after saving (Deployments → … → Redeploy, or push to `main` when 
    - `supabase/migrations/20261014092000_omera_form_documents.sql`
 3. Enable **Email** auth (OTP) if login should work for real users.
 
-## 3. Shivani model (Xavani)
+## 3. Chat model (Xavani or OpenRouter)
 
-Chat does **not** call OpenAI from this app. It calls the **Xavani** service, which runs your configured model.
+**Priority:** If `XAVANI_*` is set, Omera uses the Xavani runtime. Otherwise, if `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are set, chat and form translation use [OpenRouter](https://openrouter.ai/) (e.g. `nvidia/nemotron-3.5-super-vl:free`).
 
-The client checks `/v1/capabilities` and expects `service.name === "omera"`, `model` matching `XAVANI_MODEL`, and a restricted contract (stateless, no tools/memory). If chat fails with configuration errors, Shivani should confirm base URL, API key, and model id on the Xavani side.
+`/api/health` includes `chat.provider`: `"xavani"`, `"openrouter"`, or `null`.
 
 ## 4. Verify production
 
