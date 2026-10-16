@@ -86,8 +86,9 @@ function LoginForm() {
         <div className="flex flex-col items-center text-center">
           <OmeraWordmark iconSize={40} textClassName="text-3xl" href="/" />
           <p className="mt-6 text-sm text-white/50">
-            Sign in with your email. New users are created automatically — there
-            is no separate sign-up page.
+            Sign in with email only. Your account is created the first time you
+            verify a code — ignore any email that says &quot;sign up&quot; and
+            stay on this page.
           </p>
         </div>
 
@@ -119,9 +120,9 @@ function LoginForm() {
               Send code
             </button>
             <p className="mt-4 text-center text-xs leading-relaxed text-white/40">
-              We email a one-time code. Enter it on the next screen. If the
-              email also has a &quot;Confirm&quot; link, you can tap it — you
-              should land back in Omera, not a generic sign-up site.
+              <strong className="font-medium text-white/60">Use the 6-digit code</strong>{" "}
+              on the next screen. Do not open Supabase or other sign-up pages —
+              only this Omera login.
             </p>
           </>
         ) : (
