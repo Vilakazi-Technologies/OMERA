@@ -6,8 +6,9 @@ document, not a text dump.
 
 - **Product owner:** Ayanda / VILATECH
 - **Organization:** [Vilakazi-Technologies/OMERA](https://github.com/Vilakazi-Technologies/OMERA)
-- **Requirements:** [`XAVANI-INSTRUCTIONS.md`](./XAVANI-INSTRUCTIONS.md) (unchanged, SHA-256 `b03e5e0d…`)
-- **This branch:** `feat/omera-integration` — all build work. Review it through the pull request into `main`.
+- **Requirements:** [`XAVANI-INSTRUCTIONS.md`](./XAVANI-INSTRUCTIONS.md)
+- **Owner agenda / approved scope:** [`docs/AGENDA.md`](./docs/AGENDA.md) (PR [#1](https://github.com/Vilakazi-Technologies/OMERA/pull/1) merged)
+- **Production:** [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app) (redeploy from `main` when ready)
 
 ## Status
 

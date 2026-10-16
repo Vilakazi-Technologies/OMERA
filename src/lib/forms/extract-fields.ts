@@ -1,8 +1,5 @@
 import "server-only";
-import {
-  completeXavaniJson,
-  getXavaniConfig,
-} from "@/lib/ai/xavani-client";
+import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
 import {
   parseStrictXavaniFields,
   type CanonicalFieldDef,
@@ -44,17 +41,9 @@ export async function extractFormFields(
     options: field.options,
   }));
 
-  let config;
-  try {
-    config = getXavaniConfig();
-  } catch {
-    throw new Error("FORM_TRANSLATION_FAILED");
-  }
-
   let prompts;
   try {
-    prompts = await completeXavaniJson(
-      config,
+    prompts = await completeConfiguredJson(
       SYSTEM_PROMPT,
       JSON.stringify({ languageId: options.languageId, fields: defs }),
       (value) => parseStrictXavaniFields(value, defs),

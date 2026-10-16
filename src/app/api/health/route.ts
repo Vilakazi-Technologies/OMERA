@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveChatProvider } from "@/lib/ai/chat-runtime";
 import {
   databaseReachable,
   overallStatus,
@@ -29,7 +30,7 @@ export async function GET() {
   return NextResponse.json({
     status: overallStatus({ xavani, database }),
     service: "omera",
-    chat: xavani,
+    chat: { ...xavani, provider: resolveChatProvider() },
     voice: {
       configured: Boolean(process.env.LELAPA_API_KEY?.trim()),
     },

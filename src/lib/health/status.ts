@@ -27,7 +27,11 @@ export function xavaniHealth(
 ): XavaniHealth {
   const apiKey = env.XAVANI_API_KEY?.trim();
   const baseUrl = env.XAVANI_BASE_URL?.trim();
-  const configured = Boolean(apiKey && baseUrl);
+  const xavani = Boolean(apiKey && baseUrl);
+  const openRouter = Boolean(
+    env.OPENROUTER_API_KEY?.trim() && env.OPENROUTER_MODEL?.trim(),
+  );
+  const configured = xavani || openRouter;
   return {
     configured,
     state: configured ? "configured" : "unavailable",

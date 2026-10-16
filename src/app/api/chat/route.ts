@@ -8,10 +8,7 @@ import { chatRequestSchema } from "@/lib/ai/chat-request";
 import { getConversation } from "@/lib/db/conversations";
 import { consumeQuota } from "@/lib/limits/consume-quota";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import {
-  createXavaniChatStream,
-  getXavaniConfig,
-} from "@/lib/ai/xavani-client";
+import { createConfiguredChatStream } from "@/lib/ai/chat-runtime";
 import { createDemoChatStream } from "@/lib/ai/demo-stream";
 import { runtimeMode } from "@/lib/ai/runtime-mode";
 
@@ -52,9 +49,7 @@ export async function POST(request: Request) {
 
     let stream: ReadableStream<Uint8Array>;
     try {
-      const config = getXavaniConfig();
-      stream = createXavaniChatStream(
-        config,
+      stream = createConfiguredChatStream(
         messages.map((message) => ({
           role: message.role,
           content: message.content,
