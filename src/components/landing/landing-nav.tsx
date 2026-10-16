@@ -70,7 +70,7 @@ export function LandingNav() {
             href="/login"
             className="hidden items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/90 sm:inline-flex sm:px-5 sm:py-2.5"
           >
-            Get started
+            Sign in
             <ArrowRight className="size-4" />
           </Link>
           <button
@@ -102,7 +102,7 @@ export function LandingNav() {
               className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-white py-3 text-sm font-medium text-black"
               onClick={() => setMenuOpen(false)}
             >
-              Get started
+              Sign in
               <ArrowRight className="size-4" />
             </Link>
           </nav>

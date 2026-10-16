@@ -73,7 +73,7 @@ export function LandingInteractiveHero() {
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-medium text-black transition hover:bg-white/90"
               >
                 <Sparkles className="size-4" />
-                Get started
+                Sign in
               </Link>
               <a
                 href="#how-it-works"
