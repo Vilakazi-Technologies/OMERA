@@ -19,7 +19,7 @@ export async function GET() {
     dbReachable = await databaseReachable(async () => {
       const admin = getSupabaseAdmin();
       const { error } = await admin
-        .from("conversations")
+        .from("omera_conversations")
         .select("id", { count: "exact", head: true })
         .limit(1);
       if (error) throw error;
