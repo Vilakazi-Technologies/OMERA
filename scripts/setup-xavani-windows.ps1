@@ -17,7 +17,7 @@ $py = $null
 foreach ($candidate in @("py -3.11", "py -3.12", "py -3", "python")) {
   try {
     $ver = Invoke-Expression "$candidate -c `"import sys; print(sys.version_info[:2])`"" 2>$null
-    if ($ver -match "3\.1[1-3]") { $py = $candidate; break }
+    if ($ver -match "3\.1[1-4]") { $py = $candidate; break }
   } catch { }
 }
 if (-not $py) {
