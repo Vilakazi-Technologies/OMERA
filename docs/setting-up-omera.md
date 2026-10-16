@@ -51,8 +51,8 @@ In **SQL Editor**, run **all four** migrations **in order**:
 
 | Environment | Site URL / redirects |
 |-------------|----------------------|
-| Local | `http://127.0.0.1:3000` |
-| Production | `https://vilatech-ai.vercel.app` |
+| Local | `http://127.0.0.1:3000` and `http://127.0.0.1:3000/auth/callback` |
+| Production | `https://vilatech-ai.vercel.app` and `https://vilatech-ai.vercel.app/auth/callback` |
 
 Copy from **Project Settings → API**:
 

@@ -1,22 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { OmeraWordmark } from "@/components/omera-wordmark";
 import { useApp } from "@/context/app-provider";
 
 const START_ERROR = "Something went wrong. Try again.";
 const CODE_ERROR = "That code is invalid or expired.";
 
-export default function LoginPage() {
+const CALLBACK_ERRORS: Record<string, string> = {
+  missing_code: "That sign-in link is incomplete. Request a new code below.",
+  auth_callback: "That sign-in link expired. Enter your email and use a fresh code.",
+};
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUserId, setPersistence, refreshConversations } = useApp();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const key = searchParams.get("error");
+    if (key && CALLBACK_ERRORS[key]) setError(CALLBACK_ERRORS[key]);
+  }, [searchParams]);
 
   async function sendCode() {
     setLoading(true);
@@ -75,7 +86,8 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center">
           <OmeraWordmark iconSize={40} textClassName="text-3xl" href="/" />
           <p className="mt-6 text-sm text-white/50">
-            Sign in to continue to your workspace.
+            Sign in with your email. New users are created automatically — there
+            is no separate sign-up page.
           </p>
         </div>
 
@@ -101,15 +113,24 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => void sendCode()}
-              disabled={loading}
+              disabled={loading || !email.trim()}
               className="mt-4 w-full rounded-full bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60"
             >
               Send code
             </button>
+            <p className="mt-4 text-center text-xs leading-relaxed text-white/40">
+              We email a one-time code. Enter it on the next screen. If the
+              email also has a &quot;Confirm&quot; link, you can tap it — you
+              should land back in Omera, not a generic sign-up site.
+            </p>
           </>
         ) : (
           <>
-            <label className="mt-8 block text-left text-xs text-white/45">
+            <p className="mt-6 text-center text-xs text-white/45">
+              Check your inbox for a 6-digit code sent to{" "}
+              <span className="text-white/70">{email}</span>
+            </p>
+            <label className="mt-4 block text-left text-xs text-white/45">
               One-time code
               <input
                 type="text"
@@ -124,10 +145,21 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => void verifyCode()}
-              disabled={loading}
+              disabled={loading || !code.trim()}
               className="mt-4 w-full rounded-full bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60"
             >
-              Verify
+              Verify and continue
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setError(null);
+              }}
+              className="mt-3 w-full text-center text-xs text-white/45 hover:text-white/70"
+            >
+              Use a different email
             </button>
           </>
         )}
@@ -144,5 +176,19 @@ export default function LoginPage() {
         ← Back to home
       </Link>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh items-center justify-center text-sm text-white/45">
+          Loading…
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

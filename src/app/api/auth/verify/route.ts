@@ -37,8 +37,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const origin = (process.env.APP_ORIGIN ?? "").replace(/\/$/, "");
     // OTP start is neutral by design: never reveal whether the email exists.
-    await auth.supabase.auth.signInWithOtp({ email });
+    // First-time users are created automatically (no separate sign-up page).
+    await auth.supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: origin ? `${origin}/auth/callback` : undefined,
+      },
+    });
     return auth.applyCookies(
       NextResponse.json({ ok: true }, { headers: NO_STORE }),
     );
