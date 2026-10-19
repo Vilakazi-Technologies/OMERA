@@ -5,7 +5,8 @@
 **Repo:** [github.com/Vilakazi-Technologies/OMERA](https://github.com/Vilakazi-Technologies/OMERA)  
 **Production (current):** [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app)
 
-> **MVP / production integration (developers):** use **[`docs/shivani-mvp-production.md`](docs/shivani-mvp-production.md)** for final Vercel steps, low-cost investor demo, Xavani wiring, and **why PDF export fails** (fillable PDF vs AI credits).  
+> **Phase 3 handover (Andy — domain + Xavani URL):** **[`docs/PHASE-THREE-instructions.md`](docs/PHASE-THREE-instructions.md)** — what was pushed, health/models APIs, Gemini 2.0 interim, and exactly what to host for Shivani’s AI.  
+> **MVP / production integration (developers):** **[`docs/shivani-mvp-production.md`](docs/shivani-mvp-production.md)** — Vercel env, PDF troubleshooting.  
 > **Demo script:** [`docs/mvp-demo.md`](docs/mvp-demo.md).
 
 Read this file first for **product vision and P0 scope**. It is not a substitute for the current env stack (Clerk + OpenRouter/Xavani + Supabase)—see the doc above.

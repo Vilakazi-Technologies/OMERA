@@ -7,6 +7,7 @@ document, not a text dump.
 - **Product owner:** Ayanda / VILATECH
 - **Organization:** [Vilakazi-Technologies/OMERA](https://github.com/Vilakazi-Technologies/OMERA)
 - **Requirements:** [`XAVANI-INSTRUCTIONS.md`](./XAVANI-INSTRUCTIONS.md)
+- **Phase 3 (latest push + Andy / Xavani URL):** [`docs/PHASE-THREE-instructions.md`](./docs/PHASE-THREE-instructions.md)
 - **Owner agenda / approved scope:** [`docs/AGENDA.md`](./docs/AGENDA.md) (PR [#1](https://github.com/Vilakazi-Technologies/OMERA/pull/1) merged)
 - **Production:** [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app) (redeploy from `main` when ready)
 
