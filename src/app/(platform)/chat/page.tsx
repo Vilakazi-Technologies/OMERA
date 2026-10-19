@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
-import { ChatModelSelect } from "@/components/chat-model-select";
 import { OmeraThinking } from "@/components/omera-thinking";
 import { OMERA_MODEL_ID } from "@/lib/ai/model-catalog-client";
 import { useApp } from "@/context/app-provider";
@@ -58,6 +57,15 @@ export default function ChatPage() {
     languageId,
     languageExplicit,
   } = useApp();
+
+  function persistChatModel(id: string) {
+    setChatModelId(id);
+    try {
+      localStorage.setItem("omera-chat-model", id);
+    } catch {
+      // ignore
+    }
+  }
   const [chatModelId, setChatModelId] = useState(() => {
     if (typeof window === "undefined") return OMERA_MODEL_ID;
     return localStorage.getItem("omera-chat-model") ?? OMERA_MODEL_ID;
@@ -299,7 +307,23 @@ export default function ChatPage() {
   }
 
   async function sendMessage(text: string, replyLanguageId: string | null) {
-    if (!conversation || streaming) return;
+    if (streaming) return;
+
+    let convId = conversation?.id;
+    let baseMessages = messages;
+    let titleBase = conversation?.title ?? "New chat";
+
+    if (!convId) {
+      try {
+        convId = await createConversation("chat");
+        baseMessages = [];
+        titleBase = "New chat";
+      } catch {
+        setSendError("Could not start a chat. Refresh the page and try again.");
+        setFailedDraft(text);
+        return;
+      }
+    }
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -308,26 +332,24 @@ export default function ChatPage() {
       createdAt: timestamp(),
     };
 
-    const nextMessages = [...messages, userMsg];
+    const nextMessages = [...baseMessages, userMsg];
     const title =
-      conversation.title === "New chat"
-        ? text.slice(0, 42)
-        : conversation.title;
+      titleBase === "New chat" ? text.slice(0, 42) : titleBase;
 
-    updateConversation(conversation.id, {
+    updateConversation(convId, {
       messages: nextMessages,
       title,
     });
 
     if (persistence === "supabase") {
-      trackSave(() => persistMessage(conversation.id, "user", text));
-      if (conversation.title === "New chat") {
-        trackSave(() => persistConversationTitle(conversation.id, title));
+      trackSave(() => persistMessage(convId, "user", text));
+      if (titleBase === "New chat") {
+        trackSave(() => persistConversationTitle(convId, title));
       }
     }
 
     await streamAssistant(
-      conversation.id,
+      convId,
       nextMessages,
       crypto.randomUUID(),
       text,
@@ -364,18 +386,9 @@ export default function ChatPage() {
               A product of VILATECH · South Africa
             </p>
           </div>
-          <ChatModelSelect
-            value={chatModelId}
-            onChange={(id) => {
-              setChatModelId(id);
-              try {
-                localStorage.setItem("omera-chat-model", id);
-              } catch {
-                // ignore
-              }
-            }}
-            className="justify-center sm:justify-end"
-          />
+          <p className="text-[11px] text-white/45 text-center sm:text-right">
+            Ask about any business topic — not only the suggestions below.
+          </p>
         </div>
       </header>
 
@@ -386,8 +399,8 @@ export default function ChatPage() {
               What does your business need next?
             </h2>
             <p className="mt-2 max-w-md text-sm text-slate-400">
-              Ask for practical business guidance, or use Form fill to complete
-              a supported PDF.
+              Type any question in the box below. The chips are optional
+              starters — Omera answers like a normal AI adviser.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
@@ -483,7 +496,12 @@ export default function ChatPage() {
         </div>
       )}
 
-      <ChatComposer onSend={sendMessage} disabled={streaming} />
+      <ChatComposer
+        onSend={sendMessage}
+        disabled={streaming}
+        chatModelId={chatModelId}
+        onChatModelChange={persistChatModel}
+      />
     </>
   );
 }

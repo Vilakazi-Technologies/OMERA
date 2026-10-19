@@ -1,18 +1,19 @@
 import "server-only";
 import { buildOmeraSystemPrompt } from "@/lib/ai/omera-system-prompt";
+import { resolveOpenRouterModelId } from "@/lib/ai/openrouter-models";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export type OpenRouterConfig = { apiKey: string; model: string };
 
 export function isOpenRouterConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.OPENROUTER_API_KEY?.trim() && env.OPENROUTER_MODEL?.trim());
+  return Boolean(env.OPENROUTER_API_KEY?.trim());
 }
 
 export function getOpenRouterConfig(env: NodeJS.ProcessEnv = process.env): OpenRouterConfig {
   const apiKey = env.OPENROUTER_API_KEY?.trim();
-  const model = env.OPENROUTER_MODEL?.trim();
-  if (!apiKey || !model) throw new Error("OPENROUTER_UNAVAILABLE");
+  const model = resolveOpenRouterModelId(env);
+  if (!apiKey) throw new Error("OPENROUTER_UNAVAILABLE");
   if (/[\r\n]/.test(apiKey)) throw new Error("INVALID_OPENROUTER_KEY");
   return { apiKey, model };
 }
@@ -90,6 +91,36 @@ async function post(
   throw lastError;
 }
 
+function tokenFromOpenRouterChunk(parsed: unknown): string | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  if ("error" in parsed) {
+    throw new Error("OPENROUTER_ERROR");
+  }
+  const record = parsed as {
+    choices?: {
+      delta?: { content?: string | null; reasoning?: string | null; text?: string | null };
+      message?: { content?: string | null };
+      text?: string | null;
+    }[];
+  };
+  const choice = record.choices?.[0];
+  if (!choice) return null;
+  const delta = choice.delta;
+  if (delta) {
+    for (const key of ["content", "reasoning", "text"] as const) {
+      const part = delta[key];
+      if (typeof part === "string" && part.length > 0) return part;
+    }
+  }
+  const messageContent = choice.message?.content;
+  if (typeof messageContent === "string" && messageContent.length > 0) {
+    return messageContent;
+  }
+  const text = choice.text;
+  if (typeof text === "string" && text.length > 0) return text;
+  return null;
+}
+
 async function* streamTokens(response: Response): AsyncGenerator<string> {
   if (!response.body) throw new Error("INVALID_OPENROUTER_STREAM");
   const contentType = response.headers.get("content-type") ?? "";
@@ -125,13 +156,10 @@ async function* streamTokens(response: Response): AsyncGenerator<string> {
           return;
         }
         if (data) {
-          const parsed = JSON.parse(data) as {
-            choices?: { delta?: { content?: string | null } }[];
-          };
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (typeof delta === "string" && delta) {
+          const token = tokenFromOpenRouterChunk(JSON.parse(data) as unknown);
+          if (token) {
             visible = true;
-            yield delta;
+            yield token;
           }
         }
         boundary = pending.indexOf("\n\n");

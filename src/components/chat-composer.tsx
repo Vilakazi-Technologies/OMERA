@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowUp, Mic, Square } from "lucide-react";
+import { ChatModelSelect } from "@/components/chat-model-select";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
@@ -12,6 +13,8 @@ type Props = {
   disabled?: boolean;
   placeholder?: string;
   showLanguage?: boolean;
+  chatModelId?: string;
+  onChatModelChange?: (modelId: string) => void;
 };
 
 export function ChatComposer({
@@ -19,6 +22,8 @@ export function ChatComposer({
   disabled,
   placeholder = "Message Omera…",
   showLanguage = true,
+  chatModelId,
+  onChatModelChange,
 }: Props) {
   const [text, setText] = useState("");
   const { languageId, setLanguageId, languageExplicit } = useApp();
@@ -105,15 +110,22 @@ export function ChatComposer({
           className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         <div className="flex items-center justify-between gap-2 px-1">
-          {showLanguage ? (
-            <LanguageSelect
-              value={languageId}
-              onChange={setLanguageId}
-              compact
-            />
-          ) : (
-            <span />
-          )}
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            {chatModelId && onChatModelChange ? (
+              <ChatModelSelect
+                variant="compact"
+                value={chatModelId}
+                onChange={onChatModelChange}
+              />
+            ) : null}
+            {showLanguage ? (
+              <LanguageSelect
+                value={languageId}
+                onChange={setLanguageId}
+                compact
+              />
+            ) : null}
+          </span>
           <div className="flex items-center gap-1">
             <button
               type="button"

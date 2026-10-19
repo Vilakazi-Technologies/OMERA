@@ -8,6 +8,8 @@ type Props = {
   value: string;
   onChange: (modelId: string) => void;
   className?: string;
+  /** Compact dropdown for the message composer row. */
+  variant?: "pills" | "compact";
 };
 
 type CatalogResponse = {
@@ -15,7 +17,12 @@ type CatalogResponse = {
   models: ModelCatalogEntry[];
 };
 
-export function ChatModelSelect({ value, onChange, className }: Props) {
+export function ChatModelSelect({
+  value,
+  onChange,
+  className,
+  variant = "pills",
+}: Props) {
   const [models, setModels] = useState<ModelCatalogEntry[]>([]);
   const [provider, setProvider] = useState<string>("");
 
@@ -43,6 +50,32 @@ export function ChatModelSelect({ value, onChange, className }: Props) {
       <p className={cn("text-[11px] text-white/40", className)}>
         Loading models…
       </p>
+    );
+  }
+
+  const available = models.filter((m) => m.available);
+
+  if (variant === "compact") {
+    return (
+      <label
+        className={cn(
+          "flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-slate-200",
+          className,
+        )}
+      >
+        <span className="sr-only">Chat model</span>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="max-w-[11rem] cursor-pointer bg-transparent outline-none sm:max-w-[14rem]"
+        >
+          {available.map((model) => (
+            <option key={model.id} value={model.id} className="bg-[#050505]">
+              {model.label}
+            </option>
+          ))}
+        </select>
+      </label>
     );
   }
 

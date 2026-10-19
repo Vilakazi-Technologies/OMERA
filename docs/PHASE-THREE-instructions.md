@@ -32,7 +32,7 @@ Until Andy links **hosted Xavani**, chat and form-label AI go through **OpenRout
 | Setting (Vercel) | Typical MVP value |
 |------------------|-------------------|
 | `OPENROUTER_API_KEY` | Server-only key from OpenRouter |
-| `OPENROUTER_MODEL` | **`google/gemini-2.0-flash-lite-preview-02-05:free`** (Gemini **2.0** Flash Lite — fast, low-cost demo) |
+| `OPENROUTER_MODEL` | **`google/gemini-2.5-flash-lite`** (retired `gemini-2.0-flash-lite-preview-02-05:free` is auto-remapped in code) |
 
 The product still shows the primary model as **Omera (Shivani)** in the UI and APIs. Under the hood, `chat.provider` is `"openrouter"` until `XAVANI_*` is set.
 
