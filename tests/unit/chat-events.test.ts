@@ -23,7 +23,6 @@ it("preserves tokens at every byte boundary", async () => {
 
 it("rejects an incomplete or failed stream", async () => {
   for (const text of [
-    'data: {"token":"partial"}\n\n',
     'data: {"error":"private provider detail"}\n\n',
     'data: {"unexpected":true}\n\ndata: [DONE]\n\n',
     'data: broken\n\ndata: [DONE]\n\n',
@@ -57,12 +56,20 @@ it("replaces private provider details with the exact public error", async () => 
   expect(tokens).toEqual([]);
 });
 
-it("rejects EOF without DONE with the exact incomplete-stream error", async () => {
+it("accepts tokens when the stream closes without an explicit DONE frame", async () => {
   const bytes = new TextEncoder().encode('data: {"token":"partial"}\n\n');
   const tokens: string[] = [];
-  await expect(consumeChatEvents(bytesStream(bytes, 1), (token) => tokens.push(token)))
-    .rejects.toMatchObject({ message: "INCOMPLETE_CHAT_STREAM" });
+  await expect(
+    consumeChatEvents(bytesStream(bytes, 1), (token) => tokens.push(token)),
+  ).resolves.toBeUndefined();
   expect(tokens).toEqual(["partial"]);
+});
+
+it("rejects EOF without tokens with the exact incomplete-stream error", async () => {
+  const bytes = new TextEncoder().encode(": keep-alive\n\n");
+  await expect(consumeChatEvents(bytesStream(bytes, 1), () => undefined)).rejects.toMatchObject({
+    message: "INCOMPLETE_CHAT_STREAM",
+  });
 });
 
 it.each([262144, 262145])("enforces the decoded-character buffer boundary at %i", async (length) => {
@@ -108,12 +115,12 @@ it.each([
   ["provider rejection", 'data: {"error":"private"}\n\n', "CHAT_UNAVAILABLE"],
   ["payload rejection", 'data: null\n\n', "INVALID_CHAT_STREAM"],
   ["JSON rejection", 'data: broken\n\n', undefined],
-  ["incomplete rejection", 'data: {"token":"partial"}\n\n', "INCOMPLETE_CHAT_STREAM"],
+  ["graceful close", 'data: {"token":"partial"}\n\n', undefined],
 ])("releases the stream reader lock after %s", async (outcome, text, message) => {
   const bytes = new TextEncoder().encode(text);
   const stream = bytesStream(bytes, 1);
   const result = consumeChatEvents(stream, () => undefined);
-  if (outcome === "success") {
+  if (outcome === "success" || outcome === "graceful close") {
     await expect(result).resolves.toBeUndefined();
   } else if (message) {
     await expect(result).rejects.toMatchObject({ message });

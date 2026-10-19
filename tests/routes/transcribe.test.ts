@@ -1,15 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/supabase/server", () => ({
-  createAuthContext: vi.fn(),
-}));
 vi.mock("@/lib/auth/require-identity", () => ({
   requireIdentity: vi.fn(),
 }));
 vi.mock("@/lib/auth/request-origin", () => ({
   requireRequestOrigin: vi.fn(),
 }));
-import { createAuthContext } from "@/lib/supabase/server";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { POST } from "@/app/api/transcribe/route";
@@ -45,9 +41,6 @@ function validBody(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   const env = process.env as Record<string, string | undefined>;
   env["LELAPA_API_KEY"] = "test-key";
-  vi.mocked(createAuthContext).mockResolvedValue({
-    applyCookies: (response: Response) => response,
-  } as never);
   vi.mocked(requireIdentity).mockResolvedValue({
     userId: "omera-1",
     authUserId: "auth-1",

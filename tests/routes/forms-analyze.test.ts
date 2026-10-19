@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/supabase/server", () => ({
-  createAuthContext: vi.fn(),
-}));
 vi.mock("@/lib/auth/require-identity", () => ({
   requireIdentity: vi.fn(),
 }));
@@ -12,6 +9,7 @@ vi.mock("@/lib/auth/request-origin", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   getSupabaseAdmin: vi.fn(),
+  isSupabaseConfigured: vi.fn(() => true),
 }));
 vi.mock("@/lib/forms/pdf-fields", () => ({
   inspectPdfFields: vi.fn(),
@@ -22,7 +20,6 @@ vi.mock("@/lib/forms/extract-fields", () => ({
 vi.mock("@/lib/db/form-sessions", () => ({
   createFormSession: vi.fn(),
 }));
-import { createAuthContext } from "@/lib/supabase/server";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
@@ -88,9 +85,6 @@ beforeEach(() => {
   bucketState.uploaded.length = 0;
   bucketState.removed.length = 0;
   bucketState.failUpload = false;
-  vi.mocked(createAuthContext).mockResolvedValue({
-    applyCookies: (response: Response) => response,
-  } as never);
   vi.mocked(requireIdentity).mockResolvedValue({
     userId: "omera-user-1",
     authUserId: "auth-1",

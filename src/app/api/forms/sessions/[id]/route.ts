@@ -3,7 +3,6 @@ import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readJsonBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
-import { createAuthContext } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   validateSubmittedAnswers,
@@ -45,14 +44,11 @@ type PatchedStoredField = Omit<StoredFormField, "value"> & {
 
 export async function GET(_req: Request, { params }: Params) {
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     const { id } = await params;
     const session = await getFormSession(id, identity.userId);
     if (!session) throw new ApiError("NOT_FOUND", 404);
-    return auth.applyCookies(
-      NextResponse.json({ session: toClientSession(session) }),
-    );
+    return NextResponse.json({ session: toClientSession(session) });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -60,8 +56,7 @@ export async function GET(_req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     requireRequestOrigin(req);
     const raw = await readJsonBody(req);
     if (!isRecord(raw)) throw new ApiError("INVALID_PATCH", 400);
@@ -130,12 +125,10 @@ export async function PATCH(req: Request, { params }: Params) {
       // session so export must run again instead of serving stale output.
       ...(session.status === "completed" ? { status: "review" as const } : {}),
     });
-    return auth.applyCookies(
-      NextResponse.json({
-        session: toClientSession(updated),
-        revision: updated.revision,
-      }),
-    );
+    return NextResponse.json({
+      session: toClientSession(updated),
+      revision: updated.revision,
+    });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -143,8 +136,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(_req: Request, { params }: Params) {
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     requireRequestOrigin(_req);
     const { id } = await params;
     const session = await getFormSession(id, identity.userId);
@@ -164,7 +156,7 @@ export async function DELETE(_req: Request, { params }: Params) {
       }
       if (failure) throw new ApiError("OBJECT_DELETE_FAILED", 502);
     }
-    return auth.applyCookies(NextResponse.json({ deleted: true }));
+    return NextResponse.json({ deleted: true });
   } catch (error) {
     return apiErrorResponse(error);
   }

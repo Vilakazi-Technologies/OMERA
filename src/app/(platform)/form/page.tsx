@@ -11,6 +11,7 @@ import { ChatComposer } from "@/components/chat-composer";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
 import { activeQuestion } from "@/lib/forms/questions";
+import { formErrorMessage, missingRequiredFields } from "@/lib/forms/form-errors";
 import { cn } from "@/lib/cn";
 
 type Step = "upload" | "questions" | "review" | "complete";
@@ -227,7 +228,10 @@ export default function FormFillPage() {
           error?: string;
         };
         setError(
-          `Upload failed (${data.error ?? res.status}). Only fillable PDFs are supported.`,
+          formErrorMessage(
+            data.error,
+            `Upload failed (${data.error ?? res.status}). Only fillable PDFs are supported.`,
+          ),
         );
         return;
       }
@@ -323,14 +327,18 @@ export default function FormFillPage() {
     }
   }
 
-  function goBack() {
+  async function goBack() {
     if (!session || saving) return;
     setError(null);
-    setSession({
-      ...session,
-      currentIndex: Math.max(0, session.currentIndex - 1),
-    });
-    setStep("questions");
+    const nextIndex = Math.max(0, session.currentIndex - 1);
+    setSaving(true);
+    try {
+      const saved = await savePatch({}, nextIndex);
+      if (!saved) return;
+      setStep("questions");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function editField(index: number) {
@@ -343,6 +351,13 @@ export default function FormFillPage() {
 
   async function exportPdf() {
     if (!session || exporting) return;
+    const missing = missingRequiredFields(session.fields);
+    if (missing.length) {
+      setError(
+        `Complete required fields first: ${missing.map((f) => f.label).join(", ")}.`,
+      );
+      return;
+    }
     setExporting(true);
     setError(null);
     try {
@@ -354,7 +369,10 @@ export default function FormFillPage() {
           error?: string;
         };
         setError(
-          `Export failed (${body.error ?? res.status}). The session stays in review — fix the highlighted answers and try again.`,
+          formErrorMessage(
+            body.error,
+            `Export failed (${body.error ?? res.status}). Fix answers and try again.`,
+          ),
         );
         return;
       }
@@ -450,6 +468,11 @@ export default function FormFillPage() {
                 <>
                   <p className="mt-6 text-xs text-white/50">
                     Field {current.index + 1} of {current.total}
+                    {current.field.required ? (
+                      <span className="ml-2 text-amber-400/90">Required</span>
+                    ) : (
+                      <span className="ml-2 text-white/35">Optional</span>
+                    )}
                   </p>
                   <div className="mt-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-slate-100">
                     {current.field.prompt}
@@ -496,7 +519,7 @@ export default function FormFillPage() {
                       <button
                         type="button"
                         disabled={saving}
-                        onClick={goBack}
+                        onClick={() => void goBack()}
                         className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white disabled:opacity-50"
                       >
                         Back
@@ -551,12 +574,22 @@ export default function FormFillPage() {
                     key={f.id}
                     className={cn(
                       "rounded-xl border px-3 py-2 text-sm",
-                      f.value !== undefined && f.value !== ""
-                        ? "border-emerald-500/30 bg-emerald-500/5"
-                        : "border-white/8 bg-white/3 text-slate-500",
+                      f.required &&
+                        (f.value === undefined ||
+                          f.value === "" ||
+                          (f.kind === "checkbox" && f.value !== true))
+                        ? "border-amber-500/40 bg-amber-500/5"
+                        : f.value !== undefined && f.value !== ""
+                          ? "border-emerald-500/30 bg-emerald-500/5"
+                          : "border-white/8 bg-white/3 text-slate-500",
                     )}
                   >
-                    <span className="text-xs text-slate-500">{f.label}</span>
+                    <span className="text-xs text-slate-500">
+                      {f.label}
+                      {f.required ? (
+                        <span className="ml-1 text-amber-400/80">*</span>
+                      ) : null}
+                    </span>
                     <p className="text-slate-100">{displayValue(f)}</p>
                     {(step === "review" || step === "complete") && (
                       <button
@@ -587,7 +620,10 @@ export default function FormFillPage() {
         )}
       </div>
 
-      {!restoring && step === "questions" && current && (
+      {!restoring &&
+        step === "questions" &&
+        current &&
+        (current.field as ClientField).kind === "text" && (
         <ChatComposer
           onSend={(text) => void submitAnswer(text)}
           placeholder="Type your answer or use the microphone…"

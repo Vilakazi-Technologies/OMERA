@@ -16,6 +16,7 @@ export async function findOmeraUserByAuthId(
 export async function createOmeraUserForAuthId(
   authUserId: string,
   displayName: string,
+  email?: string | null,
 ): Promise<string> {
   const supabase = getSupabaseAdmin();
   // Idempotent under concurrent first logins: both racers upsert the same
@@ -25,7 +26,7 @@ export async function createOmeraUserForAuthId(
   const { error } = await supabase.from("omera_users").upsert(
     {
       auth_user_id: authUserId,
-      email: null,
+      email: email ?? null,
       display_name: displayName,
     },
     { onConflict: "auth_user_id", ignoreDuplicates: true },

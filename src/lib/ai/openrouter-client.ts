@@ -19,17 +19,31 @@ export function getOpenRouterConfig(env: NodeJS.ProcessEnv = process.env): OpenR
 
 type Message = { role: "user" | "assistant"; content: string };
 
+function maxOutputTokens(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.OPENROUTER_MAX_TOKENS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 1600;
+  if (!Number.isFinite(parsed) || parsed < 256 || parsed > 4096) return 1600;
+  return parsed;
+}
+
 function requestBody(
   config: OpenRouterConfig,
   messages: Message[],
   systemPrompt: string,
   stream: boolean,
+  env: NodeJS.ProcessEnv = process.env,
 ) {
   return JSON.stringify({
     model: config.model,
     stream,
+    max_tokens: maxOutputTokens(env),
+    provider: { sort: "latency", allow_fallbacks: true },
     messages: [{ role: "system", content: systemPrompt }, ...messages],
   });
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function post(
@@ -37,30 +51,53 @@ async function post(
   body: string,
   signal: AbortSignal,
 ): Promise<Response> {
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.APP_ORIGIN?.trim() || "https://vilatech-ai.vercel.app",
-      "X-Title": "Omera by VILATECH",
-    },
-    body,
-    signal,
-    redirect: "error",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    await response.body?.cancel();
-    throw new Error("OPENROUTER_UNAVAILABLE");
+  const attempts = 3;
+  let lastError: unknown = new Error("OPENROUTER_UNAVAILABLE");
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (signal.aborted) throw new Error("OPENROUTER_ABORTED");
+    try {
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer":
+            process.env.APP_ORIGIN?.trim() || "https://vilatech-ai.vercel.app",
+          "X-Title": "Omera by VILATECH",
+        },
+        body,
+        signal,
+        redirect: "error",
+        cache: "no-store",
+      });
+      if (response.status === 429 || response.status >= 502) {
+        await response.body?.cancel();
+        lastError = new Error("OPENROUTER_RATE_LIMITED");
+        await pause(250 * (attempt + 1));
+        continue;
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error("OPENROUTER_UNAVAILABLE");
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (signal.aborted) throw error;
+      if (attempt < attempts - 1) await pause(250 * (attempt + 1));
+    }
   }
-  return response;
+  throw lastError;
 }
 
 async function* streamTokens(response: Response): AsyncGenerator<string> {
   if (!response.body) throw new Error("INVALID_OPENROUTER_STREAM");
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("text/event-stream")) {
+  if (
+    contentType &&
+    !contentType.includes("text/event-stream") &&
+    !contentType.includes("application/octet-stream")
+  ) {
     await response.body.cancel();
     throw new Error("INVALID_OPENROUTER_STREAM");
   }
@@ -110,12 +147,19 @@ async function* streamTokens(response: Response): AsyncGenerator<string> {
   }
 }
 
+function withModel(config: OpenRouterConfig, modelOverride?: string): OpenRouterConfig {
+  if (!modelOverride?.trim()) return config;
+  return { ...config, model: modelOverride.trim() };
+}
+
 export function createOpenRouterChatStream(
   config: OpenRouterConfig,
   messages: Message[],
   replyLanguageId: string | null = null,
   requestSignal?: AbortSignal,
+  modelOverride?: string,
 ): ReadableStream<Uint8Array> {
+  const active = withModel(config, modelOverride);
   const encoder = new TextEncoder();
   const controller = new AbortController();
   const signal = AbortSignal.any([
@@ -128,8 +172,8 @@ export function createOpenRouterChatStream(
     async start(output) {
       try {
         const response = await post(
-          config,
-          requestBody(config, messages, buildOmeraSystemPrompt(replyLanguageId), true),
+          active,
+          requestBody(active, messages, buildOmeraSystemPrompt(replyLanguageId), true),
           signal,
         );
         for await (const token of streamTokens(response)) {

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { requireIdentity } from "@/lib/auth/require-identity";
-import { createAuthContext } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   getFormSession,
@@ -57,8 +56,7 @@ function safeFileName(fileName: string): string {
 
 export async function GET(_req: Request, { params }: Params) {
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     const { id } = await params;
     const session = await getFormSession(id, identity.userId);
     if (!session) throw new ApiError("NOT_FOUND", 404);
@@ -135,17 +133,15 @@ export async function GET(_req: Request, { params }: Params) {
 
     await updateFormSession(id, identity.userId, { status: "completed" });
 
-    return auth.applyCookies(
-      new NextResponse(Buffer.from(filled), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${safeFileName(session.fileName)}"`,
-          "Cache-Control": "private, no-store",
-          "Content-Length": String(filled.length),
-        },
-      }),
-    );
+    return new NextResponse(Buffer.from(filled), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${safeFileName(session.fileName)}"`,
+        "Cache-Control": "private, no-store",
+        "Content-Length": String(filled.length),
+      },
+    });
   } catch (routeError) {
     return apiErrorResponse(routeError);
   }

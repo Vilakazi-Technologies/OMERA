@@ -17,7 +17,13 @@ export function requireRequestOrigin(
   } catch {
     throw new ApiError("SERVICE_UNAVAILABLE", 503);
   }
-  if (request.headers.get("Origin") !== approved.origin) {
-    throw new ApiError("ORIGIN_FORBIDDEN", 403);
+  const origin = request.headers.get("Origin");
+  if (origin !== approved.origin) {
+    const referer = request.headers.get("Referer");
+    const refererOk =
+      typeof referer === "string" && referer.startsWith(`${approved.origin}/`);
+    if (origin !== null || !refererOk) {
+      throw new ApiError("ORIGIN_FORBIDDEN", 403);
+    }
   }
 }

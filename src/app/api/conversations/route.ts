@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/http/api-error";
 import { requireIdentity } from "@/lib/auth/require-identity";
-import { createAuthContext } from "@/lib/supabase/server";
 import {
   createConversation,
   listConversations,
@@ -13,12 +12,9 @@ export async function GET() {
     return NextResponse.json({ conversations: [], persistence: "local" });
   }
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     const conversations = await listConversations(identity.userId);
-    return auth.applyCookies(
-      NextResponse.json({ conversations, persistence: "supabase" }),
-    );
+    return NextResponse.json({ conversations, persistence: "supabase" });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -32,8 +28,7 @@ export async function POST(req: Request) {
     );
   }
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     const body = (await req.json()) as {
       mode?: "chat" | "form";
       title?: string;
@@ -43,7 +38,7 @@ export async function POST(req: Request) {
       body.mode ?? "chat",
       body.title,
     );
-    return auth.applyCookies(NextResponse.json({ conversation }));
+    return NextResponse.json({ conversation });
   } catch (error) {
     return apiErrorResponse(error);
   }

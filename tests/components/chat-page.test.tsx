@@ -13,6 +13,9 @@ vi.mock("@/lib/omera-sync", () => ({
   persistConversationTitle: vi.fn(async () => undefined),
   persistCompletedAnswer: vi.fn(async () => true),
 }));
+vi.mock("@/components/chat-model-select", () => ({
+  ChatModelSelect: () => null,
+}));
 
 import ChatPage from "@/app/(platform)/chat/page";
 import { useApp } from "@/context/app-provider";
@@ -99,7 +102,7 @@ describe("chat page stream lifecycle", () => {
     await waitFor(() => {
       expect(screen.getByRole("textbox")).not.toBeDisabled();
     });
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
 
   it("a_failed_draft_is_preserved_for_retry", async () => {
@@ -111,7 +114,7 @@ describe("chat page stream lifecycle", () => {
     await sendDraft("Help me obtain my first customer.");
     const retry = await screen.findByRole("button", { name: "Retry" });
     expect(screen.getByText("Help me obtain my first customer.")).toBeVisible();
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
 
     vi.stubGlobal(
       "fetch",

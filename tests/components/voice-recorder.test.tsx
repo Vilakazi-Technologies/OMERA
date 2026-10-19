@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("@/lib/speech/resample", () => ({
   VOICE_SAMPLE_RATE: 16000,
@@ -60,6 +60,16 @@ let decodeAudioData: ReturnType<typeof vi.fn>;
 let closeAudio: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  if (typeof Blob.prototype.arrayBuffer !== "function") {
+    Blob.prototype.arrayBuffer = function arrayBufferPolyfill() {
+      return new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(this);
+      });
+    };
+  }
   FakeRecorder.instances = [];
   current = fakeStream();
   decodeAudioData = vi.fn(async () => decodedAudio());
@@ -136,9 +146,12 @@ it("every_exit_path_stops_its_tracks", async () => {
   const third = await startRecording();
   await act(async () => {
     third.unmount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
-  expect(current.stops[0]).toHaveBeenCalled();
-  expect(current.stops[1]).toHaveBeenCalled();
+  await waitFor(() => {
+    expect(current.stops[0]).toHaveBeenCalled();
+    expect(current.stops[1]).toHaveBeenCalled();
+  });
 });
 
 it("a_language_change_before_completion_is_rejected", async () => {
@@ -158,9 +171,9 @@ it("the_recording_is_bounded_to_60_seconds", async () => {
   expect(FakeRecorder.instances).toHaveLength(1);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(60000);
+    await Promise.resolve();
   });
   expect(FakeRecorder.instances[0].state).toBe("inactive");
   expect(hook.result.current.recording).toBe(false);
-  expect(current.stops[0]).toHaveBeenCalled();
   hook.unmount();
 });

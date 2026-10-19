@@ -3,7 +3,6 @@ import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
-import { createAuthContext } from "@/lib/supabase/server";
 import { isKnownLanguage } from "@/lib/speech/capabilities";
 import { SpeechError, transcribeNative } from "@/lib/speech/transcribe";
 
@@ -47,8 +46,7 @@ function decodeCanonicalBase64(value: unknown): Uint8Array {
 
 export async function POST(request: Request) {
   try {
-    const auth = await createAuthContext();
-    await requireIdentity(auth);
+    await requireIdentity();
     requireRequestOrigin(request);
 
     const raw = await readBody(request, TRANSCRIBE_BODY_LIMIT);
@@ -85,11 +83,9 @@ export async function POST(request: Request) {
       apiKey: process.env.LELAPA_API_KEY ?? "",
     });
 
-    return auth.applyCookies(
-      NextResponse.json(
-        { text: result.text, languageId: result.languageId },
-        { headers: NO_STORE },
-      ),
+    return NextResponse.json(
+      { text: result.text, languageId: result.languageId },
+      { headers: NO_STORE },
     );
   } catch (error) {
     if (error instanceof SpeechError) {

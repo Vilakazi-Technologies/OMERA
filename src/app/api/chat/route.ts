@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import {
+  OMERA_MODEL_ID,
+  openRouterModelForSelection,
+  resolveChatModelForRequest,
+} from "@/lib/ai/model-catalog";
 import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readJsonBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
-import { createAuthContext } from "@/lib/supabase/server";
+import { usesCloudPersistence } from "@/lib/auth/cloud-persistence";
 import { chatRequestSchema } from "@/lib/ai/chat-request";
 import { getConversation } from "@/lib/db/conversations";
 import { consumeQuota } from "@/lib/limits/consume-quota";
@@ -26,26 +31,40 @@ const STREAM_HEADERS = {
 
 export async function POST(request: Request) {
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     requireRequestOrigin(request);
     const raw = await readJsonBody(request, CHAT_BODY_LIMIT);
     const parsed = chatRequestSchema.safeParse(raw);
     if (!parsed.success) throw new ApiError("INVALID_REQUEST", 400);
-    const { conversationId, messages, replyLanguageId } = parsed.data;
-    if (conversationId) {
+    const { conversationId, messages, replyLanguageId, modelId } = parsed.data;
+    const cloud = usesCloudPersistence(identity);
+
+    if (conversationId && cloud) {
       const conversation = await getConversation(
         conversationId,
         identity.userId,
       );
       if (!conversation) throw new ApiError("NOT_FOUND", 404);
     }
-    const quota = await consumeQuota(
-      getSupabaseAdmin(),
-      identity.userId,
-      CHAT_QUOTA_LIMIT,
-    );
-    if (!quota.allowed) throw new ApiError(quota.code, 429);
+
+    if (cloud) {
+      const quota = await consumeQuota(
+        getSupabaseAdmin(),
+        identity.userId,
+        CHAT_QUOTA_LIMIT,
+      );
+      if (!quota.allowed) throw new ApiError(quota.code, 429);
+    }
+
+    const routing = resolveChatModelForRequest(modelId);
+    if (!routing) throw new ApiError("SERVICE_UNAVAILABLE", 503);
+
+    const openRouterOverride =
+      routing.provider === "openrouter" && routing.modelId !== OMERA_MODEL_ID
+        ? routing.modelId
+        : routing.provider === "openrouter"
+          ? openRouterModelForSelection(OMERA_MODEL_ID)
+          : undefined;
 
     let stream: ReadableStream<Uint8Array>;
     try {
@@ -56,6 +75,7 @@ export async function POST(request: Request) {
         })),
         replyLanguageId,
         request.signal,
+        openRouterOverride,
       );
     } catch {
       if (runtimeMode(process.env.XAVANI_API_KEY, process.env) !== "demo") {
@@ -67,9 +87,7 @@ export async function POST(request: Request) {
       stream = createDemoChatStream(lastUser?.content ?? "");
     }
 
-    return auth.applyCookies(
-      new NextResponse(stream, { headers: STREAM_HEADERS }),
-    );
+    return new NextResponse(stream, { headers: STREAM_HEADERS });
   } catch (error) {
     return apiErrorResponse(error);
   }

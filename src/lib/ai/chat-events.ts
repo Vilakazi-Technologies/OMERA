@@ -6,6 +6,7 @@ export async function consumeChatEvents(
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let pending = "";
   let completed = false;
+  let receivedToken = false;
   try {
     while (!completed) {
       const chunk = await reader.read();
@@ -25,15 +26,25 @@ export async function consumeChatEvents(
         } else if (data) {
           const event: unknown = JSON.parse(data);
           if (!event || typeof event !== "object") throw new Error("INVALID_CHAT_STREAM");
-          if ("error" in event) throw new Error("CHAT_UNAVAILABLE");
+          if ("error" in event) {
+            completed = true;
+            throw new Error("CHAT_UNAVAILABLE");
+          }
           if (!("token" in event) || typeof event.token !== "string") {
             throw new Error("INVALID_CHAT_STREAM");
           }
+          receivedToken = true;
           onToken(event.token);
         }
         boundary = pending.indexOf("\n\n");
       }
-      if (chunk.done && !completed) throw new Error("INCOMPLETE_CHAT_STREAM");
+      if (chunk.done && !completed) {
+        if (receivedToken) {
+          completed = true;
+        } else {
+          throw new Error("INCOMPLETE_CHAT_STREAM");
+        }
+      }
     }
   } finally {
     await reader.cancel().catch(() => undefined);

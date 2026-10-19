@@ -282,13 +282,21 @@ export function LandingPage() {
             Start in your browser today. Add Omera to your home screen for an
             app-like experience on mobile.
           </p>
-          <Link
-            href="/login"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-medium text-black hover:bg-white/90"
-          >
-            Create your workspace
-            <ArrowRight className="size-4" />
-          </Link>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-medium text-black hover:bg-white/90"
+            >
+              Sign up
+              <ArrowRight className="size-4" />
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-8 py-3.5 text-sm text-white/80 hover:border-white/30"
+            >
+              Sign in
+            </Link>
+          </div>
         </ScrollReveal>
       </section>
 

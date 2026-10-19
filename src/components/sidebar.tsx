@@ -2,16 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import {
-  FileText,
-  MessageSquarePlus,
-  PanelLeftClose,
-  PanelLeft,
-  LogOut,
-  Sparkles,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { DeleteChatDialog } from "@/components/delete-chat-dialog";
+import type { Conversation } from "@/lib/types";
+import { FileText, MessageSquarePlus, PanelLeftClose, PanelLeft, LogOut } from "lucide-react";
+import { ConversationListItem } from "@/components/conversation-list-item";
 import { OmeraWordmark } from "@/components/omera-wordmark";
+import { UserProfileLabel } from "@/components/user-profile-label";
 import { VilatechLogo } from "@/components/vilatech-logo";
 import { useApp } from "@/context/app-provider";
 import { cn } from "@/lib/cn";
@@ -26,9 +23,10 @@ export function Sidebar() {
     activeId,
     setActiveId,
     createConversation,
-    userId,
+    deleteConversation,
     logout,
   } = useApp();
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -120,38 +118,25 @@ export function Sidebar() {
             <p className="px-3 text-xs text-white/40">No chats yet</p>
           ) : (
             conversations.map((c) => (
-              <button
+              <ConversationListItem
                 key={c.id}
-                type="button"
-                onClick={() => {
+                conversation={c}
+                active={activeId === c.id}
+                onSelect={() => {
                   setActiveId(c.id);
                   router.push(c.mode === "form" ? "/form" : "/chat");
                   if (window.innerWidth < 768) setSidebarOpen(false);
                 }}
-                className={cn(
-                  "mb-0.5 flex w-full items-center gap-2 truncate rounded-lg px-3 py-2 text-left text-sm transition",
-                  activeId === c.id
-                    ? "bg-white/10 text-white"
-                    : "text-white/45 hover:bg-white/5 hover:text-white/80",
-                )}
-              >
-                {c.mode === "form" ? (
-                  <FileText className="size-3.5 shrink-0" />
-                ) : (
-                  <Sparkles className="size-3.5 shrink-0" />
-                )}
-                <span className="truncate">{c.title}</span>
-              </button>
+                onDelete={() => setPendingDelete(c)}
+              />
             ))
           )}
         </nav>
 
         <div className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-2">
-            <VilatechLogo size={22} />
-            <p className="truncate text-xs text-white/45">
-              {userId ? `Verified · ${userId.slice(0, 8)}` : "Not signed in"}
-            </p>
+          <div className="flex items-center gap-3">
+            <VilatechLogo size={22} className="shrink-0" />
+            <UserProfileLabel />
           </div>
           <button
             type="button"
@@ -165,6 +150,17 @@ export function Sidebar() {
           </button>
         </div>
       </aside>
+
+      <DeleteChatDialog
+        open={pendingDelete !== null}
+        title={pendingDelete?.title ?? "Chat"}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          if (target) void deleteConversation(target.id);
+        }}
+      />
     </>
   );
 }

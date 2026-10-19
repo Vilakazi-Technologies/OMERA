@@ -2,9 +2,6 @@ import { createHash } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/supabase/server", () => ({
-  createAuthContext: vi.fn(),
-}));
 vi.mock("@/lib/auth/require-identity", () => ({
   requireIdentity: vi.fn(),
 }));
@@ -15,7 +12,6 @@ vi.mock("@/lib/db/form-sessions", () => ({
   getFormSession: vi.fn(),
   updateFormSession: vi.fn(),
 }));
-import { createAuthContext } from "@/lib/supabase/server";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getFormSession, updateFormSession } from "@/lib/db/form-sessions";
@@ -97,9 +93,6 @@ function getRequest(): Request {
 const params = { params: Promise.resolve({ id: SESSION_ID }) };
 
 beforeEach(() => {
-  vi.mocked(createAuthContext).mockResolvedValue({
-    applyCookies: (response: Response) => response,
-  } as never);
   vi.mocked(requireIdentity).mockResolvedValue({
     userId: "omera-user-1",
     authUserId: "auth-1",

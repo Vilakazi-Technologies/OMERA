@@ -1,8 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/supabase/server", () => ({
-  createAuthContext: vi.fn(),
-}));
 vi.mock("@/lib/auth/require-identity", () => ({
   requireIdentity: vi.fn(),
 }));
@@ -17,7 +14,6 @@ vi.mock("@/lib/db/form-sessions", () => ({
   deleteFormSession: vi.fn(),
   getFormSession: vi.fn(),
 }));
-import { createAuthContext } from "@/lib/supabase/server";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
@@ -81,9 +77,6 @@ function patchRequest(body: unknown): Request {
 }
 
 beforeEach(() => {
-  vi.mocked(createAuthContext).mockResolvedValue({
-    applyCookies: (response: Response) => response,
-  } as never);
   vi.mocked(requireIdentity).mockResolvedValue({
     userId: "omera-user-1",
     authUserId: "auth-1",

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildModelCatalog } from "@/lib/ai/model-catalog";
 import { resolveChatProvider } from "@/lib/ai/chat-runtime";
 import {
   databaseReachable,
@@ -27,12 +28,23 @@ export async function GET() {
     }, DB_TIMEOUT_MS);
   }
   const database = { configured: dbConfigured, reachable: dbReachable };
+  const catalog = buildModelCatalog();
+  const primary = catalog.models.find((m) => m.kind === "primary");
   return NextResponse.json({
     status: overallStatus({ xavani, database }),
     service: "omera",
-    chat: { ...xavani, provider: resolveChatProvider() },
+    chat: {
+      ...xavani,
+      provider: resolveChatProvider(),
+      primaryModel: primary?.id ?? null,
+      primaryLabel: primary?.label ?? null,
+    },
     voice: {
       configured: Boolean(process.env.LELAPA_API_KEY?.trim()),
+    },
+    forms: {
+      storage: dbConfigured,
+      ai: catalog.provider !== "unconfigured",
     },
     database,
   });

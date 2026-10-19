@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth, useClerk } from "@clerk/nextjs";
 import {
   createContext,
   useCallback,
@@ -31,6 +32,7 @@ type AppContextValue = {
   setActiveId: (id: string | null) => void;
   createConversation: (mode: "chat" | "form") => Promise<string>;
   updateConversation: (id: string, patch: Partial<Conversation>) => void;
+  deleteConversation: (id: string) => Promise<void>;
   refreshConversations: () => Promise<void>;
   formSession: FormSession | null;
   setFormSession: (s: FormSession | null) => void;
@@ -78,6 +80,8 @@ function clearLocalCache() {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { isLoaded: clerkLoaded, isSignedIn, userId: clerkUserId } = useAuth();
+  const { signOut: clerkSignOut } = useClerk();
   const [userName, setUserName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [persistence, setPersistence] = useState<"local" | "supabase">("local");
@@ -112,37 +116,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
+    if (!clerkLoaded) return false;
+    if (!isSignedIn || !clerkUserId) {
+      clearIdentity();
+      return false;
+    }
+
     let sessionUserId: string | null = null;
+    let mode: "local" | "supabase" = "local";
     try {
       const res = await fetch("/api/auth/session", { cache: "no-store" });
       if (res.ok) {
-        const data = (await res.json()) as { userId: string };
+        const data = (await res.json()) as {
+          userId: string;
+          persistence?: "local" | "supabase";
+        };
         if (typeof data.userId === "string" && data.userId) {
           sessionUserId = data.userId;
+          if (data.persistence === "local" || data.persistence === "supabase") {
+            mode = data.persistence;
+          }
         }
       }
     } catch {
       sessionUserId = null;
     }
+
     if (!sessionUserId) {
-      clearIdentity();
-      return false;
+      sessionUserId = clerkUserId;
+      mode = "local";
     }
+
+    setPersistence(mode);
     setUserId((current) => {
       if (current && current !== sessionUserId) clearPrivateState();
       return sessionUserId;
     });
-    setPersistence("supabase");
     return true;
-  }, [clearIdentity, clearPrivateState]);
+  }, [
+    clerkLoaded,
+    isSignedIn,
+    clerkUserId,
+    clearIdentity,
+    clearPrivateState,
+  ]);
 
   const logout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await clerkSignOut({ redirectUrl: "/login" });
     } finally {
       clearIdentity();
     }
-  }, [clearIdentity]);
+  }, [clearIdentity, clerkSignOut]);
 
   const refreshConversations = useCallback(async () => {
     if (persistence !== "supabase" || !userId) return;
@@ -161,11 +186,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [persistence, userId]);
 
   useEffect(() => {
+    if (!clerkLoaded) return;
     const task = setTimeout(() => {
+      if (!isSignedIn) {
+        clearIdentity();
+        setSessionChecked(true);
+        return;
+      }
       void refreshSession().finally(() => setSessionChecked(true));
     }, 0);
     return () => clearTimeout(task);
-  }, [refreshSession]);
+  }, [clerkLoaded, isSignedIn, refreshSession, clearIdentity]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -189,6 +220,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return () => clearTimeout(task);
     }
   }, [sessionChecked, persistence, userId, refreshConversations]);
+
+  useEffect(() => {
+    if (!sessionChecked || conversations.length === 0) return;
+    if (activeId && conversations.some((c) => c.id === activeId)) return;
+    const next =
+      conversations.find((c) => c.mode === "chat") ?? conversations[0];
+    const task = setTimeout(() => setActiveId(next.id), 0);
+    return () => clearTimeout(task);
+  }, [sessionChecked, conversations, activeId]);
 
   const createConversation = useCallback(
     async (mode: "chat" | "form") => {
@@ -243,6 +283,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      if (persistence === "supabase" && userId) {
+        let res: Response;
+        try {
+          res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+        } catch {
+          setSyncError("DELETE_CONVERSATION_FAILED:fetch");
+          throw new Error("DELETE_CONVERSATION_FAILED:fetch");
+        }
+        if (!res.ok) {
+          setSyncError(`DELETE_CONVERSATION_FAILED:${res.status}`);
+          throw new Error(`DELETE_CONVERSATION_FAILED:${res.status}`);
+        }
+      }
+      setConversations((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        setActiveId((current) => {
+          if (current !== id) return current;
+          return next.find((c) => c.mode === "chat")?.id ?? next[0]?.id ?? null;
+        });
+        return next;
+      });
+      setSyncError(null);
+    },
+    [persistence, userId],
+  );
+
   const value = useMemo(
     () => ({
       userName,
@@ -265,6 +333,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setActiveId,
       createConversation,
       updateConversation,
+      deleteConversation,
       refreshConversations,
       formSession,
       setFormSession,
@@ -287,6 +356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activeId,
       createConversation,
       updateConversation,
+      deleteConversation,
       refreshConversations,
       formSession,
       syncError,

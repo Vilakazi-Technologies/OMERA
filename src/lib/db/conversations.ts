@@ -124,6 +124,27 @@ export async function updateConversationMeta(
   if (error) throw error;
 }
 
+export async function deleteConversation(
+  conversationId: string,
+  userId: string,
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  const existing = await getConversation(conversationId, userId);
+  if (!existing) return false;
+  const { error: messagesError } = await supabase
+    .from("omera_messages")
+    .delete()
+    .eq("conversation_id", conversationId);
+  if (messagesError) throw messagesError;
+  const { error } = await supabase
+    .from("omera_conversations")
+    .delete()
+    .eq("id", conversationId)
+    .eq("user_id", userId);
+  if (error) throw error;
+  return true;
+}
+
 export async function insertMessage(
   conversationId: string,
   role: "user" | "assistant" | "system",

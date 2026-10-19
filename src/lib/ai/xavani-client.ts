@@ -26,7 +26,14 @@ function requestBody(config: XavaniConfig, messages: Message[], systemPrompt: st
   });
 }
 
+const ASSERT_CACHE_TTL_MS = 5 * 60 * 1000;
+let assertCache: { key: string; expiresAt: number } | null = null;
+
 async function assertService(config: XavaniConfig, signal: AbortSignal) {
+  const cacheKey = `${config.baseUrl}|${config.model}`;
+  if (assertCache?.key === cacheKey && assertCache.expiresAt > Date.now()) {
+    return;
+  }
   const response = await fetch(`${config.baseUrl}/v1/capabilities`, {
     headers: { Authorization: `Bearer ${config.apiKey}` },
     signal, redirect: "error", cache: "no-store",
@@ -45,6 +52,12 @@ async function assertService(config: XavaniConfig, signal: AbortSignal) {
       service.transcript_persistence !== false) {
     throw new Error("UNSAFE_XAVANI_SERVICE");
   }
+  assertCache = { key: cacheKey, expiresAt: Date.now() + ASSERT_CACHE_TTL_MS };
+}
+
+/** Resets cached capability checks (tests only). */
+export function clearXavaniCapabilityCache(): void {
+  assertCache = null;
 }
 
 async function readJson(response: Response): Promise<unknown> {

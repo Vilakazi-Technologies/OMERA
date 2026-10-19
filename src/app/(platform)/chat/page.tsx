@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
+import { ChatModelSelect } from "@/components/chat-model-select";
+import { OmeraThinking } from "@/components/omera-thinking";
+import { OMERA_MODEL_ID } from "@/lib/ai/model-catalog-client";
 import { useApp } from "@/context/app-provider";
 import { consumeChatEvents } from "@/lib/ai/chat-events";
 import { boundChatHistory } from "@/lib/ai/chat-history";
@@ -26,6 +29,25 @@ function timestamp(): number {
 const SAVE_FAILED_MESSAGE =
   "Couldn't save this chat. Your messages are visible but may not persist.";
 
+const CHAT_SEND_ATTEMPTS = 2;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function chatFailureMessage(status: number, code?: string): string {
+  if (code === "SERVICE_UNAVAILABLE" || status === 503) {
+    return "Omera is busy or the AI service hiccuped. Tap Retry — we already try a few times automatically.";
+  }
+  if (code === "ORIGIN_FORBIDDEN" || status === 403) {
+    return "This session could not reach the chat API. Try refreshing the page.";
+  }
+  if (code === "QUOTA_EXCEEDED" || status === 429) {
+    return "You've hit the chat limit for now. Please try again in a minute.";
+  }
+  return "Omera couldn't finish that reply. Tap Retry — your question is still here.";
+}
+
 export default function ChatPage() {
   const {
     activeId,
@@ -36,11 +58,17 @@ export default function ChatPage() {
     languageId,
     languageExplicit,
   } = useApp();
+  const [chatModelId, setChatModelId] = useState(() => {
+    if (typeof window === "undefined") return OMERA_MODEL_ID;
+    return localStorage.getItem("omera-chat-model") ?? OMERA_MODEL_ID;
+  });
   const [streaming, setStreaming] = useState(false);
+  const [streamingConvId, setStreamingConvId] = useState<string | null>(null);
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [prevConversationId, setPrevConversationId] = useState<string | undefined>(undefined);
   const pendingSavesRef = useRef<(() => Promise<unknown>)[]>([]);
+  const lastStreamConvRef = useRef<string | null>(null);
 
   /** Track a persistence write so its failure stays visible and retryable. */
   function trackSave(save: () => Promise<unknown>) {
@@ -88,31 +116,45 @@ export default function ChatPage() {
   }, [conversation, conversations.length, createConversation]);
 
   useEffect(() => {
-    return () => {
+    const previous = lastStreamConvRef.current;
+    if (previous && conversationId && previous !== conversationId) {
       abortRef.current?.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    assistantIdRef.current = null;
+      setStreaming(false);
+      setStreamingConvId(null);
+    }
+    lastStreamConvRef.current = conversationId ?? null;
   }, [conversationId]);
 
-  if (prevConversationId !== conversationId) {
-    setPrevConversationId(conversationId);
-    setStreaming(false);
-    setFailedDraft(null);
-  }
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   const messages = useMemo(
-    () => conversation?.messages ?? [],
+    () =>
+      (conversation?.messages ?? []).filter(
+        (m) => m.role !== "assistant" || m.content.trim().length > 0,
+      ),
     [conversation],
   );
 
+  const awaitingReply =
+    Boolean(conversation) &&
+    !streaming &&
+    messages.length > 0 &&
+    messages[messages.length - 1]?.role === "user";
+
+  const showThinking =
+    Boolean(conversation) &&
+    streaming &&
+    streamingConvId === conversation?.id &&
+    messages[messages.length - 1]?.role !== "assistant";
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, showThinking]);
 
   async function streamAssistant(
     convId: string,
@@ -126,74 +168,134 @@ export default function ChatPage() {
     abortRef.current = controller;
     assistantIdRef.current = assistantId;
     setStreaming(true);
+    setStreamingConvId(convId);
     setFailedDraft(null);
-    let assistantText = "";
+    setSendError(null);
 
-    updateConversation(convId, {
-      messages: [
-        ...baseMessages,
-        {
-          id: assistantId,
-          role: "assistant",
-          content: "",
-          createdAt: timestamp(),
-        },
-      ],
-    });
+    let lastStatus = 0;
+    let lastCode: string | undefined;
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: convId,
-          replyLanguageId,
-          messages: boundChatHistory(baseMessages).map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok || !res.body) throw new Error("CHAT_REQUEST_FAILED");
-      await consumeChatEvents(res.body, (token) => {
+      for (let attempt = 0; attempt < CHAT_SEND_ATTEMPTS; attempt += 1) {
         if (controller.signal.aborted) return;
-        assistantText += token;
+
+        const attemptAssistantId =
+          attempt === 0 ? assistantId : crypto.randomUUID();
+        assistantIdRef.current = attemptAssistantId;
+        let assistantText = "";
+
         updateConversation(convId, {
           messages: [
             ...baseMessages,
             {
-              id: assistantId,
+              id: attemptAssistantId,
               role: "assistant",
-              content: assistantText,
+              content: "",
               createdAt: timestamp(),
             },
           ],
         });
-      });
-      if (controller.signal.aborted) return;
-      if (assistantText.trim() && persistence === "supabase") {
+
         try {
-          await persistCompletedAnswer(convId, assistantId, assistantText, true);
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversationId: persistence === "supabase" ? convId : undefined,
+              modelId:
+                attempt > 0 && chatModelId !== OMERA_MODEL_ID
+                  ? OMERA_MODEL_ID
+                  : chatModelId,
+              replyLanguageId,
+              messages: boundChatHistory(baseMessages).map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
+            }),
+            signal: controller.signal,
+          });
+          lastStatus = res.status;
+          if (!res.ok || !res.body) {
+            try {
+              const payload = (await res.json()) as { error?: string };
+              lastCode = payload.error;
+            } catch {
+              lastCode = undefined;
+            }
+            throw new Error("CHAT_REQUEST_FAILED");
+          }
+          await consumeChatEvents(res.body, (token) => {
+            if (controller.signal.aborted) return;
+            assistantText += token;
+            updateConversation(convId, {
+              messages: [
+                ...baseMessages,
+                {
+                  id: attemptAssistantId,
+                  role: "assistant",
+                  content: assistantText,
+                  createdAt: timestamp(),
+                },
+              ],
+            });
+          });
+          if (controller.signal.aborted) return;
+          if (!assistantText.trim()) {
+            throw new Error("EMPTY_CHAT_REPLY");
+          }
+          if (persistence === "supabase") {
+            try {
+              await persistCompletedAnswer(
+                convId,
+                attemptAssistantId,
+                assistantText,
+                true,
+              );
+            } catch {
+              pendingSavesRef.current.push(() =>
+                persistCompletedAnswer(
+                  convId,
+                  attemptAssistantId,
+                  assistantText,
+                  true,
+                ),
+              );
+              if (!controller.signal.aborted) setSaveError(SAVE_FAILED_MESSAGE);
+            }
+          }
+          return;
         } catch {
-          // A completed stream with a failed save is a save failure, not
-          // a send failure: keep the answer visible and say so.
-          pendingSavesRef.current.push(() =>
-            persistCompletedAnswer(convId, assistantId, assistantText, true),
-          );
-          if (!controller.signal.aborted) setSaveError(SAVE_FAILED_MESSAGE);
+          if (controller.signal.aborted) return;
+          updateConversation(convId, { messages: baseMessages });
+          if (attempt < CHAT_SEND_ATTEMPTS - 1) {
+            await sleep(280 * (attempt + 1));
+            continue;
+          }
+          setSendError(chatFailureMessage(lastStatus, lastCode));
+          setFailedDraft(draftText);
+          return;
         }
-      }
-    } catch {
-      if (!controller.signal.aborted) {
-        setFailedDraft(draftText);
       }
     } finally {
       if (abortRef.current === controller) {
         abortRef.current = null;
         setStreaming(false);
+        setStreamingConvId((current) => (current === convId ? null : current));
       }
     }
+  }
+
+  async function resumePendingReply() {
+    if (!conversation || streaming || !awaitingReply) return;
+    const lastUser = messages[messages.length - 1];
+    if (!lastUser || lastUser.role !== "user") return;
+    await streamAssistant(
+      conversation.id,
+      messages,
+      crypto.randomUUID(),
+      lastUser.content,
+      languageExplicit ? languageId : null,
+    );
   }
 
   async function sendMessage(text: string, replyLanguageId: string | null) {
@@ -252,13 +354,29 @@ export default function ChatPage() {
 
   return (
     <>
-      <header className="border-b border-white/8 px-4 py-3 text-center sm:text-left">
-        <h1 className="font-serif text-base font-medium text-white sm:text-lg">
-          Omera
-        </h1>
-        <p className="text-xs text-white/45">
-          A product of VILATECH · South Africa
-        </p>
+      <header className="border-b border-white/8 px-4 py-3">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="text-center sm:text-left">
+            <h1 className="font-serif text-base font-medium text-white sm:text-lg">
+              Omera
+            </h1>
+            <p className="text-xs text-white/45">
+              A product of VILATECH · South Africa
+            </p>
+          </div>
+          <ChatModelSelect
+            value={chatModelId}
+            onChange={(id) => {
+              setChatModelId(id);
+              try {
+                localStorage.setItem("omera-chat-model", id);
+              } catch {
+                // ignore
+              }
+            }}
+            className="justify-center sm:justify-end"
+          />
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
@@ -291,6 +409,18 @@ export default function ChatPage() {
             {messages.map((m) => (
               <MessageBubble key={m.id} message={m} />
             ))}
+            {showThinking ? <OmeraThinking /> : null}
+            {awaitingReply ? (
+              <div className="flex justify-start pl-9">
+                <button
+                  type="button"
+                  onClick={() => void resumePendingReply()}
+                  className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs font-medium text-amber-100/90 transition hover:border-amber-400/50 hover:bg-amber-400/15"
+                >
+                  Get Omera&apos;s answer
+                </button>
+              </div>
+            ) : null}
             <div ref={bottomRef} />
           </div>
         )}
@@ -299,7 +429,9 @@ export default function ChatPage() {
       {failedDraft !== null && (
         <div className="mx-auto w-full max-w-3xl px-4 pb-2">
           <div className="liquid-card rounded-2xl p-3 text-sm">
-            <p className="text-white/80">Message failed to send.</p>
+            <p className="text-white/80">
+              {sendError ?? "Message failed to send."}
+            </p>
             <p className="mt-1 line-clamp-2 text-white/50">{failedDraft}</p>
             <div className="mt-2 flex gap-2">
               <button

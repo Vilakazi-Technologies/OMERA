@@ -64,13 +64,13 @@ export function LandingNav() {
             href="/login"
             className="hidden rounded-full px-3 py-2 text-sm text-white/60 hover:text-white sm:inline"
           >
-            Log in
+            Sign in
           </Link>
           <Link
-            href="/login"
+            href="/sign-up"
             className="hidden items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/90 sm:inline-flex sm:px-5 sm:py-2.5"
           >
-            Sign in
+            Sign up
             <ArrowRight className="size-4" />
           </Link>
           <button
@@ -99,10 +99,17 @@ export function LandingNav() {
             ))}
             <Link
               href="/login"
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-white py-3 text-sm font-medium text-black"
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-white/15 py-3 text-sm text-white"
               onClick={() => setMenuOpen(false)}
             >
               Sign in
+            </Link>
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white py-3 text-sm font-medium text-black"
+              onClick={() => setMenuOpen(false)}
+            >
+              Sign up
               <ArrowRight className="size-4" />
             </Link>
           </nav>

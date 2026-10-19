@@ -4,8 +4,7 @@ import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
-import { createAuthContext } from "@/lib/supabase/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { createFormSession } from "@/lib/db/form-sessions";
 import { extractFormFields } from "@/lib/forms/extract-fields";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
@@ -113,9 +112,11 @@ const PDF_ERRORS = new Set([
 
 export async function POST(request: Request) {
   try {
-    const auth = await createAuthContext();
-    const identity = await requireIdentity(auth);
+    const identity = await requireIdentity();
     requireRequestOrigin(request);
+    if (!isSupabaseConfigured()) {
+      throw new ApiError("FORMS_STORAGE_UNAVAILABLE", 503);
+    }
 
     const contentType = request.headers.get("content-type");
     if (!contentType?.toLowerCase().startsWith("multipart/form-data")) {
@@ -190,19 +191,17 @@ export async function POST(request: Request) {
         documentSha256,
         documentKind: "acroform",
       });
-      return auth.applyCookies(
-        NextResponse.json(
-          {
-            sessionId: session.id,
-            fileName: session.fileName,
-            fields: session.fields,
-            revision: session.revision,
-            status: session.status,
-            message:
-              "I've read your form. I'll ask you each question in text — answer with your voice or keyboard.",
-          },
-          { status: 201 },
-        ),
+      return NextResponse.json(
+        {
+          sessionId: session.id,
+          fileName: session.fileName,
+          fields: session.fields,
+          revision: session.revision,
+          status: session.status,
+          message:
+            "I've read your form. I'll ask you each question in text — answer with your voice or keyboard.",
+        },
+        { status: 201 },
       );
     } catch (error) {
       await removeStoredObject(bucket, storagePath).catch(() => undefined);

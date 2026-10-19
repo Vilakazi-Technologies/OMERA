@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { completeXavaniJson, createXavaniChatStream, getXavaniConfig } from "@/lib/ai/xavani-client";
+import {
+  clearXavaniCapabilityCache,
+  completeXavaniJson,
+  createXavaniChatStream,
+  getXavaniConfig,
+} from "@/lib/ai/xavani-client";
 
 const config = { baseUrl: "https://xavani.example.test", apiKey: "test-...ey", model: "omera" };
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearXavaniCapabilityCache();
+});
 const capabilities = {
   model: "omera", auth: { required: true },
   service: { name: "omera", contract: 1, stateless_requests: true, tools_enabled: false,

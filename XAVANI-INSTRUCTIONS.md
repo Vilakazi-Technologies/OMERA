@@ -5,7 +5,10 @@
 **Repo:** [github.com/Vilakazi-Technologies/OMERA](https://github.com/Vilakazi-Technologies/OMERA)  
 **Production (current):** [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app)
 
-Read this file first. It is the product owner’s definition of what “done” means for Omera’s AI layer—not a generic tech README.
+> **MVP / production integration (developers):** use **[`docs/shivani-mvp-production.md`](docs/shivani-mvp-production.md)** for final Vercel steps, low-cost investor demo, Xavani wiring, and **why PDF export fails** (fillable PDF vs AI credits).  
+> **Demo script:** [`docs/mvp-demo.md`](docs/mvp-demo.md).
+
+Read this file first for **product vision and P0 scope**. It is not a substitute for the current env stack (Clerk + OpenRouter/Xavani + Supabase)—see the doc above.
 
 ---
 
@@ -56,8 +59,8 @@ Omera is **not** only a chatbot. It is VILATECH’s flagship AI for **business d
 | Requirement | Detail |
 |-------------|--------|
 | **User story** | Upload PDF (or supported doc) → Omera extracts fields → asks **one question at a time** (on screen, quiet for offices) → user types or **uses mic** → user reviews → **downloads a completed form** (filled PDF or equivalent). |
-| **Today** | Flow works through Q&A; export is a **text summary** (`downloadSummary` in `src/app/(platform)/form/page.tsx`)—**not** a filled PDF. Field extraction uses `src/app/api/forms/analyze` + `src/lib/forms/extract-fields.ts` with demo fallback. |
-| **Your job** | Ship **real filled output** (PDF form fields or reliable document generation), robust field detection, and persistence via Supabase where already wired (`omera_form_sessions`, etc.). |
+| **Today** | Q&A works; **filled PDF export** is implemented server-side (`src/app/api/forms/sessions/[id]/export/route.ts`, `src/lib/forms/pdf-fields.ts`) for **AcroForm** PDFs when Supabase + AI are configured. **Flat/scanned** PDFs still need templates (`src/lib/forms/templates.ts`). UI: **Download completed PDF** on `src/app/(platform)/form/page.tsx`. |
+| **Your job** | Improve **field detection** on real SA forms, **templates** for common flat PDFs, voice in all languages, and reliability when OpenRouter/Xavani rate-limit. See **`docs/shivani-mvp-production.md` §5** for blockers. |
 
 **Success looks like:** User uploads a real SA form PDF, completes by voice in their language, and leaves with a **file they can submit**—not only a `.txt` summary.
 
@@ -81,8 +84,10 @@ Omera is **not** only a chatbot. It is VILATECH’s flagship AI for **business d
 | Chat UI | `src/app/(platform)/chat/page.tsx` |
 | Form UI | `src/app/(platform)/form/page.tsx` |
 | System prompt | `src/lib/ai/omera-system-prompt.ts` |
-| OpenAI streaming | `src/lib/ai/openai-stream.ts`, `src/app/api/chat/route.ts` |
+| Chat runtime (Xavani / OpenRouter) | `src/lib/ai/chat-runtime.ts`, `src/app/api/chat/route.ts` |
+| Model catalog | `src/lib/ai/model-catalog.ts` |
 | Demo chat (no key) | `src/lib/ai/demo-stream.ts` |
+| Form PDF export | `src/app/api/forms/sessions/[id]/export/route.ts` |
 | Transcription | `src/app/api/transcribe/route.ts`, `src/lib/lelapa.ts` |
 | Languages | `src/lib/languages.ts` |
 | Form analysis | `src/app/api/forms/analyze/route.ts` |
@@ -95,14 +100,17 @@ Omera is **not** only a chatbot. It is VILATECH’s flagship AI for **business d
 
 ## 4. Environment & deployment
 
+**Authoritative MVP list:** [`docs/shivani-mvp-production.md`](docs/shivani-mvp-production.md) and [`docs/vercel-production-setup.md`](docs/vercel-production-setup.md).
+
 | Variable | Purpose |
 |----------|---------|
-| `OPENAI_API_KEY` | Production chat (business expert behavior via prompt + model) |
-| `OPENAI_MODEL` | Default `gpt-4o-mini` in example |
-| `LELAPA_API_KEY` | Voice transcription (SA languages) |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Persistence (server only) |
+| `XAVANI_BASE_URL` / `XAVANI_API_KEY` / `XAVANI_MODEL` | Preferred chat + form AI (Shivani gateway); `omera` alias |
+| `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | Interim MVP when Xavani not hosted (low/zero cost free models) |
+| `NEXT_PUBLIC_CLERK_*` / `CLERK_SECRET_KEY` | Auth (only provider) |
+| `LELAPA_API_KEY` | Voice transcription (optional for MVP) |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Forms storage + optional cloud chat |
 
-Vercel project name: **vilatech-ai**. After Git integration, production deploys should track `main` on this repo.
+Vercel project: **vilatech-ai**. Production: [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app).
 
 ---
 
@@ -115,7 +123,7 @@ Use this when reporting back to Ayanda:
 - [ ] **11 languages — chat:** Reply in user’s language for all official languages in UI.
 - [ ] **11 languages — voice:** Speech in + text out works for each language (or documented rollout with dates for `planned`).
 - [ ] **Forms:** Filled **PDF** (or agreed format) export works on at least 3 real-world PDF forms.
-- [ ] **Production:** Keys on Vercel; `/api/health` shows openai + voice + database as expected.
+- [ ] **Production:** Keys on Vercel; `/api/health` shows chat configured + database; `chat.provider` xavani or openrouter.
 - [ ] **Handover:** Short note in PR or comment on what you changed and what Ayanda should test.
 
 ---

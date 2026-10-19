@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Sidebar } from "@/components/sidebar";
+import { useApp } from "@/context/app-provider";
 
 export default function PlatformLayout({
   children,
@@ -10,28 +12,19 @@ export default function PlatformLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [verified, setVerified] = useState(false);
+  const { isLoaded, isSignedIn } = useAuth();
+  const { refreshSession } = useApp();
 
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then((res) => {
-        if (cancelled) return;
-        if (res.ok) {
-          setVerified(true);
-        } else {
-          router.replace("/login");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) router.replace("/login");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      router.replace("/login");
+      return;
+    }
+    void refreshSession();
+  }, [isLoaded, isSignedIn, router, refreshSession]);
 
-  if (!verified) {
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="flex h-dvh items-center justify-center bg-[#050505] text-sm text-white/45">
         Loading Omera…

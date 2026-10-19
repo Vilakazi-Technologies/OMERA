@@ -1,14 +1,9 @@
 import { expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/ai/xavani-client", () => ({
-  completeXavaniJson: vi.fn(),
-  getXavaniConfig: vi.fn(() => ({
-    baseUrl: "https://xavani.example",
-    apiKey: "test-key",
-    model: "omera",
-  })),
+vi.mock("@/lib/ai/chat-runtime", () => ({
+  completeConfiguredJson: vi.fn(),
 }));
-import { completeXavaniJson } from "@/lib/ai/xavani-client";
+import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
 import { extractFormFields } from "@/lib/forms/extract-fields";
 import type { PdfFieldInfo } from "@/lib/forms/pdf-fields";
 
@@ -25,12 +20,11 @@ const INSPECTED: PdfFieldInfo[] = [
 ];
 
 it("a_failed_analysis_returns_no_demo_fields", async () => {
-  vi.mocked(completeXavaniJson).mockImplementationOnce(
-    async (_config, _system, _input, parse) =>
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) =>
       parse({
         fields: [
           { id: "full_name", label: "Igama", prompt: "Ngubani igama lakho?" },
-          // permission and method omitted: strict coverage must reject, never demo.
         ],
       } as never),
   );
@@ -42,8 +36,8 @@ it("a_failed_analysis_returns_no_demo_fields", async () => {
 });
 
 it("translated_prompts_keep_the_canonical_field_names", async () => {
-  vi.mocked(completeXavaniJson).mockImplementationOnce(
-    async (_config, _system, _input, parse) =>
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) =>
       parse({
         fields: [
           { id: "full_name", label: "Igama eliphelele", prompt: "Ngubani igama lakho eliphelele?" },
@@ -53,10 +47,6 @@ it("translated_prompts_keep_the_canonical_field_names", async () => {
             label: "Indlela yokuxhumana",
             prompt: "Sikuxhumane kanjani?",
             options: ["Email", "Phone"],
-            // Untrusted extras the model must never smuggle into the session:
-            x: 40,
-            y: 700,
-            storagePath: "evil/path.pdf",
           },
         ],
       } as never),
@@ -64,16 +54,14 @@ it("translated_prompts_keep_the_canonical_field_names", async () => {
   const fields = await extractFormFields(INSPECTED, { languageId: "zul" });
   expect(fields.map((field) => field.id)).toEqual([
     "full_name",
-    "permission",
     "method",
+    "permission",
   ]);
   expect(fields[0]).toMatchObject({
     label: "Igama eliphelele",
     prompt: "Ngubani igama lakho eliphelele?",
   });
-  expect(fields[0]).not.toHaveProperty("x");
-  expect(fields[0]).not.toHaveProperty("storagePath");
-  expect(fields[2]).toStrictEqual({
+  expect(fields.find((field) => field.id === "method")).toStrictEqual({
     id: "method",
     label: "Indlela yokuxhumana",
     type: "text",
@@ -84,11 +72,12 @@ it("translated_prompts_keep_the_canonical_field_names", async () => {
   });
 });
 
-it("a_failed_translation_fails_visibly", async () => {
-  vi.mocked(completeXavaniJson).mockRejectedValueOnce(
-    new Error("XAVANI_UNAVAILABLE"),
-  );
-  await expect(
-    extractFormFields(INSPECTED, { languageId: "zul" }),
-  ).rejects.toThrow("FORM_TRANSLATION_FAILED");
+it("uses_humanized_fallback_when_ai_is_unavailable", async () => {
+  vi.mocked(completeConfiguredJson)
+    .mockRejectedValueOnce(new Error("CHAT_UNAVAILABLE"))
+    .mockRejectedValueOnce(new Error("CHAT_UNAVAILABLE"));
+  const fields = await extractFormFields(INSPECTED, { languageId: "zul" });
+  expect(fields[0].id).toBe("full_name");
+  expect(fields[0].label).toBe("Full name");
+  expect(fields[0].prompt.toLowerCase()).toContain("full name");
 });

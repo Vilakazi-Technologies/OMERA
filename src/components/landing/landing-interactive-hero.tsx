@@ -75,13 +75,13 @@ export function LandingInteractiveHero() {
                 <Sparkles className="size-4" />
                 Sign in
               </Link>
-              <a
-                href="#how-it-works"
+              <Link
+                href="/sign-up"
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 px-8 py-3.5 text-sm text-white/80 transition hover:border-white/30"
               >
-                See how it works
+                Sign up
                 <ArrowRight className="size-4" />
-              </a>
+              </Link>
             </div>
 
             <div className="mt-10 border-l border-white/15 pl-5">

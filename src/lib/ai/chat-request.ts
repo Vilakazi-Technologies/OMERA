@@ -8,6 +8,7 @@ export const languageIdSchema = z.string().refine(
 
 export const chatRequestSchema = z.object({
   conversationId: z.uuid().optional(),
+  modelId: z.string().min(3).max(120).optional(),
   replyLanguageId: languageIdSchema.nullable().default(null),
   messages: z.array(z.object({
     role: z.enum(["user", "assistant"]),

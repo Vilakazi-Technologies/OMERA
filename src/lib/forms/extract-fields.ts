@@ -3,9 +3,12 @@ import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
 import {
   parseStrictXavaniFields,
   type CanonicalFieldDef,
+  type TranslatedPrompt,
 } from "@/lib/forms/contracts";
 import type { StoredFormField } from "@/lib/db/form-sessions";
 import type { PdfFieldInfo } from "@/lib/forms/pdf-fields";
+import { fallbackFormFields } from "@/lib/forms/field-labels";
+import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
 
 const SYSTEM_PROMPT =
   "You translate PDF form field labels and questions. " +
@@ -23,36 +26,16 @@ const SCHEMA_ERRORS = new Set([
   "INVALID_OPTION",
 ]);
 
-/**
- * Interpret codec-inspected fields through the Xavani runtime.
- * Labels and translated questions come from the model; field identity,
- * kinds, options, and required flags always come from the C10 inspection.
- * Never returns demo fields. Fails visibly when translation fails.
- */
-export async function extractFormFields(
+const TRANSLATION_CHUNK = 15;
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function mergeTranslated(
   inspected: PdfFieldInfo[],
-  options: { languageId: string },
-): Promise<StoredFormField[]> {
-  if (!inspected.length) throw new Error("NO_FIELDS_TO_INTERPRET");
-  const defs: CanonicalFieldDef[] = inspected.map((field) => ({
-    id: field.id,
-    kind: field.kind,
-    required: field.required,
-    options: field.options,
-  }));
-
-  let prompts;
-  try {
-    prompts = await completeConfiguredJson(
-      SYSTEM_PROMPT,
-      JSON.stringify({ languageId: options.languageId, fields: defs }),
-      (value) => parseStrictXavaniFields(value, defs),
-    );
-  } catch (error) {
-    if (error instanceof Error && SCHEMA_ERRORS.has(error.message)) throw error;
-    throw new Error("FORM_TRANSLATION_FAILED");
-  }
-
+  prompts: TranslatedPrompt[],
+): StoredFormField[] {
   const translated = new Map(prompts.map((prompt) => [prompt.id, prompt]));
   return inspected.map((field) => ({
     id: field.id,
@@ -65,4 +48,58 @@ export async function extractFormFields(
     kind: field.kind,
     ...(field.options ? { options: field.options } : {}),
   }));
+}
+
+async function translateDefs(
+  defs: CanonicalFieldDef[],
+  languageId: string,
+): Promise<TranslatedPrompt[]> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await completeConfiguredJson(
+        SYSTEM_PROMPT,
+        JSON.stringify({ languageId, fields: defs }),
+        (value) => parseStrictXavaniFields(value, defs),
+      );
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && SCHEMA_ERRORS.has(error.message)) throw error;
+      if (attempt === 0) await pause(350);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("FORM_TRANSLATION_FAILED");
+}
+
+/**
+ * Interpret codec-inspected fields through the configured chat runtime.
+ * Falls back to humanized labels when AI is unavailable (MVP / rate limits).
+ */
+export async function extractFormFields(
+  inspected: PdfFieldInfo[],
+  options: { languageId: string },
+): Promise<StoredFormField[]> {
+  if (!inspected.length) throw new Error("NO_FIELDS_TO_INTERPRET");
+
+  const merged: StoredFormField[] = [];
+
+  for (let offset = 0; offset < inspected.length; offset += TRANSLATION_CHUNK) {
+    const slice = inspected.slice(offset, offset + TRANSLATION_CHUNK);
+    const defs: CanonicalFieldDef[] = slice.map((field) => ({
+      id: field.id,
+      kind: field.kind,
+      required: field.required,
+      options: field.options,
+    }));
+
+    try {
+      const prompts = await translateDefs(defs, options.languageId);
+      merged.push(...mergeTranslated(slice, prompts));
+    } catch (error) {
+      if (error instanceof Error && SCHEMA_ERRORS.has(error.message)) throw error;
+      merged.push(...fallbackFormFields(slice));
+    }
+  }
+
+  return sortFieldsForQuestionFlow(merged);
 }

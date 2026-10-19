@@ -14,12 +14,16 @@ Open: [vilatech-ai → Settings → Environment Variables](https://vercel.com/ay
 | `XAVANI_API_KEY` | Shivani / XAVANI team | Optional; takes priority over OpenRouter when set |
 | `XAVANI_MODEL` | Shivani / XAVANI team | e.g. `omera` |
 | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) | Developer-provided; server only |
-| `OPENROUTER_MODEL` | Developer | e.g. `nvidia/nemotron-3.5-super-vl:free` |
+| `OPENROUTER_MODEL` | Developer | MVP: `google/gemini-2.0-flash-lite-preview-02-05:free` (see `docs/shivani-mvp-production.md`) |
 | `LELAPA_API_KEY` | Lelapa dashboard | Voice transcription (optional but needed for mic) |
-| `SUPABASE_URL` | Supabase → Project Settings → API | Same as project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → API → service_role | **Server only** |
-| `NEXT_PUBLIC_SUPABASE_URL` | Same as `SUPABASE_URL` | Browser auth client |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → API → anon public | Browser auth client |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | [Clerk Dashboard](https://dashboard.clerk.com) | Public |
+| `CLERK_SECRET_KEY` | Clerk Dashboard | **Server only** |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | You | `/login` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | You | `/sign-up` |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | You | `/chat` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | You | `/chat` |
+| `SUPABASE_URL` | Supabase → API (optional) | Cloud sync for chats/forms only |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → service_role (optional) | **Server only** — not used for login |
 
 Redeploy after saving (Deployments → … → Redeploy, or push to `main` when Git is connected).
 
@@ -31,7 +35,8 @@ Redeploy after saving (Deployments → … → Redeploy, or push to `main` when 
    - `supabase/migrations/20261014090000_omera_identity.sql`
    - `supabase/migrations/20261014091000_omera_request_limits.sql`
    - `supabase/migrations/20261014092000_omera_form_documents.sql`
-3. Enable **Email** auth (OTP) if login should work for real users.
+3. Run `20261017000000_clerk_identity.sql` so `omera_users.auth_user_id` stores Clerk ids.
+4. Login is **Clerk only** — do not enable Supabase Auth for Omera.
 
 ## 3. Chat model (Xavani or OpenRouter)
 
