@@ -40,7 +40,10 @@ export async function GET() {
       primaryLabel: primary?.label ?? null,
     },
     voice: {
-      configured: Boolean(process.env.LELAPA_API_KEY?.trim()),
+      configured: Boolean(
+        process.env.LELAPA_API_KEY?.trim() ||
+          process.env.OPENROUTER_API_KEY?.trim(),
+      ),
     },
     forms: {
       storage: dbConfigured,

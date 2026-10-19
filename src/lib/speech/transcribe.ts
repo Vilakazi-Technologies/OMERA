@@ -1,9 +1,14 @@
 import "server-only";
+import {
+  isOpenRouterTranscribeConfigured,
+  transcribeOpenRouter,
+} from "@/lib/speech/openrouter-transcribe";
 
-const SUPPORTED = new Set(["eng", "afr", "zul", "sot"]);
+const LELAPA_LANGS = new Set(["eng", "afr", "zul", "sot"]);
 const EXTENSIONS: Record<string, string> = {
   "audio/wav": "wav",
   "audio/x-wav": "wav",
+  "audio/webm": "webm",
   "audio/mpeg": "mp3",
   "audio/flac": "flac",
   "audio/aac": "aac",
@@ -26,7 +31,9 @@ export async function transcribeNative(input: {
   apiKey: string;
   signal?: AbortSignal;
 }): Promise<{ text: string; languageId: string }> {
-  if (!SUPPORTED.has(input.languageId)) throw new SpeechError("UNSUPPORTED_LANGUAGE", 422);
+  if (!LELAPA_LANGS.has(input.languageId)) {
+    throw new SpeechError("UNSUPPORTED_LANGUAGE", 422);
+  }
   if (!input.apiKey.trim() || /[\r\n]/.test(input.apiKey)) throw new SpeechError("VOICE_UNAVAILABLE", 503);
   if (!input.audio.length || input.audio.length > 2000000) {
     throw new SpeechError("INVALID_AUDIO_SIZE", input.audio.length ? 413 : 400);
@@ -63,12 +70,83 @@ export async function transcribeNative(input: {
   } catch {
     throw new SpeechError(signal.aborted ? "VOICE_TIMEOUT" : "INVALID_TRANSCRIPT", signal.aborted ? 504 : 502);
   }
-  if (!data || typeof data !== "object" ||
-      !("transcription_status" in data) || data.transcription_status !== "COMPLETED" ||
-      !("transcription_text" in data) || typeof data.transcription_text !== "string" ||
-      !("language_code" in data) || data.language_code !== input.languageId) {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    !("transcription_status" in data) ||
+    data.transcription_status !== "COMPLETED" ||
+    !("transcription_text" in data) ||
+    typeof data.transcription_text !== "string"
+  ) {
     throw new SpeechError("INVALID_TRANSCRIPT", 502);
   }
-  if (!data.transcription_text.trim()) throw new SpeechError("EMPTY_TRANSCRIPT", 422);
-  return { text: data.transcription_text, languageId: input.languageId };
+  const text = data.transcription_text;
+  if (!text.trim()) throw new SpeechError("EMPTY_TRANSCRIPT", 422);
+  return { text, languageId: input.languageId };
+}
+
+/** Demo-safe routing: OpenRouter Whisper + Lelapa fallback per language. */
+export async function transcribeAudio(
+  input: {
+    audio: Uint8Array;
+    mimeType: string;
+    languageId: string;
+    lelapaKey: string;
+    openRouterKey: string;
+    signal?: AbortSignal;
+  },
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ text: string; languageId: string }> {
+  const lelapaKey = input.lelapaKey.trim();
+  const openRouterKey = input.openRouterKey.trim();
+  const canLelapa = LELAPA_LANGS.has(input.languageId) && lelapaKey.length > 0;
+  const canOpenRouter =
+    openRouterKey.length > 0 && isOpenRouterTranscribeConfigured(env);
+
+  const whisper = () =>
+    transcribeOpenRouter({
+      audio: input.audio,
+      mimeType: input.mimeType,
+      languageId: input.languageId,
+      apiKey: openRouterKey,
+      signal: input.signal,
+    });
+
+  const lelapa = () =>
+    transcribeNative({
+      audio: input.audio,
+      mimeType: input.mimeType,
+      languageId: input.languageId,
+      apiKey: lelapaKey,
+      signal: input.signal,
+    });
+
+  const shouldRethrow = (error: unknown) =>
+    error instanceof SpeechError && error.code === "VOICE_TIMEOUT";
+
+  if (input.languageId === "eng" && canOpenRouter) {
+    try {
+      return await whisper();
+    } catch (error) {
+      if (shouldRethrow(error)) throw error;
+      if (canLelapa) return await lelapa();
+      throw new SpeechError("VOICE_UNAVAILABLE", 502);
+    }
+  }
+
+  if (canLelapa) {
+    try {
+      return await lelapa();
+    } catch (error) {
+      if (shouldRethrow(error)) throw error;
+      if (canOpenRouter) return await whisper();
+      throw new SpeechError("VOICE_UNAVAILABLE", 502);
+    }
+  }
+
+  if (canOpenRouter) {
+    return await whisper();
+  }
+
+  throw new SpeechError("VOICE_UNAVAILABLE", 503);
 }

@@ -41,6 +41,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   const env = process.env as Record<string, string | undefined>;
   env["LELAPA_API_KEY"] = "test-key";
+  env["OPENROUTER_API_KEY"] = "openrouter-test-key";
   vi.mocked(requireIdentity).mockResolvedValue({
     userId: "omera-1",
     authUserId: "auth-1",
@@ -71,6 +72,7 @@ it("an_unknown_language_returns_400", async () => {
 
 it("a_missing_key_returns_503", async () => {
   delete (process.env as Record<string, string | undefined>)["LELAPA_API_KEY"];
+  delete (process.env as Record<string, string | undefined>)["OPENROUTER_API_KEY"];
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
   const response = await POST(post(validBody()));
@@ -80,6 +82,7 @@ it("a_missing_key_returns_503", async () => {
 });
 
 it("a_provider_timeout_returns_504", async () => {
+  delete (process.env as Record<string, string | undefined>)["OPENROUTER_API_KEY"];
   const deadline = new AbortController();
   const timeout = vi
     .spyOn(AbortSignal, "timeout")
@@ -118,11 +121,18 @@ it("a_valid_clip_returns_native_text", async () => {
   ).toBeLessThan(vi.mocked(requireRequestOrigin).mock.invocationCallOrder[0]);
 });
 
-it("an_unsupported_language_never_calls_english_routing", async () => {
-  const fetchMock = vi.fn();
+it("routes_sa_languages_through_whisper_when_openrouter_is_configured", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ text: "Ndi a livhuwa." })),
+  );
   vi.stubGlobal("fetch", fetchMock);
   const response = await POST(post(validBody({ languageId: "ven" })));
-  expect(response.status).toBe(422);
-  expect(await response.json()).toEqual({ error: "UNSUPPORTED_LANGUAGE" });
-  expect(fetchMock).not.toHaveBeenCalled();
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    text: "Ndi a livhuwa.",
+    languageId: "ven",
+  });
+  expect(String(fetchMock.mock.calls[0][0])).toContain(
+    "openrouter.ai/api/v1/audio/transcriptions",
+  );
 });

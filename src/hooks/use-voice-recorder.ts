@@ -11,7 +11,7 @@ export type VoiceClip = {
   wav: Uint8Array;
   /** Base64 of the WAV bytes for JSON transport. */
   base64: string;
-  mimeType: "audio/wav";
+  mimeType: "audio/wav" | "audio/webm";
   languageId: string;
 };
 
@@ -96,31 +96,40 @@ export function useVoiceRecorder(languageId: string = "eng") {
         fail("No audio was recorded.");
         return;
       }
-      if (typeof AudioContext === "undefined") {
-        fail("Voice recording is not available in this browser.");
-        return;
+      let clip: VoiceClip | null = null;
+      if (typeof AudioContext !== "undefined") {
+        const context = new AudioContext();
+        try {
+          const decoded = await context.decodeAudioData(bytes.buffer.slice(0));
+          const channels = Array.from(
+            { length: decoded.numberOfChannels },
+            (_, index) => decoded.getChannelData(index),
+          );
+          const mono = await resampleToMono16k(channels, decoded.sampleRate);
+          const wav = encodeMonoWav(mono, VOICE_SAMPLE_RATE);
+          clip = {
+            wav,
+            base64: wavToBase64(wav),
+            mimeType: "audio/wav",
+            languageId: startLanguageRef.current ?? languageRef.current,
+          };
+        } catch {
+          // Fall back to raw WebM for server-side Whisper (OpenRouter).
+        } finally {
+          await context.close().catch(() => undefined);
+        }
       }
-      const context = new AudioContext();
-      let decoded: AudioBuffer;
-      try {
-        decoded = await context.decodeAudioData(bytes.buffer.slice(0));
-      } finally {
-        await context.close().catch(() => undefined);
+      if (!clip) {
+        clip = {
+          wav: bytes,
+          base64: wavToBase64(bytes),
+          mimeType: "audio/webm",
+          languageId: startLanguageRef.current ?? languageRef.current,
+        };
       }
-      const channels = Array.from(
-        { length: decoded.numberOfChannels },
-        (_, index) => decoded.getChannelData(index),
-      );
-      const mono = await resampleToMono16k(channels, decoded.sampleRate);
-      const wav = encodeMonoWav(mono, VOICE_SAMPLE_RATE);
       failedRef.current = false;
       stopTracks(stream);
-      pending?.resolve({
-        wav,
-        base64: wavToBase64(wav),
-        mimeType: "audio/wav",
-        languageId: startLanguageRef.current ?? languageRef.current,
-      });
+      pending?.resolve(clip);
     } catch {
       fail("Voice recording failed.");
     }

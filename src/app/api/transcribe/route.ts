@@ -4,7 +4,7 @@ import { readBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { isKnownLanguage } from "@/lib/speech/capabilities";
-import { SpeechError, transcribeNative } from "@/lib/speech/transcribe";
+import { SpeechError, transcribeAudio } from "@/lib/speech/transcribe";
 
 export const runtime = "nodejs";
 
@@ -76,11 +76,12 @@ export async function POST(request: Request) {
       throw new SpeechError("INVALID_AUDIO_SIZE", audio.length ? 413 : 400);
     }
 
-    const result = await transcribeNative({
+    const result = await transcribeAudio({
       audio,
       mimeType: mime,
       languageId,
-      apiKey: process.env.LELAPA_API_KEY ?? "",
+      lelapaKey: process.env.LELAPA_API_KEY ?? "",
+      openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
     });
 
     return NextResponse.json(

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowUp, Mic, Square } from "lucide-react";
 import { ChatModelSelect } from "@/components/chat-model-select";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
+import { useBrowserDictation } from "@/hooks/use-browser-dictation";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { cn } from "@/lib/cn";
 
@@ -27,54 +28,99 @@ export function ChatComposer({
 }: Props) {
   const [text, setText] = useState("");
   const { languageId, setLanguageId, languageExplicit } = useApp();
+  const dictation = useBrowserDictation(languageId);
   const { recording, error: recorderError, start, stop } = useVoiceRecorder(languageId);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const prefixBeforeVoiceRef = useRef("");
+
+  const listening = dictation.listening || recording;
+
+  async function transcribeClip(clip: {
+    base64: string;
+    mimeType: string;
+    languageId: string;
+  }): Promise<string | null> {
+    const res = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        audioBase64: clip.base64,
+        mimeType: clip.mimeType,
+        languageId: clip.languageId,
+      }),
+    });
+    const data = (await res.json()) as { text?: unknown; error?: string };
+    if (!res.ok || typeof data.text !== "string" || !data.text.trim()) {
+      return null;
+    }
+    return data.text.trim();
+  }
 
   async function handleMic() {
     if (disabled || transcribing) return;
-    if (recording) {
+
+    if (listening) {
       setTranscribing(true);
       setVoiceError(null);
+      const live = dictation.stop();
+      let merged = live.trim();
+
       try {
-        const clip = await stop();
-        const res = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            audioBase64: clip.base64,
-            mimeType: clip.mimeType,
-            languageId: clip.languageId,
-          }),
-        });
-        const data = (await res.json()) as { text?: unknown };
-        const transcript = data.text;
-        if (!res.ok || typeof transcript !== "string" || !transcript.trim()) {
-          setVoiceError(
-            "Voice transcription failed. Your text was kept — try again or type instead.",
-          );
-          return;
+        if (recording) {
+          try {
+            const clip = await stop();
+            if (!merged) {
+              const server = await transcribeClip(clip);
+              if (server) merged = server;
+            }
+          } catch {
+            if (!merged) {
+              setVoiceError(
+                "Voice transcription failed. Try again or type your message.",
+              );
+              return;
+            }
+          }
         }
-        setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
-      } catch {
-        setVoiceError(
-          "Voice transcription failed. Your text was kept — try again or type instead.",
-        );
+
+        if (merged) {
+          const prefix = prefixBeforeVoiceRef.current.trim();
+          setText(prefix && !merged.startsWith(prefix) ? `${prefix} ${merged}` : merged);
+        } else {
+          setVoiceError(
+            "No speech detected. Try again or type your message.",
+          );
+        }
       } finally {
         setTranscribing(false);
       }
       return;
     }
+
     setVoiceError(null);
+    prefixBeforeVoiceRef.current = text;
+    const liveStarted = dictation.start(text, (display) => {
+      setText(display);
+    });
     await start();
+    if (!liveStarted && !recording) {
+      setVoiceError("Voice input is not available in this browser.");
+    }
   }
 
   function submit() {
     const trimmed = text.trim();
-    if (!trimmed || disabled || transcribing) return;
+    if (!trimmed || disabled || transcribing || listening) return;
     onSend(trimmed, languageExplicit ? languageId : null);
     setText("");
   }
+
+  const boxPlaceholder = listening
+    ? "Listening… speak now"
+    : transcribing
+      ? "Transcribing…"
+      : placeholder;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-6 pt-2">
@@ -86,14 +132,14 @@ export function ChatComposer({
           {voiceError}
         </p>
       )}
-      {transcribing && (
-        <p className="mb-2 text-center text-xs text-slate-300">
-          Transcribing…
+      {listening && !voiceError && (
+        <p className="mb-2 text-center text-xs text-emerald-300/90">
+          {dictation.supported
+            ? "Speaking… words appear as you talk"
+            : "Recording… release when finished"}
         </p>
       )}
-      <div
-        className="liquid-card rounded-2xl p-2"
-      >
+      <div className="liquid-card rounded-2xl p-2">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -104,10 +150,13 @@ export function ChatComposer({
             }
           }}
           rows={1}
-          placeholder={placeholder}
-          disabled={disabled}
+          placeholder={boxPlaceholder}
+          disabled={disabled || listening}
           aria-label="Message"
-          className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+          className={cn(
+            "max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500",
+            listening && "text-white",
+          )}
         />
         <div className="flex items-center justify-between gap-2 px-1">
           <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -129,23 +178,23 @@ export function ChatComposer({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={handleMic}
+              onClick={() => void handleMic()}
               disabled={disabled || transcribing}
               className={cn(
                 "rounded-xl p-2.5 transition",
-                recording
+                listening
                   ? "bg-red-500/20 text-red-400"
                   : "text-slate-300 hover:bg-white/8 hover:text-white",
               )}
               aria-label={
                 transcribing
                   ? "Transcribing voice"
-                  : recording
+                  : listening
                     ? "Stop recording"
                     : "Record voice"
               }
             >
-              {recording ? (
+              {listening ? (
                 <Square className="size-5 fill-current" />
               ) : (
                 <Mic className="size-5" />
@@ -154,7 +203,7 @@ export function ChatComposer({
             <button
               type="button"
               onClick={submit}
-              disabled={disabled || transcribing || !text.trim()}
+              disabled={disabled || transcribing || listening || !text.trim()}
               className="rounded-xl bg-white p-2.5 text-black transition hover:bg-white/90 disabled:opacity-40"
               aria-label="Send message"
             >
@@ -168,4 +217,4 @@ export function ChatComposer({
       </p>
     </div>
   );
-}
+};

@@ -3,15 +3,31 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-const startMock = vi.fn();
-const stopMock = vi.fn();
+const voiceFixture = vi.hoisted(() => ({
+  recording: true,
+  startMock: vi.fn(),
+  stopMock: vi.fn(),
+  dictationStopMock: vi.fn(() => ""),
+}));
+
+vi.mock("@/hooks/use-browser-dictation", () => ({
+  useBrowserDictation: () => ({
+    supported: false,
+    listening: false,
+    start: vi.fn(() => false),
+    stop: voiceFixture.dictationStopMock,
+  }),
+}));
 
 vi.mock("@/hooks/use-voice-recorder", () => ({
   useVoiceRecorder: () => ({
-    recording: true,
+    recording: voiceFixture.recording,
     error: null,
-    start: startMock,
-    stop: stopMock,
+    start: voiceFixture.startMock,
+    stop: async () => {
+      voiceFixture.recording = false;
+      return voiceFixture.stopMock();
+    },
   }),
 }));
 
@@ -33,9 +49,10 @@ const CLIP = {
 beforeEach(() => {
   resetAuthFixture({ languageId: "zul", languageExplicit: true });
   vi.mocked(useApp).mockImplementation(() => authAppValue() as never);
-  startMock.mockReset();
-  stopMock.mockReset();
-  stopMock.mockResolvedValue(CLIP);
+  voiceFixture.recording = true;
+  voiceFixture.startMock.mockReset();
+  voiceFixture.stopMock.mockReset();
+  voiceFixture.stopMock.mockResolvedValue(CLIP);
 });
 
 afterEach(() => {
@@ -51,7 +68,7 @@ it("transcription_errors_do_not_submit_text", async () => {
   );
   render(<ChatComposer onSend={onSend} />);
   fireEvent.click(screen.getByRole("button", { name: "Stop recording" }));
-  await screen.findByText(/transcription failed/i);
+  await screen.findByText(/voice transcription failed|no speech detected/i);
   expect(onSend).not.toHaveBeenCalled();
 });
 
@@ -69,7 +86,7 @@ it("the_transcript_is_editable_before_submission", async () => {
   );
   render(<ChatComposer onSend={onSend} />);
   fireEvent.click(screen.getByRole("button", { name: "Stop recording" }));
-  await screen.findByText(/transcribing/i);
+  await screen.findByPlaceholderText(/transcribing/i);
   await resolveFetch!(
     new Response(JSON.stringify({ text: "Sawubona", languageId: "zul" }), { status: 200 }),
   );

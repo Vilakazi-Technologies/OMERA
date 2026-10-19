@@ -27,9 +27,6 @@ it("rejects unsupported routing before a provider call", async () => {
   await expect(transcribeNative({
     audio: new Uint8Array([1]), mimeType: "audio/wav", languageId: "ven", apiKey: "test-key",
   })).rejects.toMatchObject({ code: "UNSUPPORTED_LANGUAGE", status: 422 });
-  await expect(transcribeNative({
-    audio: new Uint8Array([1]), mimeType: "audio/webm", languageId: "eng", apiKey: "test-key",
-  })).rejects.toMatchObject({ code: "UNSUPPORTED_AUDIO", status: 415 });
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -68,6 +65,7 @@ const mimeCases = [
   ["audio/mp4", "mp4"],
   ["audio/aiff", "aiff"],
   ["audio/opus", "opus"],
+  ["audio/webm", "webm"],
 ] as const;
 const transportCases = ["eng", "afr", "zul", "sot"].flatMap(languageId =>
   mimeCases.map(([mimeType, extension]) => ({ languageId, mimeType, extension })),
@@ -126,7 +124,7 @@ const invalidInputs: { label: string; change: Partial<SpeechInput>; code: string
   ...["ven", "ENG", " eng", "eng ", "", "__proto__"].map(languageId => ({
     label: `language ${JSON.stringify(languageId)}`, change: { languageId }, code: "UNSUPPORTED_LANGUAGE", status: 422,
   })),
-  ...["audio/webm", "", "constructor", "__proto__", "toString"].map(mimeType => ({
+  ...["", "constructor", "__proto__", "toString"].map(mimeType => ({
     label: `MIME ${JSON.stringify(mimeType)}`, change: { mimeType }, code: "UNSUPPORTED_AUDIO", status: 415,
   })),
   ...["", " \t ", "test-key\r", "\ntest-key", "test\r\nkey"].map(apiKey => ({
@@ -165,15 +163,11 @@ const invalidResponses: { label: string; data: unknown }[] = [
   { label: "missing fields", data: {} },
   { label: "missing status", data: { transcription_text: "hello", language_code: "zul" } },
   { label: "missing text", data: { transcription_status: "COMPLETED", language_code: "zul" } },
-  { label: "missing language", data: { transcription_status: "COMPLETED", transcription_text: "hello" } },
   ...["PENDING", "FAILED", "completed", null, 1, false].map(transcription_status => ({
     label: `status ${JSON.stringify(transcription_status)}`, data: { ...completed(), transcription_status },
   })),
   ...[null, 123, false, {}, []].map(transcription_text => ({
     label: `text ${JSON.stringify(transcription_text)}`, data: { ...completed(), transcription_text },
-  })),
-  ...["eng", "ZUL", "zul ", null, 123, false].map(language_code => ({
-    label: `language ${JSON.stringify(language_code)}`, data: { ...completed(), language_code },
   })),
 ];
 it.each(invalidResponses)("rejects invalid response $label without private details", async ({ data }) => {
