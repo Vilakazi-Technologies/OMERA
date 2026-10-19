@@ -154,7 +154,7 @@ export function ChatComposer({
           disabled={disabled || listening}
           aria-label="Message"
           className={cn(
-            "max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500",
+            "max-h-60 min-h-[44px] w-full resize-y bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500",
             listening && "text-white",
           )}
         />
