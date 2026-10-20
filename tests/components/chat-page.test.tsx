@@ -64,6 +64,33 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
+function fetchUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+function chatFetchCalls() {
+  return vi.mocked(fetch).mock.calls.filter((call) =>
+    fetchUrl(call[0]).includes("/api/chat"),
+  );
+}
+
+function installFetchRouter(
+  chatHandler: () => Promise<Response>,
+) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = fetchUrl(input);
+      if (url.includes("/api/chat")) {
+        return chatHandler();
+      }
+      return jsonResponse({}, 404);
+    }),
+  );
+}
+
 beforeEach(() => {
   resetAuthFixture();
   vi.mocked(useApp).mockImplementation(() => authAppValue() as never);
@@ -76,7 +103,7 @@ beforeEach(() => {
       configurable: true,
     });
   }
-  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ ok: true }, 200)));
+  installFetchRouter(async () => jsonResponse({ ok: true }, 200));
 });
 
 afterEach(() => {
@@ -93,38 +120,33 @@ async function sendDraft(text: string) {
 
 describe("chat page stream lifecycle", () => {
   it("the_busy_state_resets_after_a_stream_failure", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: true, body: errorStream() }) as Response),
+    installFetchRouter(
+      async () => ({ ok: true, body: errorStream() }) as Response,
     );
     render(<ChatPage />);
     await sendDraft("Help me price my service.");
     await waitFor(() => {
       expect(screen.getByRole("textbox")).not.toBeDisabled();
     });
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(chatFetchCalls()).toHaveLength(2);
   });
 
   it("a_failed_draft_is_preserved_for_retry", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: true, body: errorStream() }) as Response),
+    installFetchRouter(
+      async () => ({ ok: true, body: errorStream() }) as Response,
     );
     render(<ChatPage />);
     await sendDraft("Help me obtain my first customer.");
     const retry = await screen.findByRole("button", { name: "Retry" });
     expect(screen.getByText("Help me obtain my first customer.")).toBeVisible();
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(chatFetchCalls()).toHaveLength(2);
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () => ({ ok: true, body: tokenStream(["All good"]) }) as Response,
-      ),
+    installFetchRouter(
+      async () => ({ ok: true, body: tokenStream(["All good"]) }) as Response,
     );
     fireEvent.click(retry);
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      expect(chatFetchCalls()).toHaveLength(1);
     });
     await waitFor(() => {
       const calls = updateConversation.mock.calls as unknown[][];
@@ -142,16 +164,16 @@ describe("chat page stream lifecycle", () => {
       },
     });
     let resolveFetch!: (value: unknown) => void;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => new Promise((resolve) => {
-        resolveFetch = resolve;
-      })),
+    installFetchRouter(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }) as Promise<Response>,
     );
     const { unmount } = render(<ChatPage />);
     await sendDraft("Help me improve cash flow.");
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      expect(chatFetchCalls()).toHaveLength(1);
     });
     resolveFetch({ ok: true, body: held } as Response);
     await waitFor(() => {
@@ -168,19 +190,16 @@ describe("chat page stream lifecycle", () => {
   });
 
   it("a_selected_language_is_sent_with_the_request", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () => ({ ok: true, body: tokenStream(["Sharp"]) }) as Response,
-      ),
+    installFetchRouter(
+      async () => ({ ok: true, body: tokenStream(["Sharp"]) }) as Response,
     );
     const { rerender } = render(<ChatPage />);
     await sendDraft("Help me price my service.");
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      expect(chatFetchCalls()).toHaveLength(1);
     });
     const defaultBody = JSON.parse(
-      vi.mocked(fetch).mock.calls[0][1]!.body as string,
+      chatFetchCalls()[0][1]!.body as string,
     );
     expect(defaultBody.replyLanguageId).toBeNull();
 
@@ -190,10 +209,10 @@ describe("chat page stream lifecycle", () => {
     rerender(<ChatPage />);
     await sendDraft("Ngisize ngithole ikhasimende lami lokuqala.");
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+      expect(chatFetchCalls()).toHaveLength(2);
     });
     const explicitBody = JSON.parse(
-      vi.mocked(fetch).mock.calls[1][1]!.body as string,
+      chatFetchCalls()[1][1]!.body as string,
     );
     expect(explicitBody.replyLanguageId).toBe("zul");
   });
@@ -212,9 +231,8 @@ describe("chat page stream lifecycle", () => {
       await flakyPersist();
       return true;
     });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: true, body: tokenStream(["Saved?"]) }) as Response),
+    installFetchRouter(
+      async () => ({ ok: true, body: tokenStream(["Saved?"]) }) as Response,
     );
     render(<ChatPage />);
     await sendDraft("Remember this.");

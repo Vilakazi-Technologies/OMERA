@@ -10,6 +10,8 @@ export const chatRequestSchema = z.object({
   conversationId: z.uuid().optional(),
   modelId: z.string().min(3).max(120).optional(),
   replyLanguageId: languageIdSchema.nullable().default(null),
+  /** When true (default), Omera may query Google before replying if search is configured server-side. */
+  webResearch: z.boolean().optional().default(true),
   messages: z.array(z.object({
     role: z.enum(["user", "assistant"]),
     content: z.string().min(1).max(8000).refine((text) => text.trim().length > 0),

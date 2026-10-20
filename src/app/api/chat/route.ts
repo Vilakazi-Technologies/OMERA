@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createConfiguredChatStream } from "@/lib/ai/chat-runtime";
 import { createDemoChatStream } from "@/lib/ai/demo-stream";
 import { runtimeMode } from "@/lib/ai/runtime-mode";
+import { buildWebResearchSystemContext } from "@/lib/search/web-research";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,8 @@ export async function POST(request: Request) {
     const raw = await readJsonBody(request, CHAT_BODY_LIMIT);
     const parsed = chatRequestSchema.safeParse(raw);
     if (!parsed.success) throw new ApiError("INVALID_REQUEST", 400);
-    const { conversationId, messages, replyLanguageId, modelId } = parsed.data;
+    const { conversationId, messages, replyLanguageId, modelId, webResearch } =
+      parsed.data;
     const cloud = usesCloudPersistence(identity);
 
     if (conversationId && cloud) {
@@ -66,6 +68,21 @@ export async function POST(request: Request) {
           ? openRouterModelForSelection(OMERA_MODEL_ID)
           : undefined;
 
+    let webResearchContext: string | null = null;
+    if (webResearch) {
+      const lastUser = messages.findLast((message) => message.role === "user");
+      if (lastUser) {
+        try {
+          webResearchContext = await buildWebResearchSystemContext(
+            lastUser.content,
+            request.signal,
+          );
+        } catch {
+          webResearchContext = null;
+        }
+      }
+    }
+
     let stream: ReadableStream<Uint8Array>;
     try {
       stream = createConfiguredChatStream(
@@ -76,6 +93,7 @@ export async function POST(request: Request) {
         replyLanguageId,
         request.signal,
         openRouterOverride,
+        webResearchContext,
       );
     } catch {
       if (runtimeMode(process.env.XAVANI_API_KEY, process.env) !== "demo") {

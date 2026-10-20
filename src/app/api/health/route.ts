@@ -7,6 +7,7 @@ import {
   xavaniHealth,
 } from "@/lib/health/status";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
+import { isGoogleWebSearchConfigured } from "@/lib/search/google-custom-search";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,10 @@ export async function GET() {
         process.env.LELAPA_API_KEY?.trim() ||
           process.env.OPENROUTER_API_KEY?.trim(),
       ),
+    },
+    webResearch: {
+      configured: isGoogleWebSearchConfigured(),
+      provider: "google-custom-search",
     },
     forms: {
       storage: dbConfigured,

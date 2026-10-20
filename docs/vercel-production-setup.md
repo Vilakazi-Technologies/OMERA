@@ -16,6 +16,8 @@ Open: [vilatech-ai → Settings → Environment Variables](https://vercel.com/ay
 | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) | Developer-provided; server only |
 | `OPENROUTER_MODEL` | Developer | MVP: `google/gemini-2.0-flash-lite-preview-02-05:free` (see `docs/shivani-mvp-production.md`) |
 | `LELAPA_API_KEY` | Lelapa dashboard | Voice transcription (optional but needed for mic) |
+| `GOOGLE_SEARCH_API_KEY` | [Google Cloud Console](https://console.cloud.google.com/) → APIs → Custom Search API | Enables **Google** web research in chat (server only) |
+| `GOOGLE_SEARCH_ENGINE_ID` | [Programmable Search Engine](https://programmablesearchengine.google.com/) (`cx` id; turn on “Search the entire web”) | Pair with `GOOGLE_SEARCH_API_KEY`; shows **Google** toggle in composer |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | [Clerk Dashboard](https://dashboard.clerk.com) | Public |
 | `CLERK_SECRET_KEY` | Clerk Dashboard | **Server only** |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | You | `/login` |

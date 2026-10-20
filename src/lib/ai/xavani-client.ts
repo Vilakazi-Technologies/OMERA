@@ -178,6 +178,7 @@ export function createXavaniChatStream(
   messages: Message[],
   replyLanguageId: string | null = null,
   requestSignal?: AbortSignal,
+  systemContext?: string | null,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const controller = new AbortController();
@@ -189,9 +190,16 @@ export function createXavaniChatStream(
   return new ReadableStream<Uint8Array>({
     async start(output) {
       try {
-        const response = await request(config, requestBody(
-          config, messages, buildOmeraSystemPrompt(replyLanguageId), true,
-        ), signal);
+        const response = await request(
+          config,
+          requestBody(
+            config,
+            messages,
+            buildOmeraSystemPrompt(replyLanguageId, systemContext),
+            true,
+          ),
+          signal,
+        );
         for await (const token of tokens(response)) {
           if (cancelled) return;
           output.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));

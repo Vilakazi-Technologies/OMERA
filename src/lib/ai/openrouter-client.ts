@@ -186,6 +186,7 @@ export function createOpenRouterChatStream(
   replyLanguageId: string | null = null,
   requestSignal?: AbortSignal,
   modelOverride?: string,
+  systemContext?: string | null,
 ): ReadableStream<Uint8Array> {
   const active = withModel(config, modelOverride);
   const encoder = new TextEncoder();
@@ -201,7 +202,12 @@ export function createOpenRouterChatStream(
       try {
         const response = await post(
           active,
-          requestBody(active, messages, buildOmeraSystemPrompt(replyLanguageId), true),
+          requestBody(
+            active,
+            messages,
+            buildOmeraSystemPrompt(replyLanguageId, systemContext),
+            true,
+          ),
           signal,
         );
         for await (const token of streamTokens(response)) {

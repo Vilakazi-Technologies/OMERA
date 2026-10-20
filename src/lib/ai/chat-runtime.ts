@@ -33,11 +33,18 @@ export function createConfiguredChatStream(
   replyLanguageId: string | null,
   requestSignal?: AbortSignal,
   modelId?: string | null,
+  systemContext?: string | null,
 ): ReadableStream<Uint8Array> {
   const provider = resolveChatProvider();
   if (provider === "xavani") {
     const config = getXavaniConfig();
-    return createXavaniChatStream(config, messages, replyLanguageId, requestSignal);
+    return createXavaniChatStream(
+      config,
+      messages,
+      replyLanguageId,
+      requestSignal,
+      systemContext,
+    );
   }
   if (provider === "openrouter") {
     const config = getOpenRouterConfig();
@@ -47,6 +54,7 @@ export function createConfiguredChatStream(
       replyLanguageId,
       requestSignal,
       modelId ?? undefined,
+      systemContext,
     );
   }
   throw new Error("CHAT_UNAVAILABLE");
