@@ -9,6 +9,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
   "/api/capabilities",
   "/api/ai/models",
+  "/api/store/complete-json",
+  "/api/store/complete-vision-json",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

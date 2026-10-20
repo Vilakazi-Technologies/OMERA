@@ -31,6 +31,15 @@ Production is on **OpenRouter** with a **free/shared model** until **Xavani (Shi
 
 Optional: `OPENROUTER_MAX_TOKENS=1200` on Vercel for shorter, faster answers in demos.
 
+## Reliability on the free tier (built in)
+
+- Chat **auto-retries** up to 3 times with backup models if a reply fails or comes back empty.
+- OpenRouter requests include a **model fallback chain** when the primary is busy.
+- **Google research** runs in the background with a short time cap so answers still stream if search is slow.
+- Signed-in users get a higher default **chat quota** (150 requests) for demo sessions.
+
+Funding unlocks paid inference (Xavani hosting + token budget)—that is what removes queue delays, not more UI work.
+
 ## Verify before the meeting
 
 ```text

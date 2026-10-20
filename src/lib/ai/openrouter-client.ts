@@ -1,6 +1,9 @@
 import "server-only";
 import { buildOmeraSystemPrompt } from "@/lib/ai/omera-system-prompt";
-import { resolveOpenRouterModelId } from "@/lib/ai/openrouter-models";
+import {
+  openRouterModelChain,
+  resolveOpenRouterModelId,
+} from "@/lib/ai/openrouter-models";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -34,8 +37,10 @@ function requestBody(
   stream: boolean,
   env: NodeJS.ProcessEnv = process.env,
 ) {
+  const models = openRouterModelChain(config.model, env);
   return JSON.stringify({
-    model: config.model,
+    model: models[0],
+    models,
     stream,
     max_tokens: maxOutputTokens(env),
     provider: { sort: "latency", allow_fallbacks: true },
@@ -52,7 +57,7 @@ async function post(
   body: string,
   signal: AbortSignal,
 ): Promise<Response> {
-  const attempts = 3;
+  const attempts = 4;
   let lastError: unknown = new Error("OPENROUTER_UNAVAILABLE");
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (signal.aborted) throw new Error("OPENROUTER_ABORTED");
@@ -74,7 +79,7 @@ async function post(
       if (response.status === 429 || response.status >= 502) {
         await response.body?.cancel();
         lastError = new Error("OPENROUTER_RATE_LIMITED");
-        await pause(250 * (attempt + 1));
+        await pause(400 * (attempt + 1));
         continue;
       }
       if (!response.ok) {
@@ -85,7 +90,7 @@ async function post(
     } catch (error) {
       lastError = error;
       if (signal.aborted) throw error;
-      if (attempt < attempts - 1) await pause(250 * (attempt + 1));
+      if (attempt < attempts - 1) await pause(400 * (attempt + 1));
     }
   }
   throw lastError;
@@ -230,6 +235,81 @@ export function createOpenRouterChatStream(
       controller.abort();
     },
   });
+}
+
+export async function completeOpenRouterJsonString(
+  config: OpenRouterConfig,
+  systemPrompt: string,
+  input: string,
+  requestSignal?: AbortSignal,
+): Promise<string> {
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(120000),
+    ...(requestSignal ? [requestSignal] : []),
+  ]);
+  const response = await post(
+    config,
+    JSON.stringify({
+      model: config.model,
+      stream: false,
+      max_tokens: maxOutputTokens(),
+      response_format: { type: "json_object" },
+      provider: { sort: "latency", allow_fallbacks: true },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: input },
+      ],
+    }),
+    signal,
+  );
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("INVALID_OPENROUTER_RESPONSE");
+  }
+  return content.trim();
+}
+
+export async function completeOpenRouterVisionJsonString(
+  config: OpenRouterConfig,
+  systemPrompt: string,
+  userText: string,
+  imageDataUrl: string,
+  requestSignal?: AbortSignal,
+): Promise<string> {
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(120000),
+    ...(requestSignal ? [requestSignal] : []),
+  ]);
+  const response = await post(
+    config,
+    JSON.stringify({
+      model: config.model,
+      stream: false,
+      max_tokens: maxOutputTokens(),
+      response_format: { type: "json_object" },
+      provider: { sort: "latency", allow_fallbacks: true },
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userText },
+            { type: "image_url", image_url: { url: imageDataUrl } },
+          ],
+        },
+      ],
+    }),
+    signal,
+  );
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string | unknown } }[];
+  };
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content === "string" && content.trim()) return content.trim();
+  throw new Error("INVALID_OPENROUTER_VISION_RESPONSE");
 }
 
 export async function completeOpenRouterJson<T>(

@@ -125,10 +125,13 @@ describe("chat page stream lifecycle", () => {
     );
     render(<ChatPage />);
     await sendDraft("Help me price my service.");
-    await waitFor(() => {
-      expect(screen.getByRole("textbox")).not.toBeDisabled();
-    });
-    expect(chatFetchCalls()).toHaveLength(2);
+    await waitFor(
+      () => {
+        expect(screen.getByRole("textbox")).not.toBeDisabled();
+        expect(chatFetchCalls()).toHaveLength(3);
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("a_failed_draft_is_preserved_for_retry", async () => {
@@ -137,9 +140,11 @@ describe("chat page stream lifecycle", () => {
     );
     render(<ChatPage />);
     await sendDraft("Help me obtain my first customer.");
+    await waitFor(() => {
+      expect(chatFetchCalls()).toHaveLength(3);
+    }, { timeout: 5000 });
     const retry = await screen.findByRole("button", { name: "Retry" });
     expect(screen.getByText("Help me obtain my first customer.")).toBeVisible();
-    expect(chatFetchCalls()).toHaveLength(2);
 
     installFetchRouter(
       async () => ({ ok: true, body: tokenStream(["All good"]) }) as Response,

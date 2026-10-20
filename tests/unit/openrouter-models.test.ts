@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   OPENROUTER_PRIMARY_MODEL,
+  openRouterModelChain,
   resolveOpenRouterModelId,
 } from "@/lib/ai/openrouter-models";
 
@@ -23,5 +24,16 @@ describe("resolveOpenRouterModelId", () => {
         OPENROUTER_MODEL: "openai/gpt-4o-mini",
       }),
     ).toBe("openai/gpt-4o-mini");
+  });
+});
+
+describe("openRouterModelChain", () => {
+  it("puts the primary first and dedupes fallbacks", () => {
+    const chain = openRouterModelChain("openai/gpt-4o-mini", {
+      OPENROUTER_FALLBACK_MODELS: "google/gemini-2.5-flash-lite,openai/gpt-4o-mini",
+    });
+    expect(chain[0]).toBe("openai/gpt-4o-mini");
+    expect(chain.includes(OPENROUTER_PRIMARY_MODEL)).toBe(true);
+    expect(chain.length).toBeLessThanOrEqual(5);
   });
 });

@@ -59,3 +59,35 @@ export async function buildWebResearchSystemContext(
   const queriedAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   return formatWebResearchContext(query, hits, queriedAt);
 }
+
+function researchWaitMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.GOOGLE_SEARCH_MAX_WAIT_MS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 3500;
+  if (!Number.isFinite(parsed) || parsed < 500) return 3500;
+  return Math.min(8000, parsed);
+}
+
+/** Caps Google latency so chat still streams if search is slow (demo-friendly). */
+export async function buildWebResearchSystemContextBounded(
+  userMessage: string,
+  requestSignal?: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  const budgetMs = researchWaitMs(env);
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  requestSignal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(abort, budgetMs);
+  try {
+    return await buildWebResearchSystemContext(
+      userMessage,
+      controller.signal,
+      env,
+    );
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    requestSignal?.removeEventListener("abort", abort);
+  }
+}

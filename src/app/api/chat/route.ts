@@ -16,12 +16,17 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createConfiguredChatStream } from "@/lib/ai/chat-runtime";
 import { createDemoChatStream } from "@/lib/ai/demo-stream";
 import { runtimeMode } from "@/lib/ai/runtime-mode";
-import { buildWebResearchSystemContext } from "@/lib/search/web-research";
+import { buildWebResearchSystemContextBounded } from "@/lib/search/web-research";
 
 export const runtime = "nodejs";
 
 const CHAT_BODY_LIMIT = 256000;
-const CHAT_QUOTA_LIMIT = 60;
+function chatQuotaLimit(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.CHAT_QUOTA_LIMIT?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 150;
+  if (!Number.isFinite(parsed) || parsed < 30) return 150;
+  return Math.min(500, parsed);
+}
 
 const STREAM_HEADERS = {
   "Content-Type": "text/event-stream",
@@ -53,7 +58,7 @@ export async function POST(request: Request) {
       const quota = await consumeQuota(
         getSupabaseAdmin(),
         identity.userId,
-        CHAT_QUOTA_LIMIT,
+        chatQuotaLimit(),
       );
       if (!quota.allowed) throw new ApiError(quota.code, 429);
     }
@@ -73,7 +78,7 @@ export async function POST(request: Request) {
       const lastUser = messages.findLast((message) => message.role === "user");
       if (lastUser) {
         try {
-          webResearchContext = await buildWebResearchSystemContext(
+          webResearchContext = await buildWebResearchSystemContextBounded(
             lastUser.content,
             request.signal,
           );

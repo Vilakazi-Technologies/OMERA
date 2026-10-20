@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
 import { OmeraThinking } from "@/components/omera-thinking";
-import { OMERA_MODEL_ID } from "@/lib/ai/model-catalog-client";
+import {
+  OMERA_MODEL_ID,
+  OPENROUTER_DEMO_FALLBACK_MODEL_ID,
+} from "@/lib/ai/model-catalog-client";
 import { useApp } from "@/context/app-provider";
 import { consumeChatEvents } from "@/lib/ai/chat-events";
 import { boundChatHistory } from "@/lib/ai/chat-history";
@@ -28,7 +31,13 @@ function timestamp(): number {
 const SAVE_FAILED_MESSAGE =
   "Couldn't save this chat. Your messages are visible but may not persist.";
 
-const CHAT_SEND_ATTEMPTS = 2;
+const CHAT_SEND_ATTEMPTS = 3;
+
+function chatModelForAttempt(attempt: number, selected: string): string {
+  if (attempt === 0) return selected;
+  if (attempt === 1) return OMERA_MODEL_ID;
+  return OPENROUTER_DEMO_FALLBACK_MODEL_ID;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -210,10 +219,7 @@ export default function ChatPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               conversationId: persistence === "supabase" ? convId : undefined,
-              modelId:
-                attempt > 0 && chatModelId !== OMERA_MODEL_ID
-                  ? OMERA_MODEL_ID
-                  : chatModelId,
+              modelId: chatModelForAttempt(attempt, chatModelId),
               replyLanguageId,
               messages: boundChatHistory(baseMessages).map((m) => ({
                 role: m.role,
@@ -276,7 +282,7 @@ export default function ChatPage() {
           if (controller.signal.aborted) return;
           updateConversation(convId, { messages: baseMessages });
           if (attempt < CHAT_SEND_ATTEMPTS - 1) {
-            await sleep(280 * (attempt + 1));
+            await sleep(350 * (attempt + 1));
             continue;
           }
           setSendError(chatFailureMessage(lastStatus, lastCode));

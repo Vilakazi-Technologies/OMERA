@@ -8,3 +8,6 @@ export type ModelCatalogEntry = {
 };
 
 export const OMERA_MODEL_ID = "omera";
+
+/** Last-resort OpenRouter slug when automatic retries need a fast free model. */
+export const OPENROUTER_DEMO_FALLBACK_MODEL_ID = "google/gemini-2.5-flash-lite";
