@@ -126,7 +126,7 @@ export function Sidebar() {
             )}
           >
             <BarChart3 className="size-4 text-white/60" />
-            Sales insights
+            Spreadsheet
           </Link>
         </div>
 

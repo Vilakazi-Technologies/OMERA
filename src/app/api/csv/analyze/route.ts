@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { analyzeSalesCsv } from "@/lib/csv/analyze-sales";
+import { analyzeSpreadsheetCsv } from "@/lib/csv/analyze-sales";
+import type { CsvAnalysisGoal } from "@/lib/csv/analysis-goals";
 import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readJsonBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
@@ -15,10 +16,20 @@ export const runtime = "nodejs";
 const BODY_LIMIT = 512000;
 const CSV_ANALYZE_QUOTA = 30;
 
+const goalSchema = z.enum([
+  "overview",
+  "revenue",
+  "costs_profit",
+  "trends",
+  "top_items",
+  "cash_flow",
+]);
+
 const requestSchema = z
   .object({
     fileName: z.string().min(1).max(200).optional(),
     csv: z.string().min(1).max(400000),
+    goal: goalSchema.optional().default("overview"),
   })
   .strict();
 
@@ -49,9 +60,10 @@ export async function POST(request: Request) {
       if (!quota.allowed) throw new ApiError(quota.code, 429);
     }
 
-    const result = await analyzeSalesCsv(
+    const result = await analyzeSpreadsheetCsv(
       parsed.data.csv,
       fileName,
+      parsed.data.goal as CsvAnalysisGoal,
       request.signal,
     );
 

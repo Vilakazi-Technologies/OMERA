@@ -1,7 +1,12 @@
 import "server-only";
 import { z } from "zod";
 import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
-import type { CsvAnalysis } from "@/lib/csv/analysis-types";
+import type { CsvAnalysis, CsvAnalyzeResponse } from "@/lib/csv/analysis-types";
+import {
+  type CsvAnalysisGoal,
+  goalPromptFocus,
+} from "@/lib/csv/analysis-goals";
+import { buildSpreadsheetCharts } from "@/lib/csv/build-charts";
 import {
   columnStatistics,
   formatMoney,
@@ -26,16 +31,7 @@ export const csvAnalysisSchema = z.object({
   caveats: z.array(z.string().max(400)).max(6).optional(),
 });
 
-export type CsvAnalyzeResult = {
-  fileName: string;
-  rowCount: number;
-  columnCount: number;
-  previewHeaders: string[];
-  previewRows: string[][];
-  analysis: CsvAnalysis;
-};
-
-const SYSTEM_PROMPT = `You are Omera, a South African business analyst helping owners understand sales spreadsheets.
+const SYSTEM_PROMPT = `You are Omera, a South African business analyst helping owners understand business spreadsheets (CSV exports).
 You receive CSV column statistics and sample rows (not full books).
 Infer revenue, sales, cost, profit, or margin only when the data supports it.
 Use ZAR unless another currency is obvious from the headers.
@@ -47,6 +43,7 @@ function buildInput(
   fileName: string,
   table: CsvTable,
   stats: ReturnType<typeof columnStatistics>,
+  goal: CsvAnalysisGoal,
 ): string {
   const sampleRows = table.rows.slice(0, 8);
   const statLines = stats
@@ -57,6 +54,8 @@ function buildInput(
     );
   return JSON.stringify({
     fileName,
+    analysisGoal: goal,
+    analysisFocus: goalPromptFocus(goal),
     rowCount: table.rows.length,
     columns: table.headers,
     numericSummaries: statLines,
@@ -106,23 +105,25 @@ function parseAnalysis(value: unknown): CsvAnalysis {
   return parsed.data;
 }
 
-export async function analyzeSalesCsv(
+export async function analyzeSpreadsheetCsv(
   csvText: string,
   fileName: string,
+  goal: CsvAnalysisGoal = "overview",
   signal?: AbortSignal,
-): Promise<CsvAnalyzeResult> {
+): Promise<CsvAnalyzeResponse> {
   const table = parseCsvText(csvText);
   if (table.headers.length === 0 || table.rows.length === 0) {
     throw new Error("EMPTY_CSV");
   }
 
   const stats = columnStatistics(table);
-  const input = buildInput(fileName, table, stats);
+  const input = buildInput(fileName, table, stats, goal);
+  const charts = buildSpreadsheetCharts(table);
 
   let analysis: CsvAnalysis;
   try {
     analysis = await completeConfiguredJson(
-      SYSTEM_PROMPT,
+      `${SYSTEM_PROMPT}\n${goalPromptFocus(goal)}`,
       input,
       parseAnalysis,
       signal,
@@ -135,8 +136,13 @@ export async function analyzeSalesCsv(
     fileName,
     rowCount: table.rows.length,
     columnCount: table.headers.length,
+    goal,
     previewHeaders: table.headers,
     previewRows: table.rows.slice(0, 5),
+    charts,
     analysis,
   };
 }
+
+/** @deprecated Use analyzeSpreadsheetCsv */
+export const analyzeSalesCsv = analyzeSpreadsheetCsv;

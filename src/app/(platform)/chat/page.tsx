@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
+import { PlatformPageHeader } from "@/components/platform-page-header";
 import { OmeraThinking } from "@/components/omera-thinking";
 import {
   OMERA_MODEL_ID,
@@ -381,24 +382,13 @@ export default function ChatPage() {
   }
 
   return (
-    <>
-      <header className="border-b border-white/8 px-4 py-3">
-        <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="text-center sm:text-left">
-            <h1 className="font-serif text-base font-medium text-white sm:text-lg">
-              Omera
-            </h1>
-            <p className="text-xs text-white/45">
-              A product of VILATECH · South Africa
-            </p>
-          </div>
-          <p className="text-[11px] text-white/45 text-center sm:text-right">
-            Ask about any business topic — not only the suggestions below.
-          </p>
-        </div>
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PlatformPageHeader
+        title="Omera"
+        description="VILATECH · South Africa"
+      />
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
         {messages.length === 0 ? (
           <div className="mx-auto flex max-w-2xl flex-col items-center pt-[10vh] text-center">
             <h2 className="text-2xl font-semibold text-white sm:text-3xl">
@@ -446,7 +436,7 @@ export default function ChatPage() {
       </div>
 
       {failedDraft !== null && (
-        <div className="mx-auto w-full max-w-3xl px-4 pb-2">
+        <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-2">
           <div className="liquid-card rounded-2xl p-3 text-sm">
             <p className="text-white/80">
               {sendError ?? "Message failed to send."}
@@ -475,7 +465,7 @@ export default function ChatPage() {
       {saveError !== null && (
         <div
           role="alert"
-          className="mx-auto w-full max-w-3xl px-4 pb-2"
+          className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-2"
         >
           <div className="liquid-card rounded-2xl p-3 text-sm">
             <p className="text-white/80">{saveError}</p>
@@ -502,12 +492,14 @@ export default function ChatPage() {
         </div>
       )}
 
-      <ChatComposer
-        onSend={sendMessage}
-        disabled={streaming}
-        chatModelId={chatModelId}
-        onChatModelChange={persistChatModel}
-      />
-    </>
+      <div className="shrink-0">
+        <ChatComposer
+          onSend={sendMessage}
+          disabled={streaming}
+          chatModelId={chatModelId}
+          onChatModelChange={persistChatModel}
+        />
+      </div>
+    </div>
   );
 }
