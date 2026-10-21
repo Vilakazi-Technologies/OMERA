@@ -1,5 +1,20 @@
 /** Omera dark glass — matches #050505 site; complements globals `.omera-clerk` rules. */
 export const omeraClerkAppearance = {
+  localization: {
+    signUp: {
+      emailCode: {
+        title: "Confirm your email",
+        subtitle:
+          "Open the link we sent you. When you are done, sign in on Omera with the same email address.",
+      },
+    },
+    signIn: {
+      start: {
+        title: "Sign in to Omera",
+        subtitle: "Use the email you registered with after confirming your inbox.",
+      },
+    },
+  },
   layout: {
     socialButtonsPlacement: "top",
     socialButtonsVariant: "blockButton",

@@ -20,6 +20,9 @@ vi.mock("@/components/omera-wordmark", () => ({
 vi.mock("@/components/auth/redirect-if-signed-in", () => ({
   RedirectIfSignedIn: () => null,
 }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
 import LoginPage from "@/app/login/[[...sign-in]]/page";
 
 afterEach(() => {
@@ -30,6 +33,6 @@ describe("login page", () => {
   it("renders_clerk_sign_in", () => {
     render(<LoginPage />);
     expect(screen.getByTestId("clerk-sign-in")).toBeInTheDocument();
-    expect(screen.getByText(/sign in or create an account/i)).toBeInTheDocument();
+    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
   });
 });
