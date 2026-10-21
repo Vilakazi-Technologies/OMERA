@@ -77,14 +77,10 @@ export async function POST(request: Request) {
     if (webResearch) {
       const lastUser = messages.findLast((message) => message.role === "user");
       if (lastUser) {
-        try {
-          webResearchContext = await buildWebResearchSystemContextBounded(
-            lastUser.content,
-            request.signal,
-          );
-        } catch {
-          webResearchContext = null;
-        }
+        webResearchContext = await buildWebResearchSystemContextBounded(
+          lastUser.content,
+          request.signal,
+        );
       }
     }
 

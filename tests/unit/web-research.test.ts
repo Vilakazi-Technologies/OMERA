@@ -25,6 +25,12 @@ describe("buildGoogleSearchQuery", () => {
     expect(buildGoogleSearchQuery("Line one\nLine two")).toBe("Line one");
     expect(buildGoogleSearchQuery("  spaced   words  ")).toBe("spaced words");
   });
+
+  it("strips google command phrasing", () => {
+    expect(buildGoogleSearchQuery("The AI must Google VILATECH")).toBe(
+      "VILATECH",
+    );
+  });
 });
 
 describe("formatWebResearchContext", () => {
@@ -43,6 +49,12 @@ describe("formatWebResearchContext", () => {
     expect(block).toContain("Google web search");
     expect(block).toContain("https://www.cipc.co.za/");
     expect(block).toContain("CIPC fees");
+  });
+
+  it("returns guidance when there are no hits", () => {
+    const block = formatWebResearchContext("vilatech", [], "2026-03-20T12:00:00Z");
+    expect(block).toContain("no results");
+    expect(block).toContain("NEVER say you cannot browse");
   });
 });
 
