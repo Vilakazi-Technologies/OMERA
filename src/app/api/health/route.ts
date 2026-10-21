@@ -54,6 +54,10 @@ export async function GET() {
       storage: dbConfigured,
       ai: catalog.provider !== "unconfigured",
     },
+    csvInsights: {
+      available: catalog.provider !== "unconfigured",
+      formats: ["csv"],
+    },
     database,
   });
 }
