@@ -24,16 +24,22 @@ vi.mock("@/lib/ai/xavani-client", () => ({
   getXavaniConfig: vi.fn(),
   createXavaniChatStream: vi.fn(),
   completeXavaniJson: vi.fn(),
+  xavaniResearchAvailable: vi.fn(),
+  xavaniReachable: vi.fn(),
 }));
 vi.mock("@/lib/ai/chat-runtime", () => ({
   createConfiguredChatStream: mockCreateConfiguredChatStream,
+}));
+vi.mock("@/lib/search/web-research", () => ({
+  buildWebResearchSystemContextBounded: vi.fn(),
 }));
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { getConversation } from "@/lib/db/conversations";
 import { consumeQuota } from "@/lib/limits/consume-quota";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { getXavaniConfig } from "@/lib/ai/xavani-client";
+import { createXavaniChatStream, getXavaniConfig, xavaniReachable, xavaniResearchAvailable } from "@/lib/ai/xavani-client";
+import { buildWebResearchSystemContextBounded } from "@/lib/search/web-research";
 import { ApiError } from "@/lib/http/api-error";
 import { POST } from "@/app/api/chat/route";
 
@@ -152,3 +158,4 @@ describe("chat route", () => {
     expect(mockCreateConfiguredChatStream).toHaveBeenCalledTimes(1);
   });
 });
+

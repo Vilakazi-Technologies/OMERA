@@ -113,6 +113,19 @@ Omera is **not** only a chatbot. It is VILATECH’s flagship AI for **business d
 
 Vercel project: **vilatech-ai**. Production: [vilatech-ai.vercel.app](https://vilatech-ai.vercel.app).
 
+### Xavani hosting (contract)
+
+- Service: `xavani-omera` on Render, free plan. Origin shape
+  `https://xavani-omera.onrender.com`.
+- Contract: `GET /v1/capabilities` returns `service.contract = 1`,
+  `tools_enabled = false`, `service.mode`, and `service.research`.
+- Modes: `model` when an inference key exists, `keyless` when enabled,
+  `research` otherwise. Research answers cite live sources.
+- Runbook: [`docs/xavani-hosting.md`](docs/xavani-hosting.md).
+
+The service runs without any model or search key. Keys raise answer quality;
+they are not required for the integration.
+
 ---
 
 ## 5. Definition of done (checklist for Shivani)

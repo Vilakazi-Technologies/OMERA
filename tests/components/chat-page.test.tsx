@@ -168,10 +168,10 @@ describe("chat page stream lifecycle", () => {
         streamController = controller;
       },
     });
-    let resolveFetch!: (value: unknown) => void;
+    let resolveFetch!: (value: Response) => void;
     installFetchRouter(
       () =>
-        new Promise((resolve) => {
+        new Promise<Response>((resolve) => {
           resolveFetch = resolve;
         }) as Promise<Response>,
     );

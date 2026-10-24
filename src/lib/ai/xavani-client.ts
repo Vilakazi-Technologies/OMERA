@@ -18,21 +18,48 @@ export function getXavaniConfig(env: NodeJS.ProcessEnv = process.env): XavaniCon
   return { baseUrl: url.origin, apiKey, model: env.XAVANI_MODEL?.trim() || "omera" };
 }
 
-function requestBody(config: XavaniConfig, messages: Message[], systemPrompt: string, stream: boolean) {
-  return JSON.stringify({
+function requestBody(
+  config: XavaniConfig,
+  messages: Message[],
+  systemPrompt: string,
+  stream: boolean,
+  research?: boolean,
+) {
+  const body: Record<string, unknown> = {
     model: config.model,
     stream,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
-  });
+  };
+  if (research !== undefined) body.xavani_research = research;
+  return JSON.stringify(body);
 }
 
 const ASSERT_CACHE_TTL_MS = 5 * 60 * 1000;
-let assertCache: { key: string; expiresAt: number } | null = null;
+const BREAKER_MS = 30_000;
+let assertCache: { key: string; expiresAt: number; research: boolean } | null = null;
+let downUntil = 0;
 
-async function assertService(config: XavaniConfig, signal: AbortSignal) {
+/** Stop probing a service that just failed. */
+export function markXavaniDown(ms: number = BREAKER_MS): void {
+  downUntil = Date.now() + ms;
+}
+
+export function xavaniIsDown(): boolean {
+  return Date.now() < downUntil;
+}
+
+/** Tests only. */
+export function clearXavaniBreaker(): void {
+  downUntil = 0;
+}
+
+async function assertService(
+  config: XavaniConfig,
+  signal: AbortSignal,
+): Promise<{ research: boolean }> {
   const cacheKey = `${config.baseUrl}|${config.model}`;
   if (assertCache?.key === cacheKey && assertCache.expiresAt > Date.now()) {
-    return;
+    return { research: assertCache.research };
   }
   const response = await fetch(`${config.baseUrl}/v1/capabilities`, {
     headers: { Authorization: `Bearer ${config.apiKey}` },
@@ -52,12 +79,59 @@ async function assertService(config: XavaniConfig, signal: AbortSignal) {
       service.transcript_persistence !== false) {
     throw new Error("UNSAFE_XAVANI_SERVICE");
   }
-  assertCache = { key: cacheKey, expiresAt: Date.now() + ASSERT_CACHE_TTL_MS };
+  const research = object(service.research ?? {});
+  const state = { research: research.enabled === true };
+  assertCache = { key: cacheKey, expiresAt: Date.now() + ASSERT_CACHE_TTL_MS, ...state };
+  downUntil = 0;
+  return state;
 }
 
 /** Resets cached capability checks (tests only). */
 export function clearXavaniCapabilityCache(): void {
   assertCache = null;
+  downUntil = 0;
+}
+
+/** True when the service advertises server-side research. Never throws. */
+export async function xavaniResearchAvailable(
+  requestSignal?: AbortSignal,
+  config?: XavaniConfig,
+): Promise<boolean> {
+  try {
+    const resolved = config ?? getXavaniConfig();
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(5000),
+      ...(requestSignal ? [requestSignal] : []),
+    ]);
+    return (await assertService(resolved, signal)).research;
+  } catch {
+    return false;
+  }
+}
+
+/** True when the service answers capabilities within 2 seconds. */
+export async function xavaniReachable(
+  requestSignal?: AbortSignal,
+  config?: XavaniConfig,
+): Promise<boolean> {
+  if (xavaniIsDown()) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const resolved = config ?? getXavaniConfig();
+    const controller = new AbortController();
+    timer = setTimeout(() => controller.abort(), 2000);
+    const signal = AbortSignal.any([
+      controller.signal,
+      ...(requestSignal ? [requestSignal] : []),
+    ]);
+    await assertService(resolved, signal);
+    return true;
+  } catch {
+    markXavaniDown();
+    return false;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -83,7 +157,7 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 async function request(config: XavaniConfig, body: string, signal: AbortSignal) {
-  await assertService(config, signal);
+  const service = await assertService(config, signal);
   const response = await fetch(`${config.baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
@@ -99,7 +173,7 @@ async function request(config: XavaniConfig, body: string, signal: AbortSignal) 
     await response.body?.cancel();
     throw new Error("XAVANI_UNAVAILABLE");
   }
-  return response;
+  return { response, service };
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -179,6 +253,7 @@ export function createXavaniChatStream(
   replyLanguageId: string | null = null,
   requestSignal?: AbortSignal,
   systemContext?: string | null,
+  research?: boolean,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const controller = new AbortController();
@@ -190,13 +265,14 @@ export function createXavaniChatStream(
   return new ReadableStream<Uint8Array>({
     async start(output) {
       try {
-        const response = await request(
+        const { response } = await request(
           config,
           requestBody(
             config,
             messages,
             buildOmeraSystemPrompt(replyLanguageId, systemContext),
             true,
+            research,
           ),
           signal,
         );
@@ -232,7 +308,7 @@ export async function completeXavaniJson<T>(
   const signal = AbortSignal.any([
     AbortSignal.timeout(120000), ...(requestSignal ? [requestSignal] : []),
   ]);
-  const response = await request(config, requestBody(
+  const { response } = await request(config, requestBody(
     config, [{ role: "user", content: input }], systemPrompt, false,
   ), signal);
   const item = choice(await readJson(response));

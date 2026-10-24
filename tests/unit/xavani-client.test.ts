@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import {
+  clearXavaniBreaker,
   clearXavaniCapabilityCache,
   completeXavaniJson,
   createXavaniChatStream,
   getXavaniConfig,
+  xavaniIsDown,
+  xavaniReachable,
+  xavaniResearchAvailable,
 } from "@/lib/ai/xavani-client";
 
 const config = { baseUrl: "https://xavani.example.test", apiKey: "test-...ey", model: "omera" };
@@ -622,4 +626,67 @@ it.each([false, true])("cancels an incorrectly typed upstream response when canc
   const reader = upstream.body.getReader();
   await expect(reader.read()).resolves.toEqual({ done: true, value: undefined });
   reader.releaseLock();
+});
+
+it("forwards the research flag only when asked", async () => {
+  const mock = ready(streamResponse(event("Hi") + event(null, "stop") + "data: [DONE]\n\n"));
+  vi.stubGlobal("fetch", mock);
+  await new Response(createXavaniChatStream(
+    config,
+    [{ role: "user", content: "Help." }],
+    "ven",
+    undefined,
+    null,
+    true,
+  )).text();
+  const body = JSON.parse(mock.mock.calls[1][1].body);
+  expect(body.xavani_research).toBe(true);
+});
+
+it("does not send the research flag by default", async () => {
+  const mock = ready(streamResponse(event("Hi") + event(null, "stop") + "data: [DONE]\n\n"));
+  vi.stubGlobal("fetch", mock);
+  await new Response(createXavaniChatStream(
+    config, [{ role: "user", content: "Help." }], "ven",
+  )).text();
+  const body = JSON.parse(mock.mock.calls[1][1].body);
+  expect(body).not.toHaveProperty("xavani_research");
+});
+
+it("reads the research capability and tolerates its absence", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(
+    new Response(JSON.stringify(capabilities)),
+  ));
+  await expect(xavaniResearchAvailable(undefined, config)).resolves.toBe(false);
+
+  clearXavaniCapabilityCache();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+    ...capabilities,
+    service: { ...capabilities.service, research: { enabled: true, server_side: true } },
+  }))));
+  await expect(xavaniResearchAvailable(undefined, config)).resolves.toBe(true);
+});
+
+it("marks the service down after a failed probe", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+  await expect(xavaniReachable(undefined, config)).resolves.toBe(false);
+  expect(xavaniIsDown()).toBe(true);
+
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(xavaniReachable(undefined, config)).resolves.toBe(false);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("clears the breaker after a successful probe", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+  await xavaniReachable(undefined, config);
+  expect(xavaniIsDown()).toBe(true);
+
+  clearXavaniBreaker();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(
+    new Response(JSON.stringify(capabilities)),
+  ));
+  await expect(xavaniReachable(undefined, config)).resolves.toBe(true);
+  expect(xavaniIsDown()).toBe(false);
 });

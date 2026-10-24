@@ -82,6 +82,7 @@ describe("googleCustomSearch", () => {
       "@/lib/search/google-custom-search"
     );
     const hits = await googleCustomSearch("example query", undefined, {
+      NODE_ENV: "test",
       GOOGLE_SEARCH_API_KEY: "key",
       GOOGLE_SEARCH_ENGINE_ID: "cx",
     });

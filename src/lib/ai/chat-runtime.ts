@@ -2,6 +2,7 @@ import "server-only";
 import {
   createXavaniChatStream,
   getXavaniConfig,
+  xavaniReachable,
 } from "@/lib/ai/xavani-client";
 import {
   createOpenRouterChatStream,
@@ -28,28 +29,50 @@ export function resolveChatProvider(env: NodeJS.ProcessEnv = process.env): ChatP
   }
 }
 
-export function createConfiguredChatStream(
+export function researchHandledByXavani(
+  webResearch: boolean,
+  provider: ChatProvider | null,
+  available: boolean,
+): boolean {
+  return webResearch && provider === "xavani" && available;
+}
+
+export async function createConfiguredChatStream(
   messages: ChatMessage[],
   replyLanguageId: string | null,
   requestSignal?: AbortSignal,
   modelId?: string | null,
   systemContext?: string | null,
-): ReadableStream<Uint8Array> {
+  research?: boolean,
+): Promise<ReadableStream<Uint8Array>> {
   const provider = resolveChatProvider();
   if (provider === "xavani") {
-    const config = getXavaniConfig();
-    return createXavaniChatStream(
-      config,
-      messages,
-      replyLanguageId,
-      requestSignal,
-      systemContext,
-    );
+    if (await xavaniReachable(requestSignal)) {
+      return createXavaniChatStream(
+        getXavaniConfig(),
+        messages,
+        replyLanguageId,
+        requestSignal,
+        systemContext,
+        research,
+      );
+    }
+    try {
+      return createOpenRouterChatStream(
+        getOpenRouterConfig(),
+        messages,
+        replyLanguageId,
+        requestSignal,
+        modelId ?? undefined,
+        systemContext,
+      );
+    } catch {
+      throw new Error("CHAT_UNAVAILABLE");
+    }
   }
   if (provider === "openrouter") {
-    const config = getOpenRouterConfig();
     return createOpenRouterChatStream(
-      config,
+      getOpenRouterConfig(),
       messages,
       replyLanguageId,
       requestSignal,

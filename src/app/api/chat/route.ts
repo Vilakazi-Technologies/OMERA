@@ -13,12 +13,15 @@ import { chatRequestSchema } from "@/lib/ai/chat-request";
 import { getConversation } from "@/lib/db/conversations";
 import { consumeQuota } from "@/lib/limits/consume-quota";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { createConfiguredChatStream } from "@/lib/ai/chat-runtime";
+import { createConfiguredChatStream, researchHandledByXavani, resolveChatProvider } from "@/lib/ai/chat-runtime";
 import { createDemoChatStream } from "@/lib/ai/demo-stream";
 import { runtimeMode } from "@/lib/ai/runtime-mode";
+import { xavaniResearchAvailable } from "@/lib/ai/xavani-client";
 import { buildWebResearchSystemContextBounded } from "@/lib/search/web-research";
 
 export const runtime = "nodejs";
+/** Vercel cuts a function at 60 s. Replies must finish before that. */
+export const maxDuration = 60;
 
 const CHAT_BODY_LIMIT = 256000;
 function chatQuotaLimit(env: NodeJS.ProcessEnv = process.env): number {
@@ -73,8 +76,17 @@ export async function POST(request: Request) {
           ? openRouterModelForSelection(OMERA_MODEL_ID)
           : undefined;
 
+    const provider = resolveChatProvider();
+    const xavaniResearch =
+      webResearch && provider === "xavani"
+        ? await xavaniResearchAvailable(request.signal)
+        : false;
+    const researchOnXavani = researchHandledByXavani(
+      webResearch, provider, xavaniResearch,
+    );
+
     let webResearchContext: string | null = null;
-    if (webResearch) {
+    if (webResearch && !researchOnXavani) {
       const lastUser = messages.findLast((message) => message.role === "user");
       if (lastUser) {
         webResearchContext = await buildWebResearchSystemContextBounded(
@@ -86,7 +98,7 @@ export async function POST(request: Request) {
 
     let stream: ReadableStream<Uint8Array>;
     try {
-      stream = createConfiguredChatStream(
+      stream = await createConfiguredChatStream(
         messages.map((message) => ({
           role: message.role,
           content: message.content,
@@ -95,6 +107,7 @@ export async function POST(request: Request) {
         request.signal,
         openRouterOverride,
         webResearchContext,
+        researchOnXavani ? true : undefined,
       );
     } catch {
       if (runtimeMode(process.env.XAVANI_API_KEY, process.env) !== "demo") {
