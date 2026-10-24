@@ -13,11 +13,12 @@ document, not a text dump.
 
 ## Status
 
-The approved local code scope is **complete and verified**. 77 local
-commits sit on this branch. Every local gate passes with real test runs.
-Seven acceptance gates stay **BLOCKED** because they need owner-supplied
-inputs (model host and key, three real forms, consented recordings,
-reviewers, publication approval). No gate is marked passed on a skip.
+The approved local code scope is **complete and verified**. The current suite
+passes with 662 tests in 48 files. See `docs/DOCS-INDEX.md` for the full
+document map. Six acceptance gates stay **BLOCKED** because they need
+owner-supplied inputs (model key, three real forms, consented recordings,
+reviewers, publication approval, production env). No gate is marked passed on a
+skip.
 
 ## Architecture
 
@@ -28,7 +29,8 @@ Browser -> OMERA Next.js server -> restricted Xavani service -> configured model
 - OMERA keeps the product surface, PDF processing, the Lelapa speech
   adapter, and Supabase persistence.
 - Xavani runs the chat model: stateless, tool-free, no memory, no
-  transcript writes, one service key, loopback bind only.
+  transcript writes, one bearer service key. In production it is a network
+  service with HTTPS, not a loopback-only process.
 - The browser never receives chat-model or speech credentials. No route
   calls a chat-model provider directly.
 - The Xavani-side guards (branch `feat/omera-api-mode` in
@@ -80,16 +82,15 @@ Browser -> OMERA Next.js server -> restricted Xavani service -> configured model
 
 ## Verification evidence
 
-Run on 2026-10-15 with the project-local Node `v24.21.0`:
+Run on 2026-10-24 with the project-local Node `v24.21.0`:
 
 ```bash
 export PATH="$PWD/.local/node-v24.21.0-darwin-arm64/bin:$PATH"
-npm run test -- --maxWorkers=1   # 41 files, 622 tests passed
+npm run test -- --maxWorkers=1   # 48 files, 662 tests passed, 1 skipped
 npm run typecheck               # clean
 npm run lint                    # clean
-npm run test:coverage           # 98.87% stmts / 97.91% branch / 100% funcs / 99.64% lines
-npm run build                   # 15 API routes, 5 pages
-npm run test:integration        # BLOCKED: ISOLATED_DATABASE_REQUIRED (6 files, no silent skips)
+npm run build                   # succeeds
+npm run test:integration        # BLOCKED: ISOLATED_DATABASE_REQUIRED (no silent skips)
 ```
 
 Xavani (`enternovate/xavani-agent`, branch `feat/omera-api-mode`,
@@ -108,9 +109,12 @@ isolated Python 3.11 venv):
 
 1. **Xavani runs the model**, not OpenAI (owner decision recorded in `DECISIONS.md`). This replaces the direct-OpenAI deployment detail in the handover instructions.
 2. **Voice ships as 4 documented routes**, not 11. The instructions ask to close the gap; the provider documents 4 routes. Full completion needs a verified fallback or an approved dated rollout exception.
-3. **Chat quota limit is 60 requests per user** (`CHAT_QUOTA_LIMIT`) — no limit was specified anywhere.
+3. **Chat quota limit is 150 requests per user** (`CHAT_QUOTA_LIMIT`) — no limit
+   was specified anywhere.
 4. **Health status vocabulary** is `ok` / `degraded` / `unavailable`; chat compatibility and inference report `unverified` until a live check exists.
-5. **No dependency bumps.** `npm audit` reports 7 high and 1 critical findings on the existing Next.js line. `docs/security-review.md` records the position. A major bump is a release decision.
+5. **Dependency position.** `npm audit` reports 3 findings: 1 critical and 2
+   high, all fixed by `next@16.4.3`. See `docs/security/dependency-audit.md`.
+   The upgrade waits for owner approval.
 6. **Legacy demo rows** stay outside identity mappings; new users are created with `email: null`.
 
 ## BLOCKED gates and the input each waits for

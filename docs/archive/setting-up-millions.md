@@ -1,6 +1,9 @@
+> **ARCHIVED 2026-10-24.** Omera uses Clerk for authentication. This document
+> describes the removed Supabase Auth flow. Keep it for history only.
+
 # Setting up Omera
 
-> **Operator guide (Windows + Vercel + all migrations):** see [`docs/setting-up-omera.md`](./docs/setting-up-omera.md).
+> **Operator guide (Windows + Vercel + all migrations):** see [`docs/setting-up-omera.md`](../setting-up-omera.md).
 
 This guide helps an operator set up Omera from the source repositories. Omera needs Supabase and Xavani. Voice input also needs Lelapa.
 

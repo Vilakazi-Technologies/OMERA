@@ -1,3 +1,6 @@
+> **ARCHIVED 2026-10-24.** Omera uses Clerk for authentication. This document
+> describes the removed Supabase Auth flow. Keep it for history only.
+
 # Fix Supabase email “Sign up” confusion
 
 Omera has **one login** at `/login`. Supabase emails may still say **“Confirm your signup”** — that is normal for new emails.

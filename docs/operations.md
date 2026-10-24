@@ -15,9 +15,9 @@ open acceptance input.
   never proves successful inference; see `GET /api/health`.
 - Voice transcription goes to the Lelapa voice service
   (`LELAPA_API_KEY`, server only).
-- Persistence and auth live in Supabase (`SUPABASE_URL`,
-  `SUPABASE_SERVICE_ROLE_KEY` server only; `NEXT_PUBLIC_SUPABASE_URL`
-  and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are the public client values).
+- Persistence lives in Supabase (`SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY` server only). Auth lives in Clerk
+  (`CLERK_SECRET_KEY` server only). The browser never receives a Supabase key.
 - `OMERA_DEMO_MODE=true` is for explicit local demos only and never for
   shared environments.
 

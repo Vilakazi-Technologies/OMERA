@@ -14,7 +14,7 @@ Open: [vilatech-ai → Settings → Environment Variables](https://vercel.com/ay
 | `XAVANI_API_KEY` | Shivani / XAVANI team | Optional; takes priority over OpenRouter when set |
 | `XAVANI_MODEL` | Shivani / XAVANI team | e.g. `omera` |
 | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) | Developer-provided; server only |
-| `OPENROUTER_MODEL` | Developer | MVP: `google/gemini-2.0-flash-lite-preview-02-05:free` (see `docs/shivani-mvp-production.md`) |
+| `OPENROUTER_MODEL` | Developer | MVP: `google/gemini-2.5-flash-lite` (see `docs/shivani-mvp-production.md`) |
 | `LELAPA_API_KEY` | Lelapa dashboard | Voice transcription (optional but needed for mic) |
 | `GOOGLE_SEARCH_API_KEY` | [Google Cloud Console](https://console.cloud.google.com/) → APIs → Custom Search API | Enables **Google** web research in chat (server only) |
 | `GOOGLE_SEARCH_ENGINE_ID` | [Programmable Search Engine](https://programmablesearchengine.google.com/) (`cx` id; turn on “Search the entire web”) | Pair with `GOOGLE_SEARCH_API_KEY`; shows **Google** toggle in composer |
@@ -42,7 +42,7 @@ Redeploy after saving (Deployments → … → Redeploy, or push to `main` when 
 
 ## 3. Chat model (Xavani or OpenRouter)
 
-**Priority:** If `XAVANI_*` is set, Omera uses the Xavani runtime. Otherwise, if `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are set, chat and form translation use [OpenRouter](https://openrouter.ai/) (e.g. `nvidia/nemotron-3.5-super-vl:free`).
+**Priority:** If `XAVANI_*` is set, Omera uses the Xavani runtime. Otherwise, if `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are set, chat and form translation use [OpenRouter](https://openrouter.ai/) (e.g. `google/gemini-2.5-flash-lite`).
 
 `/api/health` includes `chat.provider`: `"xavani"`, `"openrouter"`, or `null`.
 

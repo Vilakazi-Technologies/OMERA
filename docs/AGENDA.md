@@ -15,8 +15,8 @@ The XAVANI / integration team delivered a build that does **not** yet satisfy ev
 |------|----------|
 | Chat runtime | Xavani restricted runtime (no direct OpenAI in the app) |
 | Voice | Ship honest **4-route** matrix per `docs/voice-support.md`; remaining official languages need dated rollout or verified fallback |
-| Chat quota | **60 requests per user** |
-| Dependencies | No dependency bumps in this merge; findings in `docs/security-review.md` accepted as recorded risk |
+| Chat quota | **150 requests per user** (`CHAT_QUOTA_LIMIT` default) |
+| Dependencies | No dependency bumps in this merge; findings in `docs/security/dependency-audit.md` accepted as recorded risk |
 | Forms | Completed PDF export path in codebase; real-world form validation (E3) still owner/tester follow-up |
 
 ### Explicitly not claimed as done (post-merge milestones)

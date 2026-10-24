@@ -25,7 +25,7 @@ Production is on **OpenRouter** with a **free/shared model** until **Xavani (Shi
 | Priority | Action |
 |----------|--------|
 | **Best** | Shivani team provides hosted **Xavani** URL + key → set `XAVANI_BASE_URL`, `XAVANI_API_KEY`, `XAVANI_MODEL=omera` on Vercel → redeploy. |
-| **Good** | On Vercel, set `OPENROUTER_MODEL` to a **fast** model (e.g. `google/gemini-2.0-flash-lite-preview-02-05:free` or a small paid Flash model). Redeploy. |
+| **Good** | On Vercel, set `OPENROUTER_MODEL` to a **fast** model (e.g. `google/gemini-2.5-flash-lite` or a small paid Flash model). Redeploy. |
 | **Good** | Add a small **OpenRouter credit** ($5–10) and use a paid fast model for the demo day only. |
 | **UI** | Stay on **Omera (Shivani)**; avoid extension models during the demo. |
 

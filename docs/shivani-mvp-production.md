@@ -54,7 +54,7 @@ GET https://vilatech-ai.vercel.app/api/ai/models
 | `OMERA_DEMO_MODE` | `false` |
 | `NEXT_PUBLIC_CLERK_*` / `CLERK_SECRET_KEY` | Clerk dashboard |
 | `OPENROUTER_API_KEY` | OpenRouter (free tier OK) |
-| `OPENROUTER_MODEL` | Fast free demo model, e.g. `google/gemini-2.0-flash-lite-preview-02-05:free` |
+| `OPENROUTER_MODEL` | Fast free demo model, e.g. `google/gemini-2.5-flash-lite` |
 | `OPENROUTER_MAX_TOKENS` | Optional `1200`–`1600` for shorter demo answers |
 
 ### 3.2 Shivani team — link real Xavani (preferred before scale)

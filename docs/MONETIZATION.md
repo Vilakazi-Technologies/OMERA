@@ -62,3 +62,13 @@ Use **Clerk Billing** or **Stripe** later; structure now:
 4. Feature flags: `PRO_CSV_UNLIMITED`, `PRO_MODEL=...`.
 
 This document is product strategy — wire payments when you are ready to charge; the quota hooks already exist for chat and CSV.
+
+## Implementation status (2026-10-24)
+
+- Pricing page: `/pricing`, with `BILLING_ENABLED = false`.
+- Checkout: not wired. Stripe and Clerk Billing need an account and a merchant
+  decision.
+- Per-feature quotas: chat and CSV call `consumeQuota`. Forms do not.
+- Tier enforcement: not built. Free limits would break demos before billing
+  exists.
+- Decision record: `docs/decisions/ADR-0005-no-billing-until-funding.md`.

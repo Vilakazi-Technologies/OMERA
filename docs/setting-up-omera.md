@@ -34,31 +34,27 @@ git clone --branch feat/omera-api-mode https://github.com/enternovate/xavani-age
 
 Windows helper: `.\scripts\setup-xavani-windows.ps1` (from repo root).
 
-## 2. Supabase
+## 2. Supabase (data only)
 
-Use the project the owner invited you to (e.g. `lpnlyethmoilqwoekvmc`).
+Supabase stores conversations, messages, request counts, form sessions, and
+private form objects. It does not handle sign-in. Clerk handles sign-in; see
+`docs/clerk-auth.md`.
 
-In **SQL Editor**, run **all four** migrations **in order**:
+In **SQL Editor**, run all five migrations in order:
 
 1. `supabase/migrations/20261005100000_omera_platform.sql`
 2. `supabase/migrations/20261014090000_omera_identity.sql`
 3. `supabase/migrations/20261014091000_omera_request_limits.sql`
 4. `supabase/migrations/20261014092000_omera_form_documents.sql`
-
-**Auth → Providers:** enable **Email** (OTP).
-
-**Auth → URL configuration** — add:
-
-| Environment | Site URL / redirects |
-|-------------|----------------------|
-| Local | `http://127.0.0.1:3000` and `http://127.0.0.1:3000/auth/callback` |
-| Production | `https://vilatech-ai.vercel.app` and `https://vilatech-ai.vercel.app/auth/callback` |
+5. `supabase/migrations/20261017000000_clerk_identity.sql`
 
 Copy from **Project Settings → API**:
 
-- Project URL → `SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL`
-- `anon` JWT → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- Project URL → `SUPABASE_URL`
 - `service_role` JWT → `SUPABASE_SERVICE_ROLE_KEY` (server only)
+
+Do not create a `NEXT_PUBLIC_SUPABASE_*` variable. The browser never talks to
+Supabase directly.
 
 ## 3. Xavani (local — recommended for full stack)
 
@@ -97,7 +93,7 @@ platforms:
       omera_mode: true
 ```
 
-Configure the **underlying model** in Xavani per Shivani’s docs (e.g. OpenRouter model `nvidia/nemotron-3.5-super-vl:free`).
+Configure the **underlying model** in Xavani per Shivani’s docs (e.g. OpenRouter model `google/gemini-2.5-flash-lite`).
 
 Start:
 
@@ -125,19 +121,17 @@ XAVANI_API_KEY=<same as API_SERVER_KEY>
 XAVANI_MODEL=omera
 SUPABASE_URL=https://YOUR_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_REF.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 LELAPA_API_KEY=...
 ```
 
-**Local (OpenRouter-only, no Xavani):** leave `XAVANI_*` empty; set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL=nvidia/nemotron-3.5-super-vl:free`.
+**Local (OpenRouter-only, no Xavani):** leave `XAVANI_*` empty; set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL=google/gemini-2.5-flash-lite`.
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000) → sign in with email OTP → chat → form fill.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000) → sign in with Clerk → chat → form fill.
 
 ## 5. Verify
 
