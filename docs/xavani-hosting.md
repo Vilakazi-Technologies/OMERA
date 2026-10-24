@@ -9,7 +9,8 @@ fails, and how to recover it.
 - Xavani: the `xavani_omera` service on Render, project `xavani-omera`.
 - Model: optional. The service runs without a key.
 
-Origin shape: `https://xavani-omera.onrender.com`.
+Origin: `https://xavani-omera.vercel.app` (Vercel proxy)
+Backend: `https://xavani-omera.onrender.com` (Render, always-on)
 
 ## Modes
 
