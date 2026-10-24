@@ -42,3 +42,9 @@ text summary as the success output, no automatic speech output.
   no-store`. A failed export keeps the session in `review`.
 - Deletion removes the owned session row plus its private objects, retrying
   transient object failures.
+
+## Storage bucket
+
+The `omera-forms` bucket matches the application boundary: 4 MB maximum and
+`application/pdf` only. Migration `20261024090000_tighten_form_bucket.sql`
+applies the limit. Larger or other types are rejected before upload.

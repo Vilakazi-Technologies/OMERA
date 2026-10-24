@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/http/api-error";
 import { requireIdentity } from "@/lib/auth/require-identity";
+import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import {
   createConversation,
   listConversations,
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
   }
   try {
     const identity = await requireIdentity();
+    requireRequestOrigin(req);
     const body = (await req.json()) as {
       mode?: "chat" | "form";
       title?: string;

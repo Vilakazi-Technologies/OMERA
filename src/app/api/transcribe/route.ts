@@ -3,6 +3,7 @@ import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
+import { allowRequest } from "@/lib/limits/rate-limit";
 import { isKnownLanguage } from "@/lib/speech/capabilities";
 import { SpeechError, transcribeAudio } from "@/lib/speech/transcribe";
 
@@ -46,8 +47,11 @@ function decodeCanonicalBase64(value: unknown): Uint8Array {
 
 export async function POST(request: Request) {
   try {
-    await requireIdentity();
+    const identity = await requireIdentity();
     requireRequestOrigin(request);
+    if (!allowRequest(`transcribe:${identity.userId}`, 20, 60_000)) {
+      throw new ApiError("RATE_LIMITED", 429);
+    }
 
     const raw = await readBody(request, TRANSCRIBE_BODY_LIMIT);
     let parsed: unknown;

@@ -4,6 +4,7 @@ import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { readBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
+import { allowRequest } from "@/lib/limits/rate-limit";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { createFormSession } from "@/lib/db/form-sessions";
 import { extractFormFields } from "@/lib/forms/extract-fields";
@@ -114,6 +115,9 @@ export async function POST(request: Request) {
   try {
     const identity = await requireIdentity();
     requireRequestOrigin(request);
+    if (!allowRequest(`forms-analyze:${identity.userId}`, 10, 60_000)) {
+      throw new ApiError("RATE_LIMITED", 429);
+    }
     if (!isSupabaseConfigured()) {
       throw new ApiError("FORMS_STORAGE_UNAVAILABLE", 503);
     }

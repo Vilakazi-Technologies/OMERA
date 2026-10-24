@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { requireIdentity } from "@/lib/auth/require-identity";
+import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { getConversation, insertMessage } from "@/lib/db/conversations";
 import { isSupabaseConfigured } from "@/lib/supabase/admin";
 
@@ -15,6 +16,7 @@ export async function POST(req: Request, { params }: Params) {
   }
   try {
     const identity = await requireIdentity();
+    requireRequestOrigin(req);
     const { id } = await params;
     const conversation = await getConversation(id, identity.userId);
     if (!conversation) throw new ApiError("NOT_FOUND", 404);

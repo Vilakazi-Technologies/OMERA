@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiError, apiErrorResponse } from "@/lib/http/api-error";
 import { requireIdentity } from "@/lib/auth/require-identity";
+import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import {
   deleteConversation,
   getConversation,
@@ -28,7 +29,7 @@ export async function GET(_req: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params }: Params) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       { error: "Supabase not configured" },
@@ -37,6 +38,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
   try {
     const identity = await requireIdentity();
+    requireRequestOrigin(req);
     const { id } = await params;
     const removed = await deleteConversation(id, identity.userId);
     if (!removed) throw new ApiError("NOT_FOUND", 404);
@@ -55,6 +57,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
   try {
     const identity = await requireIdentity();
+    requireRequestOrigin(req);
     const { id } = await params;
     const existing = await getConversation(id, identity.userId);
     if (!existing) throw new ApiError("NOT_FOUND", 404);
