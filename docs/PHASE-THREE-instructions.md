@@ -19,7 +19,7 @@ Send Andy this file (or link to it on GitHub) after the push. **Phase 3 is “Om
 | **Forms** | Required fields first, better errors, client blocks incomplete export; server fills **AcroForm** PDFs with pdf-lib. |
 | **Ops** | `/api/health` and `/api/ai/models` for demos and integration checks. |
 | **Docs** | MVP demo script, Vercel env table, Clerk + Supabase migration notes. |
-| **Tests** | Full suite green (634+ tests); jsdom pinned for Node 20 CI/dev. |
+| **Tests** | Full suite green (671 tests at the 2026-10-24 audit); jsdom pinned for Node 20 CI/dev. |
 
 **Commit message on branch:** `Ship MVP supercharge: Clerk auth, chat reliability, forms, and demo docs` (and this Phase 3 doc in the follow-up commit).
 

@@ -37,9 +37,19 @@ npm run test -- --maxWorkers=1
 npm run build
 ```
 
-Expected: audit clean, typecheck clean, 662+ tests pass, build succeeds.
+Expected: audit clean, typecheck clean, 671 tests pass, build succeeds.
 
-## Position
+## Current posture (2026-10-24, after the upgrade)
 
-The upgrade is staged and not merged. No silent force fix. Owner approval is the
-gate.
+- `next@16.4.3` and `eslint-config-next@16.4.3` are merged.
+- `npm audit` reports **0 vulnerabilities**.
+- Gates: lint 0 errors (5 warnings), typecheck clean, 671 tests passed, build
+  succeeds.
+- The live header check needs a deployed build with production Clerk env. It is
+  a deploy gate, not a code gate.
+
+## History
+
+The earlier position recorded 3 findings (1 critical, 2 high) on
+`next@16.2.12`. The upgrade was staged on `security/next-16.4.3` and merged into
+`feat/omera-integration` after the owner approved it. No force fix was used.

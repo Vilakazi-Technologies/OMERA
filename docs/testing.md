@@ -4,7 +4,7 @@
 
 | Suite | Command | Count or state |
 |---|---|---|
-| Unit, routes, components | `npm run test` | 48 files, 662 passed, 1 skipped |
+| Unit, routes, components | `npm run test` | 53 files, 671 passed, 1 skipped |
 | Typecheck | `npm run typecheck` | 0 errors |
 | Lint | `npm run lint` | clean |
 | Build | `npm run build` | succeeds |

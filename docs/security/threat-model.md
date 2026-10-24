@@ -39,19 +39,19 @@
 | Denial of service | upload or transcribe flood | quota on chat and CSV; rate limits on forms and transcribe | Partial |
 | Elevation of privilege | reading another user's session | ownership checks plus RLS | Mitigated |
 | Prompt injection | PDF label says "ignore instructions" | data-not-instructions rule in the prompt | Open until fixed |
-| Supply chain | vulnerable Next.js release | audit plus staged upgrade | Open |
+| Supply chain | vulnerable Next.js release | audit plus staged upgrade | Mitigated: 16.4.3 merged, audit clean |
 
 ## Findings
 
 | ID | Finding | Severity | Status |
 |---|---|---|---|
-| S1 | Next.js 16.2.12 advisories: 1 critical, 2 high | Critical | Open; fix is `next@16.4.3` |
-| S2 | No security headers and no CSP | High | Fix in this change |
-| S3 | Conversation writes skip the origin check | High | Fix in this change |
-| S4 | No rate limit on transcribe and form analysis | Medium | Fix in this change |
-| S5 | Store secret compare is not constant time | Low | Fix in this change |
-| S6 | Form bucket allows 50 MB and six MIME types | Medium | Fix in this change |
-| S7 | Form prompt does not forbid embedded instructions | Medium | Fix in this change |
+| S1 | Next.js 16.2.12 advisories: 1 critical, 2 high | Critical | Fixed: `next@16.4.3`, audit clean |
+| S2 | No security headers and no CSP | High | Fixed |
+| S3 | Conversation writes skip the origin check | High | Fixed |
+| S4 | No rate limit on transcribe and form analysis | Medium | Fixed |
+| S5 | Store secret compare is not constant time | Low | Fixed |
+| S6 | Form bucket allows 50 MB and six MIME types | Medium | Fixed |
+| S7 | Form prompt does not forbid embedded instructions | Medium | Fixed |
 | S8 | No retention purge job | Medium | Accepted; owner decision |
 | S9 | Repository history contains local email addresses | Low | Accepted; rewrite needs approval |
 | S10 | No WAF or bot layer | Low | Accepted; platform defaults |

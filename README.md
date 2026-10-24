@@ -14,7 +14,7 @@ document, not a text dump.
 ## Status
 
 The approved local code scope is **complete and verified**. The current suite
-passes with 662 tests in 48 files. See `docs/DOCS-INDEX.md` for the full
+passes with 671 tests in 53 files. See `docs/DOCS-INDEX.md` for the full
 document map. Six acceptance gates stay **BLOCKED** because they need
 owner-supplied inputs (model key, three real forms, consented recordings,
 reviewers, publication approval, production env). No gate is marked passed on a
@@ -86,7 +86,7 @@ Run on 2026-10-24 with the project-local Node `v24.21.0`:
 
 ```bash
 export PATH="$PWD/.local/node-v24.21.0-darwin-arm64/bin:$PATH"
-npm run test -- --maxWorkers=1   # 48 files, 662 tests passed, 1 skipped
+npm run test -- --maxWorkers=1   # 53 files, 671 tests passed, 1 skipped
 npm run typecheck               # clean
 npm run lint                    # clean
 npm run build                   # succeeds
@@ -112,9 +112,8 @@ isolated Python 3.11 venv):
 3. **Chat quota limit is 150 requests per user** (`CHAT_QUOTA_LIMIT`) — no limit
    was specified anywhere.
 4. **Health status vocabulary** is `ok` / `degraded` / `unavailable`; chat compatibility and inference report `unverified` until a live check exists.
-5. **Dependency position.** `npm audit` reports 3 findings: 1 critical and 2
-   high, all fixed by `next@16.4.3`. See `docs/security/dependency-audit.md`.
-   The upgrade waits for owner approval.
+5. **Dependency position.** `next@16.4.3` is merged. `npm audit` reports 0
+   vulnerabilities. See `docs/security/dependency-audit.md`.
 6. **Legacy demo rows** stay outside identity mappings; new users are created with `email: null`.
 
 ## BLOCKED gates and the input each waits for
