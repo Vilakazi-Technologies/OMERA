@@ -52,7 +52,7 @@ Browser -> OMERA Next.js server -> restricted Xavani service -> configured model
 | Production hardening | CODE COMPLETE | Demo mode gated; honest `/api/health`; server-only service client; no `NEXT_PUBLIC_` secret; smoke script. Vercel keys and deploy (E5) blocked on publication approval |
 | Handover note | THIS FILE | `docs/operations.md`, `docs/voice-support.md`, `docs/form-support.md`, `docs/security-review.md` |
 
-## What was built (77 commits, in order)
+## What was built, in order
 
 ### Platform and modules (P01–P05, C01–C10)
 

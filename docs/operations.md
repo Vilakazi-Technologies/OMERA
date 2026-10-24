@@ -8,8 +8,8 @@ open acceptance input.
 ## Runtime topology
 
 - Next.js application (`npm run build`, `npm start`). All state-changing
-  API routes require an exact `APP_ORIGIN` match plus a verified
-  Supabase Auth identity.
+  API routes require an exact `APP_ORIGIN` match plus a verified Clerk
+  identity.
 - Inference is stateless and tool-free through the Xavani runtime
   (`XAVANI_BASE_URL`, `XAVANI_API_KEY`, `XAVANI_MODEL`). A present key
   never proves successful inference; see `GET /api/health`.
