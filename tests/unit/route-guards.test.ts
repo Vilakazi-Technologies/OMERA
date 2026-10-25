@@ -22,7 +22,7 @@ function routeFiles(dir: string): string[] {
 describe("route guards", () => {
   it("every mutating route checks the request origin", () => {
     const missing = routeFiles(API_ROOT)
-      .map((file) => relative(process.cwd(), file))
+      .map((file) => relative(process.cwd(), file).replace(/\\/g, "/"))
       .filter((file) => !GATEWAY_ALLOWLIST.includes(file))
       .filter((file) => MUTATING.test(readFileSync(join(process.cwd(), file), "utf8")))
       .filter(

@@ -5,6 +5,9 @@ import "@testing-library/jest-dom/vitest";
 
 const { updateConversation } = authFixtureFns;
 
+vi.mock("next/navigation", () => ({
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 vi.mock("@/context/app-provider", () => ({
   useApp: vi.fn(),
 }));

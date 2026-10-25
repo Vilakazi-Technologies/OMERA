@@ -17,6 +17,7 @@ import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingInteractiveHero } from "@/components/landing/landing-interactive-hero";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { LandingSectionHeader } from "@/components/landing/landing-section-header";
+import { LandingDemoLanguages } from "@/components/landing/landing-demo-languages";
 import { LandingScrollCapabilities } from "@/components/landing/landing-scroll-capabilities";
 import { LandingStatement } from "@/components/landing/landing-statement";
 import { ScrollReveal } from "@/components/scroll-reveal";
@@ -118,6 +119,8 @@ export function LandingPage() {
       <LandingStatement />
 
       <LandingScrollCapabilities />
+
+      <LandingDemoLanguages />
 
       <section
         id="features"

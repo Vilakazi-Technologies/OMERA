@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { SA_LANGUAGES } from "@/lib/languages";
 import { MessageBubble } from "@/components/message-bubble";
 import { ChatComposer } from "@/components/chat-composer";
 import { PlatformPageHeader } from "@/components/platform-page-header";
@@ -57,7 +59,10 @@ function chatFailureMessage(status: number, code?: string): string {
   return "Omera couldn't finish that reply. Tap Retry — your question is still here.";
 }
 
-export default function ChatPage() {
+const DEMO_LANG_IDS = new Set(SA_LANGUAGES.map((l) => l.id));
+
+function ChatPageContent() {
+  const searchParams = useSearchParams();
   const {
     activeId,
     createConversation,
@@ -66,7 +71,14 @@ export default function ChatPage() {
     persistence,
     languageId,
     languageExplicit,
+    setLanguageId,
   } = useApp();
+
+  useEffect(() => {
+    const lang = searchParams.get("lang")?.trim();
+    if (!lang || !DEMO_LANG_IDS.has(lang)) return;
+    setLanguageId(lang);
+  }, [searchParams, setLanguageId]);
 
   function persistChatModel(id: string) {
     setChatModelId(id);
@@ -501,5 +513,19 @@ export default function ChatPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center justify-center text-sm text-white/45">
+          Loading chat…
+        </div>
+      }
+    >
+      <ChatPageContent />
+    </Suspense>
   );
 }

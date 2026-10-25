@@ -26,4 +26,5 @@
 | `docs/setting-up-omera.md` | Operator setup |
 | `docs/vercel-production-setup.md` | Vercel env |
 | `docs/MONETIZATION.md` | Pricing strategy |
+| `docs/FUNDING-PLAYBOOK.md` | Investor narrative, demo order, 90-day rhythm |
 | `docs/archive/` | Removed designs, kept for history |
