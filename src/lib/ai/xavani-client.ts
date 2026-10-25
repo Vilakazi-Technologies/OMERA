@@ -36,6 +36,14 @@ function requestBody(
 
 const ASSERT_CACHE_TTL_MS = 5 * 60 * 1000;
 const BREAKER_MS = 30_000;
+const DEFAULT_REACHABILITY_MS = 8000;
+
+function xavaniReachabilityMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.XAVANI_REACHABILITY_MS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : DEFAULT_REACHABILITY_MS;
+  if (!Number.isFinite(parsed)) return DEFAULT_REACHABILITY_MS;
+  return Math.min(15_000, Math.max(2000, parsed));
+}
 let assertCache: { key: string; expiresAt: number; research: boolean } | null = null;
 let downUntil = 0;
 
@@ -119,7 +127,7 @@ export async function xavaniReachable(
   try {
     const resolved = config ?? getXavaniConfig();
     const controller = new AbortController();
-    timer = setTimeout(() => controller.abort(), 2000);
+    timer = setTimeout(() => controller.abort(), xavaniReachabilityMs());
     const signal = AbortSignal.any([
       controller.signal,
       ...(requestSignal ? [requestSignal] : []),
@@ -285,6 +293,7 @@ export function createXavaniChatStream(
           output.close();
         }
       } catch {
+        markXavaniDown();
         if (!cancelled) {
           output.enqueue(encoder.encode('data: {"error":"CHAT_UNAVAILABLE"}\n\n'));
           output.close();

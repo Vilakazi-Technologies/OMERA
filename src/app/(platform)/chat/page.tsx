@@ -47,7 +47,11 @@ function sleep(ms: number): Promise<void> {
 }
 
 function chatFailureMessage(status: number, code?: string): string {
-  if (code === "SERVICE_UNAVAILABLE" || status === 503) {
+  if (
+    code === "SERVICE_UNAVAILABLE" ||
+    code === "CHAT_UNAVAILABLE" ||
+    status === 503
+  ) {
     return "Omera is busy or the AI service hiccuped. Tap Retry — we already try a few times automatically.";
   }
   if (code === "ORIGIN_FORBIDDEN" || status === 403) {
@@ -265,6 +269,11 @@ function ChatPageContent() {
                 },
               ],
             });
+          }).catch((error: unknown) => {
+            if (error instanceof Error && error.message === "CHAT_UNAVAILABLE") {
+              lastCode = "CHAT_UNAVAILABLE";
+            }
+            throw error;
           });
           if (controller.signal.aborted) return;
           if (!assistantText.trim()) {

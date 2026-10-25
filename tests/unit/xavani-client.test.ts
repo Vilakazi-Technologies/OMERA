@@ -87,6 +87,7 @@ it("does not expose upstream errors or use a direct fallback", async () => {
   const text = await new Response(createXavaniChatStream(config, [{ role: "user", content: "Help." }])).text();
   expect(text).toBe('data: {"error":"CHAT_UNAVAILABLE"}\n\n');
   expect(mock).toHaveBeenCalledTimes(2);
+  expect(xavaniIsDown()).toBe(true);
 });
 
 it("parses JSON only after complete Xavani output", async () => {

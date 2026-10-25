@@ -204,27 +204,35 @@ export function createOpenRouterChatStream(
   let cancelled = false;
   return new ReadableStream<Uint8Array>({
     async start(output) {
-      try {
-        const response = await post(
-          active,
-          requestBody(
+      const streamAttempts = 3;
+      for (let attempt = 0; attempt < streamAttempts; attempt += 1) {
+        if (cancelled) return;
+        try {
+          const response = await post(
             active,
-            messages,
-            buildOmeraSystemPrompt(replyLanguageId, systemContext),
-            true,
-          ),
-          signal,
-        );
-        for await (const token of streamTokens(response)) {
+            requestBody(
+              active,
+              messages,
+              buildOmeraSystemPrompt(replyLanguageId, systemContext),
+              true,
+            ),
+            signal,
+          );
+          for await (const token of streamTokens(response)) {
+            if (cancelled) return;
+            output.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));
+          }
+          if (!cancelled) {
+            output.enqueue(encoder.encode("data: [DONE]\n\n"));
+            output.close();
+          }
+          return;
+        } catch {
           if (cancelled) return;
-          output.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));
-        }
-        if (!cancelled) {
-          output.enqueue(encoder.encode("data: [DONE]\n\n"));
-          output.close();
-        }
-      } catch {
-        if (!cancelled) {
+          if (attempt < streamAttempts - 1) {
+            await pause(500 * (attempt + 1));
+            continue;
+          }
           output.enqueue(encoder.encode('data: {"error":"CHAT_UNAVAILABLE"}\n\n'));
           output.close();
         }
