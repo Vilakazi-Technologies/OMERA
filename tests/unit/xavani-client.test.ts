@@ -61,7 +61,7 @@ it("sends chat only to Xavani and preserves fragmented Unicode", async () => {
   const body = JSON.parse(request.body);
   expect(request.headers.Authorization).toBe("Bearer " + config.apiKey);
   expect(request.headers["X-Xavani-Session-Id"]).toBeUndefined();
-  expect(body.messages[0].content).toContain("reply in Tshivenda");
+  expect(body.messages[0].content).toContain("Reply entirely in Tshivenda");
   expect(body).not.toHaveProperty("tools");
   expect(body).not.toHaveProperty("response_format");
   expect(text).toContain('data: {"token":"Ṱhendo"}');

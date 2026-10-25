@@ -14,7 +14,7 @@ describe("eleven official languages", () => {
       const language = SA_LANGUAGES.find((item) => item.id === code);
       expect(language).toBeDefined();
       const prompt = buildOmeraSystemPrompt(code, null);
-      expect(prompt).toContain(`reply in ${language!.nativeName}`);
+      expect(prompt).toContain(`Reply entirely in ${language!.nativeName}`);
     }
   });
 

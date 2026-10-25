@@ -81,15 +81,9 @@ export function ChatModelSelect({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      {provider === "openrouter" ? (
-        <p className="text-[10px] text-white/45">
-          Omera (Shivani) is active. Extension models use OpenRouter until the
-          Shivani Xavani gateway is linked on Vercel.
-        </p>
-      ) : null}
       {provider === "xavani" ? (
         <p className="text-[10px] text-emerald-400/80">
-          Shivani gateway connected · primary model Omera
+          Xavani connected · Omera is your business adviser
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">

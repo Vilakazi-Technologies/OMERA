@@ -54,6 +54,9 @@ export const EXTENSION_MODELS: Omit<ModelCatalogEntry, "kind">[] = [
 
 export const OMERA_MODEL_ID = "omera";
 
+/** User-facing name for VILATECH's AI (hosted on Xavani). */
+export const OMERA_PRIMARY_LABEL = "Omera · Xavani";
+
 export type ModelCatalog = {
   provider: "xavani" | "openrouter" | "unconfigured";
   models: ModelCatalogEntry[];
@@ -67,7 +70,7 @@ export function buildModelCatalog(env: NodeJS.ProcessEnv = process.env): ModelCa
     const config = getXavaniConfig(env);
     models.push({
       id: OMERA_MODEL_ID,
-      label: "Omera (Shivani)",
+      label: OMERA_PRIMARY_LABEL,
       kind: "primary",
       available: true,
       description: `Xavani · ${config.model}`,
@@ -79,27 +82,22 @@ export function buildModelCatalog(env: NodeJS.ProcessEnv = process.env): ModelCa
   }
 
   if (provider === "openrouter" || isOpenRouterConfigured(env)) {
-    const config = getOpenRouterConfig(env);
     models.push({
       id: OMERA_MODEL_ID,
-      label: "Omera (Shivani)",
+      label: OMERA_PRIMARY_LABEL,
       kind: "primary",
       available: true,
-      description: `OpenRouter · ${config.model}`,
+      description: "VILATECH Xavani · Omera",
     });
     for (const ext of EXTENSION_MODELS) {
-      models.push({
-        ...ext,
-        kind: "extension",
-        available: true,
-      });
+      models.push({ ...ext, kind: "extension", available: false });
     }
     return { provider: "openrouter", models };
   }
 
   models.push({
     id: OMERA_MODEL_ID,
-    label: "Omera (Shivani)",
+    label: OMERA_PRIMARY_LABEL,
     kind: "primary",
     available: false,
     description: "Configure Xavani or OpenRouter",

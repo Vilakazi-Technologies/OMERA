@@ -5,7 +5,7 @@ Use this before a live demo. The **product** (sign-in, chat, model picker, delet
 ## What to show (5 minutes)
 
 1. Landing → **Sign up** / **Sign in** (Clerk).
-2. **Chat** → pick **Omera (Shivani)** → ask one business question (see script below).
+2. **Chat** → **Omera · Xavani** → ask one business question (see script below).
 3. Point out **Omera is thinking** while the model warms up.
 4. **New chat** → second question → show history + **delete** (confirmation dialog).
 5. Optional: **Form fill** upload (if Supabase + analyze are configured).
@@ -27,7 +27,7 @@ Production is on **OpenRouter** with a **free/shared model** until **Xavani (Shi
 | **Best** | Shivani team provides hosted **Xavani** URL + key → set `XAVANI_BASE_URL`, `XAVANI_API_KEY`, `XAVANI_MODEL=omera` on Vercel → redeploy. |
 | **Good** | On Vercel, set `OPENROUTER_MODEL` to a **fast** model (e.g. `google/gemini-2.5-flash-lite` or a small paid Flash model). Redeploy. |
 | **Good** | Add a small **OpenRouter credit** ($5–10) and use a paid fast model for the demo day only. |
-| **UI** | Stay on **Omera (Shivani)**; avoid extension models during the demo. |
+| **UI** | Only **Omera · Xavani** is shown (third-party models hidden). |
 
 Optional: `OPENROUTER_MAX_TOKENS=1200` on Vercel for shorter, faster answers in demos.
 
@@ -48,7 +48,7 @@ GET https://vilatech-ai.vercel.app/api/health
 
 - `chat.configured`: `true`
 - `chat.provider`: `xavani` (ideal) or `openrouter` (interim)
-- `chat.primaryLabel`: `Omera (Shivani)`
+- `chat.primaryLabel`: `Omera · Xavani`
 
 ```text
 GET https://vilatech-ai.vercel.app/api/ai/models

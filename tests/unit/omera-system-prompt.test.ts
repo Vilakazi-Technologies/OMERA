@@ -11,7 +11,7 @@ it("builds the business and reply-language instructions", () => {
   expect(automatic).toContain("Ask for a language preference if that message is ambiguous.");
   for (const language of SA_LANGUAGES) {
     expect(buildOmeraSystemPrompt(language.id))
-      .toContain(`Otherwise, reply in ${language.nativeName}.`);
+      .toContain(`Reply entirely in ${language.nativeName}`);
   }
   expect(() => buildOmeraSystemPrompt("invalid")).toThrow("INVALID_LANGUAGE");
 });
