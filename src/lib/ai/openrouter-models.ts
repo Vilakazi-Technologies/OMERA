@@ -16,6 +16,17 @@ export function resolveOpenRouterModelId(
   return configured;
 }
 
+/** Vision (skin scan) — prefer full Flash over lite for photo analysis. */
+export function resolveOpenRouterVisionModelId(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured = env.OPENROUTER_VISION_MODEL?.trim();
+  if (configured && !RETIRED_OPENROUTER_MODELS.has(configured)) return configured;
+  const chat = resolveOpenRouterModelId(env);
+  if (chat.includes("flash-lite")) return "google/gemini-2.5-flash";
+  return chat;
+}
+
 /** Fast, low-cost models OpenRouter can fall back to when the primary is busy. */
 const DEFAULT_OPENROUTER_FALLBACKS = [
   OPENROUTER_PRIMARY_MODEL,

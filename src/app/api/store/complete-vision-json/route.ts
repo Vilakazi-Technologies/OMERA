@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import {
   completeOpenRouterVisionJsonString,
-  getOpenRouterConfig,
+  getOpenRouterVisionConfig,
   isOpenRouterConfigured,
 } from "@/lib/ai/openrouter-client";
-import { resolveOpenRouterModelId } from "@/lib/ai/openrouter-models";
 import { authorizeStoreGateway } from "@/lib/store-gateway/authorize";
 
 export const runtime = "nodejs";
@@ -30,7 +29,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const config = getOpenRouterConfig();
+    const config = getOpenRouterVisionConfig();
     const raw = await completeOpenRouterVisionJsonString(
       config,
       body.system,
@@ -39,10 +38,13 @@ export async function POST(req: Request) {
     );
     return NextResponse.json({
       raw,
-      model: resolveOpenRouterModelId(),
-      poweredBy: "ViLATECH AI · Gemini 2.5 Flash",
+      model: config.model,
+      poweredBy: config.model.includes("flash-lite")
+        ? "ViLATECH AI · Gemini 2.5 Flash Lite"
+        : "ViLATECH AI · Gemini 2.5 Flash",
     });
-  } catch {
+  } catch (err) {
+    console.error("[complete-vision-json]", err);
     return NextResponse.json({ error: "Vision completion failed" }, { status: 502 });
   }
 }

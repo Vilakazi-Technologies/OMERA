@@ -3,6 +3,7 @@ import { buildOmeraSystemPrompt } from "@/lib/ai/omera-system-prompt";
 import {
   openRouterModelChain,
   resolveOpenRouterModelId,
+  resolveOpenRouterVisionModelId,
 } from "@/lib/ai/openrouter-models";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -19,6 +20,23 @@ export function getOpenRouterConfig(env: NodeJS.ProcessEnv = process.env): OpenR
   if (!apiKey) throw new Error("OPENROUTER_UNAVAILABLE");
   if (/[\r\n]/.test(apiKey)) throw new Error("INVALID_OPENROUTER_KEY");
   return { apiKey, model };
+}
+
+export function getOpenRouterVisionConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): OpenRouterConfig {
+  const apiKey = env.OPENROUTER_API_KEY?.trim();
+  const model = resolveOpenRouterVisionModelId(env);
+  if (!apiKey) throw new Error("OPENROUTER_UNAVAILABLE");
+  if (/[\r\n]/.test(apiKey)) throw new Error("INVALID_OPENROUTER_KEY");
+  return { apiKey, model };
+}
+
+function visionMaxOutputTokens(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.OPENROUTER_VISION_MAX_TOKENS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 2200;
+  if (!Number.isFinite(parsed) || parsed < 512 || parsed > 4096) return 2200;
+  return parsed;
 }
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -286,17 +304,20 @@ export async function completeOpenRouterVisionJsonString(
   userText: string,
   imageDataUrl: string,
   requestSignal?: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<string> {
   const signal = AbortSignal.any([
     AbortSignal.timeout(120000),
     ...(requestSignal ? [requestSignal] : []),
   ]);
+  const models = openRouterModelChain(config.model, env);
   const response = await post(
     config,
     JSON.stringify({
-      model: config.model,
+      model: models[0],
+      models,
       stream: false,
-      max_tokens: maxOutputTokens(),
+      max_tokens: visionMaxOutputTokens(env),
       response_format: { type: "json_object" },
       provider: { sort: "latency", allow_fallbacks: true },
       messages: [
