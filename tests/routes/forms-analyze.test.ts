@@ -29,7 +29,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractFormFields } from "@/lib/forms/extract-fields";
 import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
-import { createFormSession } from "@/lib/db/form-sessions";
+import { createFormSession, type StoredFormField } from "@/lib/db/form-sessions";
 import { POST } from "@/app/api/forms/analyze/route";
 
 const PDF_BYTES = new Uint8Array([
@@ -40,7 +40,7 @@ const DEFS = [
   { id: "full_name", kind: "text", required: true, initialValue: "" },
 ];
 
-const INTERPRETED = [
+const INTERPRETED: StoredFormField[] = [
   {
     id: "full_name",
     label: "Full name",
