@@ -7,7 +7,7 @@ import type {
 import type { FormField, FormSession } from "@/lib/types";
 
 export type StoredFormField = FormField & {
-  kind?: "text" | "checkbox" | "choice";
+  kind?: "text" | "checkbox" | "choice" | "signature";
   options?: string[];
 };
 

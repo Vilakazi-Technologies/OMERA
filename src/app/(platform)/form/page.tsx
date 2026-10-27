@@ -21,7 +21,7 @@ type ClientField = {
   label: string;
   prompt: string;
   required: boolean;
-  kind?: "text" | "checkbox" | "choice";
+  kind?: "text" | "checkbox" | "choice" | "signature";
   options?: string[];
   value?: string | boolean;
 };
@@ -52,7 +52,9 @@ function normalizeField(raw: unknown): ClientField | null {
         : `Please provide a value for ${record.id}.`,
     required: record.required === true,
     kind:
-      record.kind === "checkbox" || record.kind === "choice"
+      record.kind === "checkbox" ||
+      record.kind === "choice" ||
+      record.kind === "signature"
         ? record.kind
         : "text",
     options: Array.isArray(record.options)
@@ -82,6 +84,7 @@ export default function FormFillPage() {
   const [restoring, setRestoring] = useState(true);
   const [editingFromReview, setEditingFromReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   // Restore through the server session ID after a refresh. Only the session
   // reference lives in local storage — never form answers. Identity is
@@ -360,6 +363,7 @@ export default function FormFillPage() {
     }
     setExporting(true);
     setError(null);
+    setExportNote(null);
     try {
       const res = await fetch(
         `/api/forms/sessions/${session.sessionId}/export`,
@@ -375,6 +379,12 @@ export default function FormFillPage() {
           ),
         );
         return;
+      }
+      const mode = res.headers.get("X-Form-Export-Mode");
+      if (mode === "appendix") {
+        setExportNote(
+          "Your original PDF is included with a new “Completed answers” page at the end (this form had no fillable fields).",
+        );
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -432,15 +442,15 @@ export default function FormFillPage() {
                 Upload your form
               </h2>
               <p className="mt-2 text-sm text-slate-400">
-                A fillable PDF. Omera reads the fields and guides you —
-                one question at a time.
+                PDF forms (fillable or text-based). Omera reads the fields and
+                guides you — one question at a time. Max 4&nbsp;MB.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
                 {uploading ? "Analysing…" : "Choose file"}
                 <input
                   type="file"
                   className="hidden"
-                  accept=".pdf"
+                  accept=".pdf,application/pdf"
                   disabled={uploading}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -557,7 +567,10 @@ export default function FormFillPage() {
                   {step === "complete" && (
                     <div className="mt-2 flex items-start gap-2 text-sm text-emerald-400">
                       <CheckCircle2 className="size-5 shrink-0" />
-                      <p>Saved as a completed PDF — not a text summary.</p>
+                      <p>
+                        {exportNote ??
+                          "Saved as a completed PDF — not a text summary."}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -623,7 +636,8 @@ export default function FormFillPage() {
       {!restoring &&
         step === "questions" &&
         current &&
-        (current.field as ClientField).kind === "text" && (
+        ((current.field as ClientField).kind === "text" ||
+          (current.field as ClientField).kind === "signature") && (
         <ChatComposer
           onSend={(text) => void submitAnswer(text)}
           placeholder="Type your answer or use the microphone…"

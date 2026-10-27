@@ -10,6 +10,7 @@ import {
   updateFormSession,
 } from "@/lib/db/form-sessions";
 import { fillPdfFields } from "@/lib/forms/pdf-fields";
+import { appendAnswersSummaryPdf } from "@/lib/forms/pdf-answers-appendix";
 import {
   validateAnswerPatch,
   type CanonicalFieldDef,
@@ -42,7 +43,6 @@ const FILL_ERRORS = new Set([
   "NO_FILLABLE_FIELDS",
   "UNSUPPORTED_XFA",
   "UNSUPPORTED_FIELD_TYPE",
-  "SIGNATURE_REQUIRES_REVIEW",
 ]);
 
 function safeFileName(fileName: string): string {
@@ -109,19 +109,40 @@ export async function GET(_req: Request, { params }: Params) {
       );
     }
 
+    const fontBytes = new Uint8Array(await readFile(APPROVED_FONT_PATH));
     let filled: Uint8Array;
-    try {
-      const fontBytes = new Uint8Array(await readFile(APPROVED_FONT_PATH));
-      filled = await fillPdfFields(original, answers, fontBytes);
-    } catch (fillError) {
-      await updateFormSession(id, identity.userId, {
-        status: "review",
-      }).catch(() => undefined);
-      const code =
-        fillError instanceof Error && FILL_ERRORS.has(fillError.message)
-          ? fillError.message
-          : "EXPORT_FAILED";
-      throw new ApiError(code, 422);
+    let exportMode: "acroform" | "appendix" = "acroform";
+    if (session.documentKind === "flat") {
+      filled = await appendAnswersSummaryPdf(
+        original,
+        session.fields,
+        answers,
+        fontBytes,
+      );
+      exportMode = "appendix";
+    } else {
+      try {
+        filled = await fillPdfFields(original, answers, fontBytes);
+      } catch (fillError) {
+        const code =
+          fillError instanceof Error && FILL_ERRORS.has(fillError.message)
+            ? fillError.message
+            : "EXPORT_FAILED";
+        if (code === "NO_FILLABLE_FIELDS" || code === "EXPORT_FAILED") {
+          filled = await appendAnswersSummaryPdf(
+            original,
+            session.fields,
+            answers,
+            fontBytes,
+          );
+          exportMode = "appendix";
+        } else {
+          await updateFormSession(id, identity.userId, {
+            status: "review",
+          }).catch(() => undefined);
+          throw new ApiError(code, 422);
+        }
+      }
     }
 
     if (filled.length > EXPORT_RESPONSE_LIMIT) {
@@ -139,6 +160,7 @@ export async function GET(_req: Request, { params }: Params) {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${safeFileName(session.fileName)}"`,
         "Cache-Control": "private, no-store",
+        "X-Form-Export-Mode": exportMode,
         "Content-Length": String(filled.length),
       },
     });

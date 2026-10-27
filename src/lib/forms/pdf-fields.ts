@@ -1,20 +1,60 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
   PDFButton, PDFCheckBox, PDFDocument, PDFDropdown, PDFField, PDFName,
-  PDFRadioGroup, PDFSignature, PDFTextField,
+  PDFPage, PDFRadioGroup, PDFSignature, PDFTextField, PDFFont, rgb,
 } from "pdf-lib";
 
 export type PdfFieldInfo = {
   id: string;
-  kind: "text" | "checkbox" | "choice";
+  kind: "text" | "checkbox" | "choice" | "signature";
   required: boolean;
   initialValue: string | boolean;
   options?: string[];
   maxLength?: number;
 };
 
+function pageForWidget(pdf: PDFDocument, widget: { P?: () => unknown }): PDFPage {
+  const pageRef = widget.P?.();
+  const pages = pdf.getPages();
+  if (!pageRef) return pages[0];
+  for (const page of pages) {
+    if (page.ref === pageRef) return page;
+  }
+  return pages[0];
+}
+
+function drawSignatureLabel(
+  pdf: PDFDocument,
+  field: PDFSignature,
+  text: string,
+  font: PDFFont,
+) {
+  const widgets = field.acroField.getWidgets();
+  for (const widget of widgets) {
+    const rect = widget.getRectangle();
+    const page = pageForWidget(pdf, widget);
+    const size = Math.min(12, Math.max(8, rect.height * 0.55));
+    const signed = text.trim();
+    page.drawText(signed, {
+      x: rect.x + 2,
+      y: rect.y + (rect.height - size) / 2,
+      size,
+      font,
+      color: rgb(0, 0, 0.35),
+      maxWidth: Math.max(4, rect.width - 4),
+    });
+  }
+}
+
 function describe(field: PDFField): PdfFieldInfo | null {
-  if (field instanceof PDFSignature) throw new Error("SIGNATURE_REQUIRES_REVIEW");
+  if (field instanceof PDFSignature) {
+    return {
+      id: field.getName(),
+      kind: "signature",
+      required: field.isRequired(),
+      initialValue: "",
+    };
+  }
   if (field instanceof PDFButton || field.isReadOnly()) return null;
   const base = { id: field.getName(), required: field.isRequired() };
   if (field instanceof PDFTextField) {
@@ -85,6 +125,16 @@ export async function fillPdfFields(
     if (typeof value !== "string") throw new Error("INVALID_TEXT");
     if (info.required && !value.trim()) throw new Error("REQUIRED_FIELD");
     if (info.maxLength !== undefined && value.length > info.maxLength) throw new Error("VALUE_TOO_LONG");
+    if (info.kind === "signature") {
+      if (!(field instanceof PDFSignature)) throw new Error("FIELD_TYPE_MISMATCH");
+      if (typeof value !== "string") throw new Error("INVALID_TEXT");
+      if (info.required && !value.trim()) throw new Error("REQUIRED_FIELD");
+      if (value.trim()) {
+        validateGlyphs(value);
+        drawSignatureLabel(pdf, field, value, font);
+      }
+      continue;
+    }
     if (info.kind === "text") {
       if (!(field instanceof PDFTextField)) throw new Error("FIELD_TYPE_MISMATCH");
       validateGlyphs(value);

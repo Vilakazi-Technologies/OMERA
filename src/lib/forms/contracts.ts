@@ -29,7 +29,7 @@ export type FormDocumentMeta = {
 
 export type CanonicalFieldDef = {
   id: string;
-  kind: "text" | "checkbox" | "choice";
+  kind: "text" | "checkbox" | "choice" | "signature";
   required: boolean;
   options?: string[];
 };

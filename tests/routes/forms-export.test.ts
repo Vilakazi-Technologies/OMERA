@@ -184,6 +184,22 @@ it("a_failed_fill_keeps_the_session_in_review", async () => {
   );
 });
 
+it("a_flat_session_appends_an_answers_page", async () => {
+  const source = await fixturePdf();
+  const flatSession = {
+    ...sessionFor(source, { full_name: "Thendo", method: "Email" }),
+    documentKind: "flat" as const,
+  };
+  vi.mocked(getFormSession).mockResolvedValueOnce(flatSession);
+  vi.mocked(getSupabaseAdmin).mockReturnValueOnce(downloadFor(source));
+  const response = await GET(getRequest(), params);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("X-Form-Export-Mode")).toBe("appendix");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const filled = await PDFDocument.load(bytes);
+  expect(filled.getPageCount()).toBe(2);
+});
+
 it("an_incomplete_session_is_rejected_before_filling", async () => {
   const source = await fixturePdf();
   vi.mocked(getFormSession).mockResolvedValueOnce(

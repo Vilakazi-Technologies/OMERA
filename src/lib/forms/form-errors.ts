@@ -2,11 +2,11 @@
 export function formErrorMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "NO_FILLABLE_FIELDS":
-      return "This PDF has no fillable fields. Use a PDF prepared with form fields (AcroForm), not a flat scan.";
+      return "This PDF has no fillable fields we could read. Try a fillable (AcroForm) PDF, or a text-based form (not a blank scan).";
     case "UNSUPPORTED_XFA":
       return "This PDF uses a format we cannot fill yet (XFA). Try a standard fillable PDF.";
-    case "SIGNATURE_REQUIRES_REVIEW":
-      return "This form includes signature fields. Complete other fields and review signatures manually.";
+    case "FORM_INFERENCE_FAILED":
+      return "Omera could not read this form (AI busy). Try again in a moment, or use a fillable PDF.";
     case "FORM_TRANSLATION_FAILED":
       return "Omera could not read field labels (AI busy). Try again in a moment.";
     case "FORMS_STORAGE_UNAVAILABLE":

@@ -16,7 +16,9 @@ export function fallbackFormFields(
   return inspected.map((field) => {
     const label = humanizeFieldId(field.id);
     let prompt = `What is your ${label.toLowerCase()}?`;
-    if (field.kind === "checkbox") {
+    if (field.kind === "signature") {
+      prompt = `Type your full name to sign "${label}" (printed signature — not a digital certificate).`;
+    } else if (field.kind === "checkbox") {
       prompt = `Is this true: ${label}? (yes or no)`;
     } else if (field.kind === "choice" && field.options?.length) {
       prompt = `Choose one for ${label}: ${field.options.join(", ")}`;

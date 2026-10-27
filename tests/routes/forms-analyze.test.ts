@@ -17,6 +17,9 @@ vi.mock("@/lib/forms/pdf-fields", () => ({
 vi.mock("@/lib/forms/extract-fields", () => ({
   extractFormFields: vi.fn(),
 }));
+vi.mock("@/lib/forms/infer-form-fields", () => ({
+  inferFormFieldsFromDocument: vi.fn(),
+}));
 vi.mock("@/lib/db/form-sessions", () => ({
   createFormSession: vi.fn(),
 }));
@@ -25,6 +28,7 @@ import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractFormFields } from "@/lib/forms/extract-fields";
+import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
 import { createFormSession } from "@/lib/db/form-sessions";
 import { POST } from "@/app/api/forms/analyze/route";
 
@@ -141,10 +145,24 @@ it("a_malformed_pdf_returns_422", async () => {
   expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
 });
 
-it("a_scan_is_rejected", async () => {
+it("a_scan_falls_back_to_inference_when_ai_finds_fields", async () => {
   vi.mocked(inspectPdfFields).mockRejectedValueOnce(
     new Error("NO_FILLABLE_FIELDS"),
   );
+  vi.mocked(inferFormFieldsFromDocument).mockResolvedValueOnce(INTERPRETED);
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  const created = vi.mocked(createFormSession).mock.calls[0][0] as {
+    documentKind: string;
+  };
+  expect(created.documentKind).toBe("flat");
+});
+
+it("a_scan_is_rejected_when_inference_finds_nothing", async () => {
+  vi.mocked(inspectPdfFields).mockRejectedValueOnce(
+    new Error("NO_FILLABLE_FIELDS"),
+  );
+  vi.mocked(inferFormFieldsFromDocument).mockResolvedValueOnce([]);
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(422);
   expect(await response.json()).toStrictEqual({

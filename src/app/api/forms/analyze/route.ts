@@ -8,7 +8,10 @@ import { allowRequest } from "@/lib/limits/rate-limit";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { createFormSession } from "@/lib/db/form-sessions";
 import { extractFormFields } from "@/lib/forms/extract-fields";
+import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
+import type { FormDocumentKind } from "@/lib/forms/contracts";
+import type { StoredFormField } from "@/lib/db/form-sessions";
 import {
   FORMS_BUCKET,
   removeStoredObject,
@@ -19,7 +22,18 @@ export const runtime = "nodejs";
 
 const MULTIPART_LIMIT = 4100000;
 const FILE_LIMIT = 4000000;
-const PDF_MIME = "application/pdf";
+const PDF_MIMES = new Set([
+  "application/pdf",
+  "application/x-pdf",
+  "application/acrobat",
+  "application/vnd.pdf",
+  "application/octet-stream",
+]);
+
+function isPdfMime(contentType: string): boolean {
+  const base = contentType.split(";")[0].trim().toLowerCase();
+  return PDF_MIMES.has(base);
+}
 
 type UploadedFile = {
   fieldName: string;
@@ -108,7 +122,6 @@ const PDF_ERRORS = new Set([
   "NO_FILLABLE_FIELDS",
   "UNSUPPORTED_XFA",
   "UNSUPPORTED_FIELD_TYPE",
-  "SIGNATURE_REQUIRES_REVIEW",
 ]);
 
 export async function POST(request: Request) {
@@ -133,7 +146,7 @@ export async function POST(request: Request) {
       throw new ApiError("FILE_TOO_LARGE", 413);
     }
     if (file.bytes.length === 0) throw new ApiError("EMPTY_FILE", 400);
-    if (file.contentType !== PDF_MIME) {
+    if (!isPdfMime(file.contentType)) {
       throw new ApiError("UNSUPPORTED_FORMAT", 415);
     }
     if (
@@ -145,25 +158,44 @@ export async function POST(request: Request) {
 
     const languageId = (fields.get("languageId") ?? "eng").trim() || "eng";
 
-    let inspected;
+    let interpreted: StoredFormField[];
+    let documentKind: FormDocumentKind = "acroform";
     try {
-      inspected = await inspectPdfFields(file.bytes);
+      const inspected = await inspectPdfFields(file.bytes);
+      try {
+        interpreted = await extractFormFields(inspected, { languageId });
+      } catch (error) {
+        throw new ApiError(
+          error instanceof Error ? error.message : "FORM_TRANSLATION_FAILED",
+          502,
+        );
+      }
     } catch (error) {
-      const code =
-        error instanceof Error && PDF_ERRORS.has(error.message)
-          ? error.message
-          : "MALFORMED_PDF";
-      throw new ApiError(code, 422);
-    }
-
-    let interpreted;
-    try {
-      interpreted = await extractFormFields(inspected, { languageId });
-    } catch (error) {
-      throw new ApiError(
-        error instanceof Error ? error.message : "FORM_TRANSLATION_FAILED",
-        502,
-      );
+      if (error instanceof ApiError) {
+        if (error.code !== "NO_FILLABLE_FIELDS") throw error;
+      } else {
+        const code =
+          error instanceof Error && PDF_ERRORS.has(error.message)
+            ? error.message
+            : "MALFORMED_PDF";
+        if (code !== "NO_FILLABLE_FIELDS") throw new ApiError(code, 422);
+      }
+      try {
+        interpreted = await inferFormFieldsFromDocument(file.bytes, {
+          languageId,
+        });
+      } catch (inferError) {
+        throw new ApiError(
+          inferError instanceof Error
+            ? inferError.message
+            : "FORM_INFERENCE_FAILED",
+          502,
+        );
+      }
+      if (!interpreted.length) {
+        throw new ApiError("NO_FILLABLE_FIELDS", 422);
+      }
+      documentKind = "flat";
     }
 
     const documentSha256 = createHash("sha256")
@@ -179,7 +211,7 @@ export async function POST(request: Request) {
         sessionId,
         fileName: file.fileName || "form.pdf",
         bytes: file.bytes,
-        contentType: PDF_MIME,
+        contentType: "application/pdf",
       });
     } catch {
       throw new ApiError("STORAGE_UPLOAD_FAILED", 502);
@@ -193,7 +225,7 @@ export async function POST(request: Request) {
         fields: interpreted,
         languageId,
         documentSha256,
-        documentKind: "acroform",
+        documentKind,
       });
       return NextResponse.json(
         {

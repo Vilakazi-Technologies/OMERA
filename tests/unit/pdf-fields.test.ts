@@ -509,15 +509,27 @@ it.each(["rich text", "editable dropdown", "multiselect dropdown", "option list"
   },
 );
 
-it("rejects an actual signature field dictionary even when read-only", async () => {
+it("treats signature widgets as typed-name fields and draws on export", async () => {
   const pdf = await PDFDocument.create();
-  pdf.addPage([200, 200]);
-  const signature = pdf.getForm().createTextField("signature");
-  signature.enableReadOnly();
+  const page = pdf.addPage([400, 200]);
+  const signature = pdf.getForm().createTextField("applicant.signature");
+  signature.enableRequired();
+  signature.addToPage(page, { x: 40, y: 80, width: 200, height: 40 });
   signature.acroField.dict.set(PDFName.of("FT"), PDFName.of("Sig"));
   const source = await pdf.save();
   expect((await PDFDocument.load(source)).getForm().getFields()[0].constructor.name).toBe("PDFSignature");
-  await rejectBoth(source, "SIGNATURE_REQUIRES_REVIEW");
+  const fields = await inspectPdfFields(source);
+  expect(fields).toEqual([
+    {
+      id: "applicant.signature",
+      kind: "signature",
+      required: true,
+      initialValue: "",
+    },
+  ]);
+  const font = new Uint8Array(await readFile("assets/fonts/NotoSans-Regular.ttf"));
+  const filled = await fillPdfFields(source, { "applicant.signature": "Ayanda N." }, font);
+  expect(filled.length).toBeGreaterThan(source.length);
 });
 
 async function xfaFixture() {
