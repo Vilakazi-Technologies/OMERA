@@ -311,6 +311,7 @@ export async function completeOpenRouterVisionJsonString(
     ...(requestSignal ? [requestSignal] : []),
   ]);
   const models = openRouterModelChain(config.model, env);
+  // Gemini vision on OpenRouter often rejects response_format — JSON is enforced via system prompt.
   const response = await post(
     config,
     JSON.stringify({
@@ -318,15 +319,14 @@ export async function completeOpenRouterVisionJsonString(
       models,
       stream: false,
       max_tokens: visionMaxOutputTokens(env),
-      response_format: { type: "json_object" },
       provider: { sort: "latency", allow_fallbacks: true },
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: `${systemPrompt}\n\nReturn ONLY a single JSON object. No markdown fences.` },
         {
           role: "user",
           content: [
             { type: "text", text: userText },
-            { type: "image_url", image_url: { url: imageDataUrl } },
+            { type: "image_url", image_url: { url: imageDataUrl, detail: "low" } },
           ],
         },
       ],
@@ -337,8 +337,24 @@ export async function completeOpenRouterVisionJsonString(
     choices?: { message?: { content?: string | unknown } }[];
   };
   const content = data.choices?.[0]?.message?.content;
-  if (typeof content === "string" && content.trim()) return content.trim();
+  const text = extractOpenRouterTextContent(content);
+  if (text) return text;
   throw new Error("INVALID_OPENROUTER_VISION_RESPONSE");
+}
+
+function extractOpenRouterTextContent(content: unknown): string | null {
+  if (typeof content === "string" && content.trim()) return content.trim();
+  if (Array.isArray(content)) {
+    const joined = content
+      .map((part) => {
+        if (!part || typeof part !== "object") return "";
+        const record = part as { type?: string; text?: string };
+        return record.type === "text" && record.text ? record.text : "";
+      })
+      .join("");
+    if (joined.trim()) return joined.trim();
+  }
+  return null;
 }
 
 export async function completeOpenRouterJson<T>(
