@@ -1,0 +1,370 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+At C:\nvm4w\nodejs\npm.ps1:16 char:5
++     & "$basedir/node$exe"  "$basedir/node_modules/npm/bin/npm-cli.js" ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...version of npm.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> vilatech-ai@0.1.0 build
+> next build
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\ayand\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if 
+it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\ayand\Documents\VILATECH\vilatech-ai\package-lock.json
+
+▲ Next.js 16.2.12 (Turbopack)
+- Environments: .env.local
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: 
+https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 13 errors:
+./Documents/VILATECH/vilatech-ai/src/app/api/forms/analyze/route.ts:191:14
+Unexpected token `ident`. Expected ... , *,  (, [, :, , ?, =, an identifier, public, protected, private, readonly, <.
+  [90m189 |[0m         documentSha256,
+  [90m190 |[0m         documentKind: [32m"acroform"[0m,
+[31m[1m>[0m [90m191 |[0m       [36mreturn[0m [33mNextResponse[0m.json(
+  [90m    |[0m              [31m[1m^^^^^^^^^^^^[0m
+  [90m192 |[0m         {
+  [90m193 |[0m           sessionId: session.id,
+  [90m194 |[0m           fileName: session.fileName,
+
+Parsing ecmascript source code failed
+
+
+./Documents/VILATECH/vilatech-ai/src/components/providers.tsx:4:1
+Export AppProvider doesn't exist in target module
+  [90m2 |[0m
+  [90m3 |[0m [36mimport[0m { [33mClerkProvider[0m } [36mfrom[0m [32m"@clerk/nextjs"[0m;
+[31m[1m>[0m [90m4 |[0m [36mimport[0m { [33mAppProvider[0m } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m5 |[0m [36mimport[0m { omeraClerkAppearance } [36mfrom[0m [32m"@/lib/clerk-appearance"[0m;
+  [90m6 |[0m
+  [90m7 |[0m [36mexport[0m [36mfunction[0m [33mProviders[0m({ children }: { children: 
+[33mReact[0m.[33mReactNode[0m }) {
+
+The export AppProvider was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-client] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import trace:
+  Server Component:
+    ./Documents/VILATECH/vilatech-ai/src/components/providers.tsx
+    ./Documents/VILATECH/vilatech-ai/src/app/layout.tsx
+
+
+./Documents/VILATECH/vilatech-ai/src/components/providers.tsx:4:1
+Export AppProvider doesn't exist in target module
+  [90m2 |[0m
+  [90m3 |[0m [36mimport[0m { [33mClerkProvider[0m } [36mfrom[0m [32m"@clerk/nextjs"[0m;
+[31m[1m>[0m [90m4 |[0m [36mimport[0m { [33mAppProvider[0m } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m5 |[0m [36mimport[0m { omeraClerkAppearance } [36mfrom[0m [32m"@/lib/clerk-appearance"[0m;
+  [90m6 |[0m
+  [90m7 |[0m [36mexport[0m [36mfunction[0m [33mProviders[0m({ children }: { children: 
+[33mReact[0m.[33mReactNode[0m }) {
+
+The export AppProvider was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-ssr] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import trace:
+  Server Component:
+    ./Documents/VILATECH/vilatech-ai/src/components/providers.tsx
+    ./Documents/VILATECH/vilatech-ai/src/app/layout.tsx
+
+
+./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx:8:1
+Export useApp doesn't exist in target module
+  [90m 6 |[0m [36mimport[0m { [33mChatModelSelect[0m } [36mfrom[0m [32m"@/components/chat-model-select"[0m;
+  [90m 7 |[0m [36mimport[0m { [33mOMERA_MODEL_ID[0m } [36mfrom[0m [32m"@/lib/ai/model-catalog-client"[0m;
+[31m[1m>[0m [90m 8 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m 9 |[0m [36mimport[0m { consumeChatEvents } [36mfrom[0m [32m"@/lib/ai/chat-events"[0m;
+  [90m10 |[0m [36mimport[0m { boundChatHistory } [36mfrom[0m [32m"@/lib/ai/chat-history"[0m;
+  [90m11 |[0m [36mimport[0m {
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-client] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx:8:1
+Export useApp doesn't exist in target module
+  [90m 6 |[0m [36mimport[0m { [33mChatModelSelect[0m } [36mfrom[0m [32m"@/components/chat-model-select"[0m;
+  [90m 7 |[0m [36mimport[0m { [33mOMERA_MODEL_ID[0m } [36mfrom[0m [32m"@/lib/ai/model-catalog-client"[0m;
+[31m[1m>[0m [90m 8 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m 9 |[0m [36mimport[0m { consumeChatEvents } [36mfrom[0m [32m"@/lib/ai/chat-events"[0m;
+  [90m10 |[0m [36mimport[0m { boundChatHistory } [36mfrom[0m [32m"@/lib/ai/chat-history"[0m;
+  [90m11 |[0m [36mimport[0m {
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-ssr] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx:12:1
+Export useApp doesn't exist in target module
+  [90m10 |[0m [36mimport[0m { [33mChatComposer[0m } [36mfrom[0m [32m"@/components/chat-composer"[0m;
+  [90m11 |[0m [36mimport[0m { [33mLanguageSelect[0m } [36mfrom[0m [32m"@/components/language-select"[0m;
+[31m[1m>[0m [90m12 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m13 |[0m [36mimport[0m { activeQuestion } [36mfrom[0m [32m"@/lib/forms/questions"[0m;
+  [90m14 |[0m [36mimport[0m { cn } [36mfrom[0m [32m"@/lib/cn"[0m;
+  [90m15 |[0m
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-client] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx:12:1
+Export useApp doesn't exist in target module
+  [90m10 |[0m [36mimport[0m { [33mChatComposer[0m } [36mfrom[0m [32m"@/components/chat-composer"[0m;
+  [90m11 |[0m [36mimport[0m { [33mLanguageSelect[0m } [36mfrom[0m [32m"@/components/language-select"[0m;
+[31m[1m>[0m [90m12 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m13 |[0m [36mimport[0m { activeQuestion } [36mfrom[0m [32m"@/lib/forms/questions"[0m;
+  [90m14 |[0m [36mimport[0m { cn } [36mfrom[0m [32m"@/lib/cn"[0m;
+  [90m15 |[0m
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-ssr] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx:7:1
+Export useApp doesn't exist in target module
+  [90m 5 |[0m [36mimport[0m { useEffect } [36mfrom[0m [32m"react"[0m;
+  [90m 6 |[0m [36mimport[0m { [33mSidebar[0m } [36mfrom[0m [32m"@/components/sidebar"[0m;
+[31m[1m>[0m [90m 7 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m 8 |[0m
+  [90m 9 |[0m [36mexport[0m [36mdefault[0m [36mfunction[0m [33mPlatformLayout[0m({
+  [90m10 |[0m   children,
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-client] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx:7:1
+Export useApp doesn't exist in target module
+  [90m 5 |[0m [36mimport[0m { useEffect } [36mfrom[0m [32m"react"[0m;
+  [90m 6 |[0m [36mimport[0m { [33mSidebar[0m } [36mfrom[0m [32m"@/components/sidebar"[0m;
+[31m[1m>[0m [90m 7 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m 8 |[0m
+  [90m 9 |[0m [36mexport[0m [36mdefault[0m [36mfunction[0m [33mPlatformLayout[0m({
+  [90m10 |[0m   children,
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-ssr] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx:6:1
+Export useApp doesn't exist in target module
+  [90m4 |[0m [36mimport[0m { [33mArrowUp[0m, [33mMic[0m, [33mSquare[0m } [36mfrom[0m 
+[32m"lucide-react"[0m;
+  [90m5 |[0m [36mimport[0m { [33mLanguageSelect[0m } [36mfrom[0m [32m"@/components/language-select"[0m;
+[31m[1m>[0m [90m6 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m7 |[0m [36mimport[0m { useVoiceRecorder } [36mfrom[0m [32m"@/hooks/use-voice-recorder"[0m;
+  [90m8 |[0m [36mimport[0m { cn } [36mfrom[0m [32m"@/lib/cn"[0m;
+  [90m9 |[0m
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-client] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx:6:1
+Export useApp doesn't exist in target module
+  [90m4 |[0m [36mimport[0m { [33mArrowUp[0m, [33mMic[0m, [33mSquare[0m } [36mfrom[0m 
+[32m"lucide-react"[0m;
+  [90m5 |[0m [36mimport[0m { [33mLanguageSelect[0m } [36mfrom[0m [32m"@/components/language-select"[0m;
+[31m[1m>[0m [90m6 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m7 |[0m [36mimport[0m { useVoiceRecorder } [36mfrom[0m [32m"@/hooks/use-voice-recorder"[0m;
+  [90m8 |[0m [36mimport[0m { cn } [36mfrom[0m [32m"@/lib/cn"[0m;
+  [90m9 |[0m
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-ssr] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx:17:1
+Export useApp doesn't exist in target module
+  [90m15 |[0m [36mimport[0m { [33mUserProfileLabel[0m } [36mfrom[0m [32m"@/components/user-profile-label"[0m;
+  [90m16 |[0m [36mimport[0m { [33mVilatechLogo[0m } [36mfrom[0m [32m"@/components/vilatech-logo"[0m;
+[31m[1m>[0m [90m17 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m18 |[0m [36mimport[0m { cn } [36mfrom[0m [32m"@/lib/cn"[0m;
+  [90m19 |[0m
+  [90m20 |[0m [36mexport[0m [36mfunction[0m [33mSidebar[0m() {
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-client] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+
+./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx:17:1
+Export useApp doesn't exist in target module
+  [90m15 |[0m [36mimport[0m { [33mUserProfileLabel[0m } [36mfrom[0m [32m"@/components/user-profile-label"[0m;
+  [90m16 |[0m [36mimport[0m { [33mVilatechLogo[0m } [36mfrom[0m [32m"@/components/vilatech-logo"[0m;
+[31m[1m>[0m [90m17 |[0m [36mimport[0m { useApp } [36mfrom[0m [32m"@/context/app-provider"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m18 |[0m [36mimport[0m { cn } [36mfrom[0m [32m"@/lib/cn"[0m;
+  [90m19 |[0m
+  [90m20 |[0m [36mexport[0m [36mfunction[0m [33mSidebar[0m() {
+
+The export useApp was not found in module [project]/Documents/VILATECH/vilatech-ai/src/context/app-provider.tsx 
+[app-ssr] (ecmascript).
+The module has no exports at all.
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the 
+requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component Browser]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+  Client Component SSR:
+    ./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Client Component SSR]
+    ./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx [Server Component]
+
+
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/api/forms/analyze/route.ts:191:14)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/components/providers.tsx:4:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/components/providers.tsx:4:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx:8:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/(platform)/chat/page.tsx:8:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx:12:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/(platform)/form/page.tsx:12:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx:7:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/app/(platform)/layout.tsx:7:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx:6:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/components/chat-composer.tsx:6:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx:17:1)
+    at <unknown> (./Documents/VILATECH/vilatech-ai/src/components/sidebar.tsx:17:1)

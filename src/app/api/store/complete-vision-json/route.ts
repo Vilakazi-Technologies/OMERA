@@ -44,7 +44,8 @@ export async function POST(req: Request) {
         : "ViLATECH AI · Gemini 2.5 Flash",
     });
   } catch (err) {
-    console.error("[complete-vision-json]", err);
-    return NextResponse.json({ error: "Vision completion failed" }, { status: 502 });
+    const detail = err instanceof Error ? err.message : "Vision completion failed";
+    console.error("[complete-vision-json]", detail, err);
+    return NextResponse.json({ error: detail.slice(0, 200) }, { status: 502 });
   }
 }
