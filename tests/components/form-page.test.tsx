@@ -100,6 +100,32 @@ afterEach(() => {
 });
 
 describe("form page review flow", () => {
+  it("shows a human upload error without fillable jargon", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return jsonResponse({ error: "UNREADABLE_DOCUMENT" }, 422);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.7"], "scan.pdf", { type: "application/pdf" })],
+      },
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/could not read/i);
+    expect(alert.textContent).not.toMatch(/acroform/i);
+    expect(alert.textContent).not.toMatch(/fillable/i);
+  });
+
   it("a_save_failure_prevents_advancement", async () => {
     vi.stubGlobal(
       "fetch",

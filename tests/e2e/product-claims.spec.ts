@@ -34,10 +34,11 @@ test.describe("product claims match measured support", () => {
     expect(copy).not.toMatch(/measured\s+\d+%/i);
   });
 
-  test("form copy promises only fillable PDFs", async ({ page }) => {
+  test("form copy promises a completed PDF from an upload", async ({ page }) => {
     await page.goto("/");
     const copy = await page.content();
-    expect(copy).toMatch(/fillable PDF/i);
+    expect(copy).toMatch(/PDF form/i);
+    expect(copy).not.toMatch(/AcroForm/i);
     expect(copy).not.toMatch(/enterprise-ready/i);
     expect(copy).not.toMatch(/POPIA-conscious/i);
   });

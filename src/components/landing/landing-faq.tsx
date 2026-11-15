@@ -17,7 +17,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "How does form filling work?",
-    a: "Upload your fillable PDF. Omera analyses the fields, then asks you one question at a time in text. You respond by typing or speaking where a voice route exists. Scanned documents need an approved template. You review answers before anything is finalised.",
+    a: "Upload your PDF. Omera reads the questions, then asks you one at a time in text. You respond by typing or speaking where a voice route exists. You review answers, then download a completed PDF. Password-protected files and blank scans we cannot read are not supported yet.",
   },
   {
     q: "Is my data safe?",

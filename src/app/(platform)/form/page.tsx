@@ -233,7 +233,7 @@ export default function FormFillPage() {
         setError(
           formErrorMessage(
             data.error,
-            `Upload failed (${data.error ?? res.status}). Only fillable PDFs are supported.`,
+            "Omera could not read this PDF. Try again in a moment, or upload a clearer copy.",
           ),
         );
         return;
@@ -383,7 +383,7 @@ export default function FormFillPage() {
       const mode = res.headers.get("X-Form-Export-Mode");
       if (mode === "appendix") {
         setExportNote(
-          "Your original PDF is included with a new “Completed answers” page at the end (this form had no fillable fields).",
+          "Your completed PDF includes the original pages plus a “Completed answers” page at the end.",
         );
       }
       const blob = await res.blob();
@@ -442,16 +442,18 @@ export default function FormFillPage() {
                 Upload your form
               </h2>
               <p className="mt-2 text-sm text-slate-400">
-                PDF forms (fillable or text-based). Omera reads the fields and
-                guides you — one question at a time. Max 4&nbsp;MB.
+                Upload a PDF. Omera asks each question one at a time — type or
+                speak your answers — then you get a completed PDF. Max
+                4&nbsp;MB.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
-                {uploading ? "Analysing…" : "Choose file"}
+                {uploading ? "Reading your form…" : "Choose file"}
                 <input
                   type="file"
                   className="hidden"
                   accept=".pdf,application/pdf"
                   disabled={uploading}
+                  aria-busy={uploading}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) void uploadFile(f);
@@ -459,7 +461,12 @@ export default function FormFillPage() {
                 />
               </label>
               {uploading && (
-                <Loader2 className="mt-4 size-6 animate-spin text-slate-400" />
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <Loader2 className="size-6 animate-spin text-slate-400" />
+                  <p className="text-sm text-slate-400">
+                    Reading your form… then the first question appears.
+                  </p>
+                </div>
               )}
             </div>
           </div>

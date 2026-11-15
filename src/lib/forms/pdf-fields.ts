@@ -74,10 +74,25 @@ function describe(field: PDFField): PdfFieldInfo | null {
   throw new Error("UNSUPPORTED_FIELD_TYPE");
 }
 
+function isEncryptedPdfError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "EncryptedPDFError" ||
+    error.message === "ENCRYPTED_PDF" ||
+    /encrypt/i.test(error.message)
+  );
+}
+
 async function load(bytes: Uint8Array) {
   if (!bytes.length || bytes.length > 4000000) throw new Error("INVALID_PDF_SIZE");
   if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("INVALID_PDF");
-  const pdf = await PDFDocument.load(bytes, { ignoreEncryption: false, updateMetadata: false });
+  let pdf: PDFDocument;
+  try {
+    pdf = await PDFDocument.load(bytes, { ignoreEncryption: false, updateMetadata: false });
+  } catch (error) {
+    if (isEncryptedPdfError(error)) throw new Error("ENCRYPTED_PDF");
+    throw new Error("INVALID_PDF");
+  }
   if (pdf.getPageCount() > 20) throw new Error("PDF_PAGE_LIMIT");
   if (pdf.catalog.getAcroForm()?.dict.has(PDFName.of("XFA"))) throw new Error("UNSUPPORTED_XFA");
   const form = pdf.getForm();

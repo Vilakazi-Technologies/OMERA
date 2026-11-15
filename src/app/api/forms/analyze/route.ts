@@ -122,7 +122,31 @@ const PDF_ERRORS = new Set([
   "NO_FILLABLE_FIELDS",
   "UNSUPPORTED_XFA",
   "UNSUPPORTED_FIELD_TYPE",
+  "ENCRYPTED_PDF",
 ]);
+
+function classifyInspectError(error: unknown): string {
+  if (error instanceof ApiError) return error.code;
+  if (error instanceof Error && PDF_ERRORS.has(error.message)) return error.message;
+  if (
+    error instanceof Error &&
+    (error.name === "EncryptedPDFError" || /encrypt/i.test(error.message))
+  ) {
+    return "ENCRYPTED_PDF";
+  }
+  return "MALFORMED_PDF";
+}
+
+function classifyInferError(error: unknown): { code: string; status: number } {
+  const code = error instanceof Error ? error.message : "FORM_INFERENCE_FAILED";
+  if (code === "UNREADABLE_DOCUMENT" || code === "PDF_FIELD_LIMIT") {
+    return { code, status: 422 };
+  }
+  if (code === "CHAT_UNAVAILABLE" || code === "FORM_INFERENCE_FAILED") {
+    return { code: "FORM_INFERENCE_FAILED", status: 502 };
+  }
+  return { code: "FORM_INFERENCE_FAILED", status: 502 };
+}
 
 export async function POST(request: Request) {
   try {
@@ -171,29 +195,21 @@ export async function POST(request: Request) {
         );
       }
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.code !== "NO_FILLABLE_FIELDS") throw error;
-      } else {
-        const code =
-          error instanceof Error && PDF_ERRORS.has(error.message)
-            ? error.message
-            : "MALFORMED_PDF";
-        if (code !== "NO_FILLABLE_FIELDS") throw new ApiError(code, 422);
+      if (error instanceof ApiError && error.code !== "NO_FILLABLE_FIELDS") {
+        throw error;
       }
+      const code = classifyInspectError(error);
+      if (code !== "NO_FILLABLE_FIELDS") throw new ApiError(code, 422);
       try {
         interpreted = await inferFormFieldsFromDocument(file.bytes, {
           languageId,
         });
       } catch (inferError) {
-        throw new ApiError(
-          inferError instanceof Error
-            ? inferError.message
-            : "FORM_INFERENCE_FAILED",
-          502,
-        );
+        const mapped = classifyInferError(inferError);
+        throw new ApiError(mapped.code, mapped.status);
       }
       if (!interpreted.length) {
-        throw new ApiError("NO_FILLABLE_FIELDS", 422);
+        throw new ApiError("UNREADABLE_DOCUMENT", 422);
       }
       documentKind = "flat";
     }

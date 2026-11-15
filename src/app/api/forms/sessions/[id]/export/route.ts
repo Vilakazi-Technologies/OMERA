@@ -43,6 +43,7 @@ const FILL_ERRORS = new Set([
   "NO_FILLABLE_FIELDS",
   "UNSUPPORTED_XFA",
   "UNSUPPORTED_FIELD_TYPE",
+  "ENCRYPTED_PDF",
 ]);
 
 function safeFileName(fileName: string): string {

@@ -34,7 +34,7 @@ const FEATURES = [
     icon: FileText,
     title: "Voice-supported forms",
     body:
-      "Upload a fillable PDF form. Omera reads the fields and walks you through each answer.",
+      "Upload a PDF. Omera asks each question one at a time, then gives you a completed PDF.",
   },
   {
     icon: Mic,
@@ -66,7 +66,7 @@ const STEPS = [
   {
     step: "01",
     title: "Upload your form",
-    body: "A fillable PDF form. Omera maps the fields it needs to complete.",
+    body: "A PDF form. Omera reads the questions it needs to complete.",
     icon: Upload,
   },
   {

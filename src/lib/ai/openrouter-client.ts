@@ -298,14 +298,35 @@ export async function completeOpenRouterJsonString(
   return content.trim();
 }
 
-export async function completeOpenRouterVisionJsonString(
+function visionImageParts(imageDataUrls: string[]) {
+  return imageDataUrls.slice(0, 3).map((url) => ({
+    type: "image_url" as const,
+    image_url: { url, detail: "low" as const },
+  }));
+}
+
+export function parseJsonFromModelText(raw: string): unknown {
+  const stripped = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start === -1 || end <= start) {
+    throw new Error("INVALID_OPENROUTER_VISION_RESPONSE");
+  }
+  return JSON.parse(stripped.slice(start, end + 1));
+}
+
+async function completeOpenRouterVisionRaw(
   config: OpenRouterConfig,
   systemPrompt: string,
   userText: string,
-  imageDataUrl: string,
+  imageDataUrls: string[],
   requestSignal?: AbortSignal,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<string> {
+  if (!imageDataUrls.length) throw new Error("INVALID_OPENROUTER_VISION_RESPONSE");
   const signal = AbortSignal.any([
     AbortSignal.timeout(120000),
     ...(requestSignal ? [requestSignal] : []),
@@ -326,7 +347,7 @@ export async function completeOpenRouterVisionJsonString(
           role: "user",
           content: [
             { type: "text", text: userText },
-            { type: "image_url", image_url: { url: imageDataUrl, detail: "low" } },
+            ...visionImageParts(imageDataUrls),
           ],
         },
       ],
@@ -340,6 +361,44 @@ export async function completeOpenRouterVisionJsonString(
   const text = extractOpenRouterTextContent(content);
   if (text) return text;
   throw new Error("INVALID_OPENROUTER_VISION_RESPONSE");
+}
+
+export async function completeOpenRouterVisionJsonString(
+  config: OpenRouterConfig,
+  systemPrompt: string,
+  userText: string,
+  imageDataUrl: string,
+  requestSignal?: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string> {
+  return completeOpenRouterVisionRaw(
+    config,
+    systemPrompt,
+    userText,
+    [imageDataUrl],
+    requestSignal,
+    env,
+  );
+}
+
+export async function completeOpenRouterVisionJson<T>(
+  config: OpenRouterConfig,
+  systemPrompt: string,
+  userText: string,
+  imageDataUrls: string[],
+  parse: (value: unknown) => T,
+  requestSignal?: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<T> {
+  const raw = await completeOpenRouterVisionRaw(
+    config,
+    systemPrompt,
+    userText,
+    imageDataUrls,
+    requestSignal,
+    env,
+  );
+  return parse(parseJsonFromModelText(raw));
 }
 
 function extractOpenRouterTextContent(content: unknown): string | null {

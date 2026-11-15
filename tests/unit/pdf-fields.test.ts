@@ -563,5 +563,5 @@ it("rejects an encryption-marker fixture (structural guard evidence, not real en
   pdf.context.trailerInfo.Encrypt = pdf.context.register(pdf.context.obj({ Filter: "Standard" }));
   const source = await pdf.save({ useObjectStreams: false });
   expect(new TextDecoder().decode(source)).toContain("/Encrypt");
-  await rejectBoth(source, "encrypted");
+  await rejectBoth(source, "ENCRYPTED_PDF");
 });

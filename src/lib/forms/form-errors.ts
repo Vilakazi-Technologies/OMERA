@@ -2,13 +2,20 @@
 export function formErrorMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "NO_FILLABLE_FIELDS":
-      return "This PDF has no fillable fields we could read. Try a fillable (AcroForm) PDF, or a text-based form (not a blank scan).";
+    case "UNREADABLE_DOCUMENT":
+      return "Omera could not read any questions on this PDF. It may be a blank scan, too faint to read, or empty. Try a clearer copy, or a PDF that already has text.";
+    case "ENCRYPTED_PDF":
+      return "This PDF is password-protected. Remove the password in your PDF app, then upload it again.";
     case "UNSUPPORTED_XFA":
-      return "This PDF uses a format we cannot fill yet (XFA). Try a standard fillable PDF.";
+      return "This PDF uses a special form format we cannot complete yet. Export it as a regular PDF from Adobe or your browser, then upload that file.";
     case "FORM_INFERENCE_FAILED":
-      return "Omera could not read this form (AI busy). Try again in a moment, or use a fillable PDF.";
+    case "CHAT_UNAVAILABLE":
+      return "Omera could not read this form right now (the AI is busy). Wait a moment and try again.";
     case "FORM_TRANSLATION_FAILED":
-      return "Omera could not read field labels (AI busy). Try again in a moment.";
+      return "Omera could not read the field labels right now. Wait a moment and try again.";
+    case "MALFORMED_PDF":
+    case "INVALID_PDF":
+      return "This file does not look like a usable PDF. Try exporting or printing it to PDF again.";
     case "FORMS_STORAGE_UNAVAILABLE":
       return "Form storage is not configured on the server. Supabase is required for upload and export.";
     case "STORAGE_UPLOAD_FAILED":

@@ -99,6 +99,7 @@ beforeEach(() => {
   } as never);
   vi.mocked(inspectPdfFields).mockResolvedValue(DEFS as never);
   vi.mocked(extractFormFields).mockResolvedValue(INTERPRETED as never);
+  vi.mocked(inferFormFieldsFromDocument).mockReset();
   vi.mocked(createFormSession).mockImplementation(async (input) => ({
     id: "session-1",
     fileName: input.fileName,
@@ -166,10 +167,32 @@ it("a_scan_is_rejected_when_inference_finds_nothing", async () => {
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(422);
   expect(await response.json()).toStrictEqual({
-    error: "NO_FILLABLE_FIELDS",
+    error: "UNREADABLE_DOCUMENT",
   });
   expect(bucketState.uploaded).toHaveLength(0);
   expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
+});
+
+it("an_encrypted_pdf_is_rejected_without_inference", async () => {
+  vi.mocked(inspectPdfFields).mockRejectedValueOnce(new Error("ENCRYPTED_PDF"));
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(422);
+  expect(await response.json()).toStrictEqual({ error: "ENCRYPTED_PDF" });
+  expect(vi.mocked(inferFormFieldsFromDocument)).not.toHaveBeenCalled();
+});
+
+it("inference_busy_returns_502_without_asking_for_a_fillable_file", async () => {
+  vi.mocked(inspectPdfFields).mockRejectedValueOnce(
+    new Error("NO_FILLABLE_FIELDS"),
+  );
+  vi.mocked(inferFormFieldsFromDocument).mockRejectedValueOnce(
+    new Error("FORM_INFERENCE_FAILED"),
+  );
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(502);
+  expect(await response.json()).toStrictEqual({
+    error: "FORM_INFERENCE_FAILED",
+  });
 });
 
 it("an_unsupported_format_returns_415", async () => {

@@ -77,7 +77,7 @@ export async function appendAnswersSummaryPdf(
   y -= 28;
   y = drawWrapped(
     page,
-    "This PDF had no fillable fields. Your answers are listed below; print and attach if needed.",
+    "Your original form is included above. Answers from your conversation with Omera are listed below.",
     margin,
     y,
     contentWidth,
