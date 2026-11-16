@@ -15,7 +15,12 @@ export function isClerkUserId(userId: string): boolean {
 
 /** Clerk is the only auth provider. Supabase (if configured) stores app data only. */
 export async function requireIdentity(): Promise<Identity> {
-  const { userId: clerkUserId } = await auth();
+  let clerkUserId: string | null = null;
+  try {
+    clerkUserId = (await auth()).userId ?? null;
+  } catch {
+    throw new ApiError("UNAUTHORIZED", 401);
+  }
   if (!clerkUserId) throw new ApiError("UNAUTHORIZED", 401);
 
   if (!isSupabaseConfigured()) {

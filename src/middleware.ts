@@ -23,7 +23,7 @@ export default clerkMiddleware(async (auth, request) => {
   // API routes authenticate in-handler (`requireIdentity`) so a missing Clerk
   // cookie returns JSON 401 — not Clerk's HTML 404 protect-rewrite, which the
   // form page previously showed as a generic "could not read this PDF" error.
-  if (isApiRoute(request)) return;
+  if (isApiRoute(request)) return NextResponse.next();
 
   const { userId } = await auth();
   if (!userId) {

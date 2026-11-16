@@ -39,6 +39,14 @@ describe("requireIdentity", () => {
     expect(findOmeraUserByAuthId).not.toHaveBeenCalled();
   });
 
+  it("rejects when Clerk auth itself throws", async () => {
+    vi.mocked(auth).mockRejectedValue(new Error("dev-browser-missing"));
+    await expect(requireIdentity()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      status: 401,
+    });
+  });
+
   it("uses clerk id directly when database is not configured", async () => {
     vi.mocked(isSupabaseConfigured).mockReturnValue(false);
     vi.mocked(auth).mockResolvedValue({ userId: "user_clerk_1" } as never);
