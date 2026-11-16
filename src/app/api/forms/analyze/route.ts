@@ -21,6 +21,7 @@ import type { StoredFormField } from "@/lib/db/form-sessions";
 import { identityFallbackFields } from "@/lib/forms/identity-fallback-fields";
 import {
   FORMS_BUCKET,
+  FormStorageError,
   removeStoredObject,
   storeOriginal,
 } from "@/lib/forms/storage";
@@ -253,7 +254,17 @@ export async function POST(request: Request) {
         bytes: file.bytes,
         contentType: "application/pdf",
       });
-    } catch {
+    } catch (error) {
+      const detail =
+        error instanceof FormStorageError
+          ? error.detail
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      console.error("[forms/analyze] STORAGE_UPLOAD_FAILED", detail);
+      if (error instanceof FormStorageError && error.code === "FILE_TOO_LARGE") {
+        throw new ApiError("FILE_TOO_LARGE", 413);
+      }
       throw new ApiError("STORAGE_UPLOAD_FAILED", 502);
     }
 
@@ -295,7 +306,11 @@ export async function POST(request: Request) {
     console.error(
       "[forms/analyze]",
       code,
-      error instanceof Error ? error.message : error,
+      error instanceof FormStorageError
+        ? error.detail
+        : error instanceof Error
+          ? error.message
+          : error,
     );
     return apiErrorResponse(error);
   }

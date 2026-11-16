@@ -38,7 +38,9 @@ Redeploy after saving (Deployments → … → Redeploy, or push to `main` when 
    - `supabase/migrations/20261014091000_omera_request_limits.sql`
    - `supabase/migrations/20261014092000_omera_form_documents.sql`
 3. Run `20261017000000_clerk_identity.sql` so `omera_users.auth_user_id` stores Clerk ids.
-4. Login is **Clerk only** — do not enable Supabase Auth for Omera.
+4. Run `20261116130000_form_bucket_10mb.sql` and `20261116220000_ensure_form_bucket.sql` so `omera-forms` exists at 10 MB, PDF only. If MCP cannot reach the project, paste that SQL in the dashboard SQL editor.
+5. After changing `SUPABASE_URL`, also replace `SUPABASE_SERVICE_ROLE_KEY` with the **service_role** key from that same project (Settings → API). A URL/key mismatch fails uploads after the PDF is read (`STORAGE_UPLOAD_FAILED`).
+6. Login is **Clerk only** — do not enable Supabase Auth for Omera.
 
 ## 3. Chat model (Xavani or OpenRouter)
 

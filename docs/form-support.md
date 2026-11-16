@@ -23,10 +23,13 @@ PKI digital signature and does not use certificate signing.
 Analyzed uploads must be PDF bytes (magic `%PDF-`). Accepted `Content-Type`
 values include `application/pdf`, common PDF aliases, and
 `application/octet-stream` when the bytes are still a PDF. The Supabase
-`omera-forms` bucket is **PDF-only** at 10 MB (see migration
-`20261116130000_form_bucket_10mb.sql`). Apply that migration on production
-Supabase; until then the bucket may still reject at 4 MB. DOCX/images are not
-analyzed on the form route in this MVP.
+`omera-forms` bucket is **PDF-only** at 10 MB (see
+`20261116130000_form_bucket_10mb.sql` and
+`20261116220000_ensure_form_bucket.sql`). Uploads always send
+`Content-Type: application/pdf`. Apply the ensure migration on production
+Supabase (`lpnlyethmoilqwoekvmc`); until then a 4 MB bucket rejects after
+the PDF is read (`STORAGE_UPLOAD_FAILED` or `FILE_TOO_LARGE`). DOCX/images
+are not analyzed on the form route in this MVP.
 
 ## Rejected documents
 
@@ -69,4 +72,32 @@ analyzed on the form route in this MVP.
 
 The `omera-forms` bucket matches the application boundary: 10 MB maximum and
 `application/pdf` only. Larger or other types are rejected before upload. If
-the live bucket is still 4 MB, apply `20261116130000_form_bucket_10mb.sql`.
+the live bucket is missing or still 4 MB, run this in the Supabase SQL editor
+for project `lpnlyethmoilqwoekvmc`:
+
+```sql
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'omera-forms',
+  'omera-forms',
+  false,
+  10000000,
+  array['application/pdf']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+```
+
+Confirm with:
+
+```sql
+select id, public, file_size_limit, allowed_mime_types
+from storage.buckets
+where id = 'omera-forms';
+```
+
+`file_size_limit` must be `10000000` (not `4000000`). The service-role JWT
+must belong to the same project as `SUPABASE_URL`.

@@ -92,10 +92,17 @@ function postPdf(
   });
 }
 
-function fakeBucket(state: { uploaded: string[]; removed: string[]; failUpload?: boolean }) {
+function fakeBucket(state: {
+  uploaded: string[];
+  removed: string[];
+  failUpload?: boolean;
+  uploadError?: unknown;
+}) {
   return {
     upload: vi.fn(async (path: string) => {
-      if (state.failUpload) return { error: new Error("disk full") };
+      if (state.failUpload) {
+        return { error: state.uploadError ?? new Error("disk full") };
+      }
       state.uploaded.push(path);
       return { error: null };
     }),
@@ -309,11 +316,26 @@ it("an_oversized_file_returns_413", async () => {
 
 it("a_storage_failure_returns_502", async () => {
   bucketState.failUpload = true;
+  const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(502);
   expect(await response.json()).toStrictEqual({
     error: "STORAGE_UPLOAD_FAILED",
   });
+  expect(spy.mock.calls.flat().join(" ")).toMatch(/disk full/);
+  expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
+  spy.mockRestore();
+});
+
+it("a_bucket_size_limit_returns_413", async () => {
+  bucketState.failUpload = true;
+  bucketState.uploadError = {
+    message: "The object exceeded the maximum allowed size",
+    statusCode: 413,
+  };
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(413);
+  expect(await response.json()).toStrictEqual({ error: "FILE_TOO_LARGE" });
   expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
 });
 
