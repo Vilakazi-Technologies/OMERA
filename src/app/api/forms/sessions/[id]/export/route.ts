@@ -131,7 +131,11 @@ export async function GET(_req: Request, { params }: Params) {
           fillError instanceof Error && FILL_ERRORS.has(fillError.message)
             ? fillError.message
             : "EXPORT_FAILED";
-        if (code === "NO_FILLABLE_FIELDS" || code === "EXPORT_FAILED") {
+        if (
+          code === "NO_FILLABLE_FIELDS" ||
+          code === "PDF_PAGE_LIMIT" ||
+          code === "EXPORT_FAILED"
+        ) {
           filled = await appendAnswersSummaryPdf(
             original,
             session.fields,

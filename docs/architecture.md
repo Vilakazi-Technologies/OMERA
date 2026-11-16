@@ -38,7 +38,7 @@ server.
 ## Form request flow
 
 1. Clerk session and origin check.
-2. Multipart read with a 4.1 MB cap; file capped at 4 MB.
+2. Multipart read with a 4.1 MB cap; file capped at 4 MB. Text read: first 80 pages. In-place AcroForm fill: 40 pages.
 3. Magic bytes and MIME checked; XFA, encryption, and signatures rejected.
 4. Bytes stored under a server-derived path: `<userId>/<sessionId>/<file>`.
 5. Field labels go to Xavani for translation only. Canonical ids never change.

@@ -12,9 +12,31 @@ import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
 import { activeQuestion } from "@/lib/forms/questions";
 import { formErrorMessage, missingRequiredFields } from "@/lib/forms/form-errors";
+import { isStartFillingUtterance } from "@/lib/forms/start-filling";
 import { cn } from "@/lib/cn";
 
-type Step = "upload" | "questions" | "review" | "complete";
+type Step = "upload" | "briefing" | "questions" | "review" | "complete";
+
+type ClientBrief = {
+  title: string;
+  documentKind: "tender" | "rfp" | "rfq" | "application" | "form" | "other";
+  summary: string;
+  eligibility: string;
+  deadlines: string[];
+  requiredAttachments: string[];
+  actionsNow: string[];
+  implications: string[];
+  fillableSections: string[];
+};
+
+const KIND_LABEL: Record<ClientBrief["documentKind"], string> = {
+  tender: "Tender",
+  rfp: "Request for proposal (RFP)",
+  rfq: "Request for quotation (RFQ)",
+  application: "Application",
+  form: "Form",
+  other: "Document",
+};
 
 type ClientField = {
   id: string;
@@ -34,6 +56,7 @@ type LocalSession = {
   languageId: string;
   revision: number;
   status: string;
+  brief: ClientBrief | null;
 };
 
 const FORM_REF_KEY = "omera-form-ref";
@@ -67,6 +90,50 @@ function normalizeField(raw: unknown): ClientField | null {
         ? value
         : undefined,
   };
+}
+
+function normalizeBrief(raw: unknown): ClientBrief | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const kind = record.documentKind;
+  const documentKind: ClientBrief["documentKind"] =
+    kind === "tender" ||
+    kind === "rfp" ||
+    kind === "rfq" ||
+    kind === "application" ||
+    kind === "form" ||
+    kind === "other"
+      ? kind
+      : "other";
+  const list = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && !!item.trim())
+      : [];
+  const title = typeof record.title === "string" ? record.title.trim() : "";
+  const summary = typeof record.summary === "string" ? record.summary.trim() : "";
+  if (!title && !summary) return null;
+  return {
+    title: title || "Uploaded document",
+    documentKind,
+    summary: summary || title,
+    eligibility:
+      typeof record.eligibility === "string" && record.eligibility.trim()
+        ? record.eligibility.trim()
+        : "Not stated.",
+    deadlines: list(record.deadlines),
+    requiredAttachments: list(record.requiredAttachments),
+    actionsNow: list(record.actionsNow),
+    implications: list(record.implications),
+    fillableSections: list(record.fillableSections),
+  };
+}
+
+function sessionHasAnswers(fields: ClientField[], currentIndex: number): boolean {
+  if (currentIndex > 0) return true;
+  return fields.some((field) => {
+    if (typeof field.value === "boolean") return true;
+    return typeof field.value === "string" && field.value.trim().length > 0;
+  });
 }
 
 function displayValue(field: ClientField): string {
@@ -132,7 +199,7 @@ export default function FormFillPage() {
             ? data.session.currentIndex
             : 0;
         if (cancelled) return;
-        setSession({
+        const restored: LocalSession = {
           sessionId: String(data.session.id),
           fileName: String(data.session.fileName ?? "form.pdf"),
           fields,
@@ -149,8 +216,16 @@ export default function FormFillPage() {
             typeof data.session.status === "string"
               ? data.session.status
               : "in_progress",
-        });
-        setStep(currentIndex >= fields.length ? "review" : "questions");
+          brief: normalizeBrief(data.session.brief),
+        };
+        setSession(restored);
+        if (currentIndex >= fields.length && fields.length > 0) {
+          setStep("review");
+        } else if (sessionHasAnswers(fields, currentIndex)) {
+          setStep("questions");
+        } else {
+          setStep("briefing");
+        }
       } finally {
         if (!cancelled) setRestoring(false);
       }
@@ -211,6 +286,7 @@ export default function FormFillPage() {
         typeof data.session.status === "string"
           ? data.session.status
           : session.status,
+      brief: normalizeBrief(data.session.brief) ?? session.brief,
     });
     return true;
   }
@@ -240,7 +316,7 @@ export default function FormFillPage() {
         setError(
           formErrorMessage(
             code,
-            "Omera could not read this PDF. Try again in a moment, or upload a clearer copy.",
+            "Omera could not read this PDF. If it is a scan, try a clearer copy; if it is password-protected, unlock it first. Max 4 MB.",
           ),
         );
         return;
@@ -251,6 +327,7 @@ export default function FormFillPage() {
         fields: unknown[];
         revision: number;
         status: string;
+        brief?: unknown;
       };
       const fields = data.fields
         .map(normalizeField)
@@ -267,11 +344,22 @@ export default function FormFillPage() {
         languageId,
         revision: data.revision,
         status: data.status,
+        brief: normalizeBrief(data.brief),
       });
-      setStep(fields.length ? "questions" : "review");
+      setStep("briefing");
     } finally {
       setUploading(false);
     }
+  }
+
+  function startFilling() {
+    if (!session) return;
+    setError(null);
+    if (!session.fields.length) {
+      setStep("review");
+      return;
+    }
+    setStep("questions");
   }
 
   async function submitAnswer(text: string) {
@@ -416,7 +504,7 @@ export default function FormFillPage() {
         <div>
           <h1 className="text-sm font-medium text-white">Form fill</h1>
           <p className="text-xs text-slate-500">
-            Upload · AI asks in text · You answer by voice
+            Upload · briefing · fill only the questions · download PDF
           </p>
         </div>
         <LanguageSelect value={languageId} onChange={setLanguageId} />
@@ -449,9 +537,9 @@ export default function FormFillPage() {
                 Upload your form
               </h2>
               <p className="mt-2 text-sm text-slate-400">
-                Upload a PDF. Omera asks each question one at a time — type or
-                speak your answers — then you get a completed PDF. Max
-                4&nbsp;MB.
+                Tenders, RFPs, RFQs, and application packs — not only short
+                fillable PDFs. Omera reads the document, briefs you, then asks
+                only the fill-in questions. Max 4&nbsp;MB, first 80 pages.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
                 {uploading ? "Reading your form…" : "Choose file"}
@@ -471,11 +559,109 @@ export default function FormFillPage() {
                 <div className="mt-4 flex flex-col items-center gap-2">
                   <Loader2 className="size-6 animate-spin text-slate-400" />
                   <p className="text-sm text-slate-400">
-                    Reading your form… then the first question appears.
+                    Reading the whole document… then a short briefing.
                   </p>
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {!restoring && step === "briefing" && session && (
+          <div className="mx-auto max-w-lg">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              {KIND_LABEL[session.brief?.documentKind ?? "other"]}
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-white">
+              {session.brief?.title ?? session.fileName}
+            </h2>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              {session.fileName}
+            </p>
+            <div className="mt-4 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">
+              <p>{session.brief?.summary ?? "Omera has this file ready."}</p>
+              {session.brief?.eligibility ? (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    Who this is for
+                  </p>
+                  <p className="mt-1">{session.brief.eligibility}</p>
+                </div>
+              ) : null}
+              {session.brief?.actionsNow.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    What you must do now
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {session.brief.actionsNow.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {session.brief?.deadlines.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    Dates
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {session.brief.deadlines.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {session.brief?.requiredAttachments.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    Attachments to gather
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {session.brief.requiredAttachments.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {session.brief?.implications.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    If you skip this
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {session.brief.implications.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {session.brief?.fillableSections.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    Forms Omera will ask about
+                  </p>
+                  <p className="mt-1 text-slate-300">
+                    {session.brief.fillableSections.join(" · ")}
+                  </p>
+                </div>
+              ) : null}
+              <p className="text-xs text-slate-500">
+                {session.fields.length
+                  ? `${session.fields.length} fill-in question${session.fields.length === 1 ? "" : "s"} found. Narrative pages are skipped.`
+                  : "No fill-in blanks found yet. You can still continue, or upload a clearer copy of the returnable forms."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => startFilling()}
+              className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
+            >
+              Start filling
+            </button>
+            <p className="mt-2 text-center text-xs text-slate-500">
+              Or say “start filling” — type or tap the microphone.
+            </p>
           </div>
         )}
 
@@ -646,6 +832,18 @@ export default function FormFillPage() {
           </div>
         )}
       </div>
+
+      {!restoring && step === "briefing" && session && (
+        <ChatComposer
+          onSend={(text) => {
+            if (isStartFillingUtterance(text) || text.trim().length > 0) {
+              startFilling();
+            }
+          }}
+          placeholder="Say “start filling”, or type it…"
+          showLanguage={false}
+        />
+      )}
 
       {!restoring &&
         step === "questions" &&

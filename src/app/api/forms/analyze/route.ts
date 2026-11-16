@@ -10,6 +10,12 @@ import { createFormSession } from "@/lib/db/form-sessions";
 import { extractFormFields } from "@/lib/forms/extract-fields";
 import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
+import { extractPdfDocument } from "@/lib/forms/pdf-text";
+import { buildDocumentBrief } from "@/lib/forms/document-brief";
+import {
+  FORM_PDF_FILE_LIMIT,
+  FORM_PDF_MULTIPART_LIMIT,
+} from "@/lib/forms/pdf-limits";
 import type { FormDocumentKind } from "@/lib/forms/contracts";
 import type { StoredFormField } from "@/lib/db/form-sessions";
 import {
@@ -19,10 +25,10 @@ import {
 } from "@/lib/forms/storage";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
-const MULTIPART_LIMIT = 4100000;
-const FILE_LIMIT = 4000000;
+const MULTIPART_LIMIT = FORM_PDF_MULTIPART_LIMIT;
+const FILE_LIMIT = FORM_PDF_FILE_LIMIT;
 const PDF_MIMES = new Set([
   "application/pdf",
   "application/x-pdf",
@@ -126,6 +132,14 @@ const PDF_ERRORS = new Set([
   "ENCRYPTED_PDF",
 ]);
 
+/** Missing AcroForm, over-long packs, or odd widgets still get a text/vision path. */
+const INFER_FALLBACK = new Set([
+  "NO_FILLABLE_FIELDS",
+  "PDF_PAGE_LIMIT",
+  "UNSUPPORTED_FIELD_TYPE",
+  "INVALID_PDF",
+]);
+
 function classifyInspectError(error: unknown): string {
   if (error instanceof ApiError) return error.code;
   if (error instanceof Error && PDF_ERRORS.has(error.message)) return error.message;
@@ -182,6 +196,15 @@ export async function POST(request: Request) {
     }
 
     const languageId = (fields.get("languageId") ?? "eng").trim() || "eng";
+    const fileName = file.fileName || "form.pdf";
+    const extracted = await extractPdfDocument(Buffer.from(file.bytes)).catch(
+      () => ({
+        pages: [] as { pageNumber: number; text: string }[],
+        text: "",
+        totalPages: 0,
+        truncated: false,
+      }),
+    );
 
     let interpreted: StoredFormField[];
     let documentKind: FormDocumentKind = "acroform";
@@ -200,19 +223,25 @@ export async function POST(request: Request) {
         throw error;
       }
       const code = classifyInspectError(error);
-      if (code !== "NO_FILLABLE_FIELDS") throw new ApiError(code, 422);
+      if (!INFER_FALLBACK.has(code)) throw new ApiError(code, 422);
       try {
         interpreted = await inferFormFieldsFromDocument(file.bytes, {
           languageId,
+          document: extracted,
         });
       } catch (inferError) {
         const mapped = classifyInferError(inferError);
         throw new ApiError(mapped.code, mapped.status);
       }
-      if (!interpreted.length) {
-        throw new ApiError("UNREADABLE_DOCUMENT", 422);
-      }
       documentKind = "flat";
+    }
+
+    const brief = await buildDocumentBrief(extracted.text, {
+      languageId,
+      fileName,
+    });
+    if (!interpreted.length && extracted.text.trim().length < 40) {
+      throw new ApiError("UNREADABLE_DOCUMENT", 422);
     }
 
     const documentSha256 = createHash("sha256")
@@ -226,7 +255,7 @@ export async function POST(request: Request) {
       storagePath = await storeOriginal(bucket, {
         userId: identity.userId,
         sessionId,
-        fileName: file.fileName || "form.pdf",
+        fileName,
         bytes: file.bytes,
         contentType: "application/pdf",
       });
@@ -237,12 +266,13 @@ export async function POST(request: Request) {
     try {
       const session = await createFormSession({
         userId: identity.userId,
-        fileName: file.fileName || "form.pdf",
+        fileName,
         storagePath,
         fields: interpreted,
         languageId,
         documentSha256,
         documentKind,
+        brief,
       });
       return NextResponse.json(
         {
@@ -251,8 +281,11 @@ export async function POST(request: Request) {
           fields: session.fields,
           revision: session.revision,
           status: session.status,
+          brief: session.brief ?? brief,
+          truncated: extracted.truncated,
+          pageCount: extracted.totalPages,
           message:
-            "I've read your form. I'll ask you each question in text — answer with your voice or keyboard.",
+            "I've read your document. Confirm to start filling — I will only ask the questions on the form.",
         },
         { status: 201 },
       );

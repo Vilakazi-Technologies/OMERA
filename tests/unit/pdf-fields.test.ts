@@ -438,22 +438,22 @@ it("rejects incorrect PDF magic on an otherwise valid PDF", async () => {
   await rejectBoth(source, "INVALID_PDF");
 });
 
-it("accepts exactly 20 pages and 100 fillable fields, preserving exact IDs and page sizes", async () => {
-  const source = await boundaryFixture(20, 100);
+it("accepts exactly 40 pages and 100 fillable fields, preserving exact IDs and page sizes", async () => {
+  const source = await boundaryFixture(40, 100);
   const expected = Array.from({ length: 100 }, (_, index) => `field_${index}`);
   expect((await inspectPdfFields(source)).map((field) => field.id)).toEqual(expected);
   const output = await fillPdfFields(source, { field_99: "00123" }, await fontFixture);
   const pdf = await PDFDocument.load(output);
-  expect(pdf.getPageCount()).toBe(20);
+  expect(pdf.getPageCount()).toBe(40);
   expect(pdf.getPages().map((page) => page.getSize())).toEqual(
-    Array.from({ length: 20 }, () => ({ width: 200, height: 200 })),
+    Array.from({ length: 40 }, () => ({ width: 200, height: 200 })),
   );
   expect(pdf.getForm().getFields().map((field) => field.getName())).toEqual(expected);
   expect(pdf.getForm().getTextField("field_99").getText()).toBe("00123");
 });
 
-it("rejects 21 pages", async () => {
-  await rejectBoth(await boundaryFixture(21), "PDF_PAGE_LIMIT");
+it("rejects 41 pages for in-place fill", async () => {
+  await rejectBoth(await boundaryFixture(41), "PDF_PAGE_LIMIT");
 });
 
 it("rejects 101 fillable fields", async () => {

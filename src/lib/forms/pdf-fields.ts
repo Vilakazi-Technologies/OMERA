@@ -3,6 +3,10 @@ import {
   PDFButton, PDFCheckBox, PDFDocument, PDFDropdown, PDFField, PDFName,
   PDFPage, PDFRadioGroup, PDFSignature, PDFTextField, PDFFont, rgb,
 } from "pdf-lib";
+import {
+  FORM_PDF_FILE_LIMIT,
+  FORM_PDF_FILL_PAGE_LIMIT,
+} from "@/lib/forms/pdf-limits";
 
 export type PdfFieldInfo = {
   id: string;
@@ -84,7 +88,7 @@ function isEncryptedPdfError(error: unknown): boolean {
 }
 
 async function load(bytes: Uint8Array) {
-  if (!bytes.length || bytes.length > 4000000) throw new Error("INVALID_PDF_SIZE");
+  if (!bytes.length || bytes.length > FORM_PDF_FILE_LIMIT) throw new Error("INVALID_PDF_SIZE");
   if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("INVALID_PDF");
   let pdf: PDFDocument;
   try {
@@ -93,7 +97,7 @@ async function load(bytes: Uint8Array) {
     if (isEncryptedPdfError(error)) throw new Error("ENCRYPTED_PDF");
     throw new Error("INVALID_PDF");
   }
-  if (pdf.getPageCount() > 20) throw new Error("PDF_PAGE_LIMIT");
+  if (pdf.getPageCount() > FORM_PDF_FILL_PAGE_LIMIT) throw new Error("PDF_PAGE_LIMIT");
   if (pdf.catalog.getAcroForm()?.dict.has(PDFName.of("XFA"))) throw new Error("UNSUPPORTED_XFA");
   const form = pdf.getForm();
   const fields = form.getFields().map(describe).filter((field): field is PdfFieldInfo => field !== null);

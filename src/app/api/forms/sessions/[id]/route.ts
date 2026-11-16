@@ -30,6 +30,7 @@ export function toClientSession(session: FormSessionRecord) {
     revision: session.revision,
     status: session.status,
     documentKind: session.documentKind,
+    brief: session.brief,
   };
 }
 

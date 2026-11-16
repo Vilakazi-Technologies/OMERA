@@ -68,6 +68,7 @@ function sessionFor(
     documentKind: "acroform",
     revision: 4,
     status: "review",
+    brief: null,
   };
 }
 

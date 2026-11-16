@@ -28,6 +28,18 @@ const FIELDS = [
   },
 ];
 
+const BRIEF = {
+  title: "Leave application",
+  documentKind: "application" as const,
+  summary: "A staff leave form for municipal employees.",
+  eligibility: "Permanent staff.",
+  deadlines: ["Submit before month end"],
+  requiredAttachments: [],
+  actionsNow: ["Fill in your name and dates"],
+  implications: ["Incomplete forms are returned"],
+  fillableSections: ["Applicant details"],
+};
+
 function analyzePayload() {
   return {
     sessionId: "s-1",
@@ -35,6 +47,7 @@ function analyzePayload() {
     fields: FIELDS,
     revision: 1,
     status: "in_progress",
+    brief: BRIEF,
   };
 }
 
@@ -49,6 +62,7 @@ function sessionPayload(currentIndex: number, values: Record<string, string>) {
       revision: 2,
       status: "in_progress",
       documentKind: "acroform",
+      brief: BRIEF,
     },
   };
 }
@@ -71,6 +85,8 @@ async function upload() {
       files: [new File(["%PDF-1.7"], "form.pdf", { type: "application/pdf" })],
     },
   });
+  await screen.findByRole("button", { name: "Start filling" });
+  fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
   await screen.findByText("What is your full name?");
 }
 
@@ -121,9 +137,36 @@ describe("form page review flow", () => {
       },
     });
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/could not read/i);
+    expect(alert.textContent).toMatch(/could not read|clearer|scan|password|4 MB/i);
     expect(alert.textContent).not.toMatch(/acroform/i);
     expect(alert.textContent).not.toMatch(/fillable/i);
+  });
+
+  it("shows a briefing before questions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return jsonResponse(analyzePayload(), 201);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.7"], "form.pdf", { type: "application/pdf" })],
+      },
+    });
+    await screen.findByText("A staff leave form for municipal employees.");
+    expect(screen.getByText("What you must do now")).toBeVisible();
+    expect(screen.queryByText("What is your full name?")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
+    await screen.findByText("What is your full name?");
   });
 
   it("treats a clerk 404 HTML rewrite as a sign-in problem", async () => {
@@ -225,6 +268,8 @@ describe("form page review flow", () => {
       }),
     );
     render(<FormFillPage />);
+    await screen.findByRole("button", { name: "Start filling" });
+    fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
     await screen.findByText("What is your full name?");
     // Only the session reference is stored locally — never form answers.
     const stored = JSON.parse(

@@ -25,6 +25,16 @@ it("ignores empty or instruction-only text", () => {
   expect(inferFieldsFromExtractedText("Please complete this form.")).toEqual([]);
 });
 
+it("skips narrative paragraphs that are not fill-in lines", () => {
+  const fields = inferFieldsFromExtractedText(
+    [
+      "The appointed firm must produce annual financial statements for three years without asking the user to type that paragraph.",
+      "Company name: ______",
+    ].join("\n"),
+  );
+  expect(fields.map((field) => field.label)).toEqual(["Company name"]);
+});
+
 it("reads a generated flat PDF and lists the blanks", async () => {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage();

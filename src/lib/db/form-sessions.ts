@@ -4,6 +4,7 @@ import type {
   FormDocumentKind,
   FormDocumentStatus,
 } from "@/lib/forms/contracts";
+import type { FormDocumentBrief } from "@/lib/forms/document-brief";
 import type { FormField, FormSession } from "@/lib/types";
 
 export type StoredFormField = FormField & {
@@ -22,10 +23,23 @@ export type FormSessionRecord = {
   documentKind: FormDocumentKind | null;
   revision: number;
   status: FormDocumentStatus;
+  brief: FormDocumentBrief | null;
 };
 
 const FULL_COLUMNS =
+  "id, file_name, storage_path, fields_json, current_index, language_id, document_sha256, document_kind, revision, status, brief_json";
+
+const LEGACY_COLUMNS =
   "id, file_name, storage_path, fields_json, current_index, language_id, document_sha256, document_kind, revision, status";
+
+function missingBriefColumn(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    /brief_json/i.test(error.message ?? "") ||
+    error.code === "PGRST204" ||
+    error.code === "42703"
+  );
+}
 
 function toRecord(data: {
   id: string;
@@ -38,6 +52,7 @@ function toRecord(data: {
   document_kind: FormDocumentKind | null;
   revision: number;
   status: FormDocumentStatus;
+  brief_json?: FormDocumentBrief | null;
 }): FormSessionRecord {
   return {
     id: data.id,
@@ -50,6 +65,7 @@ function toRecord(data: {
     documentKind: data.document_kind,
     revision: data.revision,
     status: data.status,
+    brief: data.brief_json ?? null,
   };
 }
 
@@ -63,25 +79,41 @@ export async function createFormSession(input: {
   documentSha256?: string | null;
   documentKind?: FormDocumentKind | null;
   status?: FormDocumentStatus;
+  brief?: FormDocumentBrief | null;
 }): Promise<FormSessionRecord> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  const row = {
+    user_id: input.userId,
+    file_name: input.fileName,
+    storage_path: input.storagePath ?? null,
+    fields_json: input.fields,
+    current_index: 0,
+    language_id: input.languageId,
+    conversation_id: input.conversationId ?? null,
+    document_sha256: input.documentSha256 ?? null,
+    document_kind: input.documentKind ?? null,
+    revision: 1,
+    status: input.status ?? "in_progress",
+    brief_json: input.brief ?? null,
+  };
+  let { data, error } = await supabase
     .from("omera_form_sessions")
-    .insert({
-      user_id: input.userId,
-      file_name: input.fileName,
-      storage_path: input.storagePath ?? null,
-      fields_json: input.fields,
-      current_index: 0,
-      language_id: input.languageId,
-      conversation_id: input.conversationId ?? null,
-      document_sha256: input.documentSha256 ?? null,
-      document_kind: input.documentKind ?? null,
-      revision: 1,
-      status: input.status ?? "in_progress",
-    })
+    .insert(row)
     .select(FULL_COLUMNS)
     .single();
+
+  if (missingBriefColumn(error)) {
+    const { brief_json: _ignored, ...withoutBrief } = row;
+    const retry = await supabase
+      .from("omera_form_sessions")
+      .insert(withoutBrief)
+      .select(
+        "id, file_name, storage_path, fields_json, current_index, language_id, document_sha256, document_kind, revision, status",
+      )
+      .single();
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
 
   if (error) throw error;
 
@@ -121,13 +153,25 @@ export async function updateFormSession(
   if (patch.storagePath !== undefined) {
     update["storage_path"] = patch.storagePath;
   }
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("omera_form_sessions")
     .update(update)
     .eq("id", sessionId)
     .eq("user_id", userId)
     .select(FULL_COLUMNS)
     .single();
+
+  if (missingBriefColumn(error)) {
+    const retry = await supabase
+      .from("omera_form_sessions")
+      .update(update)
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .select(LEGACY_COLUMNS)
+      .single();
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
 
   if (error) throw error;
   return toRecord(
@@ -153,12 +197,22 @@ export async function getFormSession(
   userId: string,
 ): Promise<FormSessionRecord | null> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("omera_form_sessions")
     .select(FULL_COLUMNS)
     .eq("id", sessionId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (missingBriefColumn(error)) {
+    const retry = await supabase
+      .from("omera_form_sessions")
+      .select(LEGACY_COLUMNS)
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
   if (error) throw error;
   if (!data) return null;
   return toRecord(
@@ -170,11 +224,20 @@ export async function listFormSessions(
   userId: string,
 ): Promise<FormSessionRecord[]> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("omera_form_sessions")
     .select(FULL_COLUMNS)
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
+  if (missingBriefColumn(error)) {
+    const retry = await supabase
+      .from("omera_form_sessions")
+      .select(LEGACY_COLUMNS)
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
   if (error) throw error;
   return ((data ?? []) as unknown as Parameters<typeof toRecord>[0][]).map(
     toRecord,

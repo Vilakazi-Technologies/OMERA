@@ -10,6 +10,9 @@ it("never mentions AcroForm or fillable jargon", () => {
     "FORM_INFERENCE_FAILED",
     "MALFORMED_PDF",
     "UNAUTHORIZED",
+    "PDF_PAGE_LIMIT",
+    "FILE_TOO_LARGE",
+    "ENCRYPTED_PDF",
   ];
   for (const code of codes) {
     const message = formErrorMessage(code, "fallback");

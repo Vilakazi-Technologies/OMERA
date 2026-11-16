@@ -9,13 +9,23 @@ vi.mock("@/lib/ai/openrouter-client", () => ({
   isOpenRouterConfigured: vi.fn(() => true),
 }));
 vi.mock("@/lib/forms/pdf-text", () => ({
+  extractPdfDocument: vi.fn(),
   extractTextFromPdf: vi.fn(),
   screenshotPdfPages: vi.fn(),
 }));
 
 import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
 import { completeOpenRouterVisionJson } from "@/lib/ai/openrouter-client";
-import { extractTextFromPdf, screenshotPdfPages } from "@/lib/forms/pdf-text";
+import { extractPdfDocument, screenshotPdfPages } from "@/lib/forms/pdf-text";
+
+function textDoc(text: string) {
+  return {
+    pages: text ? [{ pageNumber: 1, text }] : [],
+    text,
+    totalPages: 1,
+    truncated: false,
+  };
+}
 import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
@@ -32,7 +42,7 @@ const NAME_FIELD = {
 };
 
 beforeEach(() => {
-  vi.mocked(extractTextFromPdf).mockReset();
+  vi.mocked(extractPdfDocument).mockReset();
   vi.mocked(screenshotPdfPages).mockReset();
   vi.mocked(completeConfiguredJson).mockReset();
   vi.mocked(completeOpenRouterVisionJson).mockReset();
@@ -40,8 +50,8 @@ beforeEach(() => {
 });
 
 it("maps inferred AI fields to stored session fields", async () => {
-  vi.mocked(extractTextFromPdf).mockResolvedValueOnce(
-    "Application for leave\nName: ______\nSignature: ______",
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc("Application for leave\nName: ______\nSignature: ______"),
   );
   vi.mocked(completeConfiguredJson).mockImplementationOnce(
     async (_system, _input, parse) =>
@@ -72,7 +82,7 @@ it("maps inferred AI fields to stored session fields", async () => {
 });
 
 it("uses vision when extracted text is too short", async () => {
-  vi.mocked(extractTextFromPdf).mockResolvedValueOnce("short");
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(textDoc("short"));
   vi.mocked(screenshotPdfPages).mockResolvedValueOnce([
     "data:image/png;base64,aaa",
   ]);
@@ -91,8 +101,8 @@ it("uses vision when extracted text is too short", async () => {
 });
 
 it("uses vision when the text model fails on a text PDF", async () => {
-  vi.mocked(extractTextFromPdf).mockResolvedValueOnce(
-    "Application for leave\nName: ______\nDate: ______",
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc("Application for leave\nName: ______\nDate: ______"),
   );
   vi.mocked(completeConfiguredJson).mockRejectedValueOnce(
     new Error("INVALID_INFERRED_FIELDS"),
@@ -110,7 +120,7 @@ it("uses vision when the text model fails on a text PDF", async () => {
 });
 
 it("rejects blank scans when vision also finds nothing", async () => {
-  vi.mocked(extractTextFromPdf).mockResolvedValueOnce("");
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(textDoc(""));
   vi.mocked(screenshotPdfPages).mockResolvedValueOnce([]);
   await expect(
     inferFormFieldsFromDocument(PDF_BYTES, { languageId: "eng" }),
@@ -118,8 +128,8 @@ it("rejects blank scans when vision also finds nothing", async () => {
 });
 
 it("accepts slightly messy model JSON instead of failing the session", async () => {
-  vi.mocked(extractTextFromPdf).mockResolvedValueOnce(
-    "Application for annual leave\nFull name: ______\nStart date: ______",
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc("Application for annual leave\nFull name: ______\nStart date: ______"),
   );
   vi.mocked(completeConfiguredJson).mockImplementationOnce(
     async (_system, _input, parse) =>
@@ -144,8 +154,10 @@ it("accepts slightly messy model JSON instead of failing the session", async () 
 });
 
 it("starts a session from labeled blanks when AI is down", async () => {
-  vi.mocked(extractTextFromPdf).mockResolvedValueOnce(
-    "Application for leave\nFull name: ______\nDate: ______\nSignature: ______",
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc(
+      "Application for leave\nFull name: ______\nDate: ______\nSignature: ______",
+    ),
   );
   vi.mocked(completeConfiguredJson).mockRejectedValue(
     new Error("CHAT_UNAVAILABLE"),
@@ -158,4 +170,19 @@ it("starts a session from labeled blanks when AI is down", async () => {
     expect.arrayContaining(["Full name", "Date", "Signature"]),
   );
   expect(fields.find((field) => field.kind === "signature")).toBeTruthy();
+});
+
+it("returns no questions for readable narrative instead of rejecting the pack", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc(
+      "Invitation to tender\nThe municipality seeks a registered accounting firm.\nEvaluation criteria are listed in section 4.",
+    ),
+  );
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) => parse({ fields: [] }),
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields).toEqual([]);
 });

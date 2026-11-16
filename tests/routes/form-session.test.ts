@@ -65,6 +65,7 @@ function stored(): FormSessionRecord {
     documentKind: "acroform",
     revision: 3,
     status: "in_progress",
+    brief: null,
   };
 }
 

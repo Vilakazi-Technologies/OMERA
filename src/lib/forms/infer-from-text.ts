@@ -1,9 +1,10 @@
 import type { StoredFormField } from "@/lib/db/form-sessions";
 import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
+import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
-const MAX_HEURISTIC_FIELDS = 50;
+const MAX_HEURISTIC_FIELDS = FORM_MAX_INFERRED_FIELDS;
 const SKIP_LINE =
-  /^(page\s+\d+|application|form|instructions?|please\s+(complete|fill)|note:)/i;
+  /^(page\s+\d+|application|form|instructions?|please\s+(complete|fill)|note:|background|introduction|scope of work|evaluation criteria)/i;
 
 function slugId(label: string, index: number): string {
   const base = label
@@ -46,6 +47,10 @@ export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
     const line = raw.replace(/\u00a0/g, " ").trim();
     if (line.length < 3 || line.length > 160) continue;
     if (SKIP_LINE.test(line)) continue;
+    const words = line.split(/\s+/).length;
+    if (words > 14 && !/[:_]/.test(line) && !/[\[\(]\s*[\]\)]/.test(line)) {
+      continue;
+    }
 
     const labeled = /^(.{2,80}?)[:?]\s*(_{2,}|\[?\s*\]|\.+$|$)/.exec(line);
     const underlined = /^(.{2,80}?)\s+_{3,}/.exec(line);

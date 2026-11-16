@@ -3,9 +3,13 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
   switch (code) {
     case "NO_FILLABLE_FIELDS":
     case "UNREADABLE_DOCUMENT":
-      return "Omera could not read any questions on this PDF. It may be a blank scan, too faint to read, or empty. Try a clearer copy, or a PDF that already has text.";
+      return "Omera could not read this PDF. It may be a faint scan, a photo of pages, or empty. Export a clearer text PDF (Print to PDF), or photograph each page in good light, then upload again.";
+    case "PDF_PAGE_LIMIT":
+      return "This PDF is longer than Omera can fill in place (40 pages). Upload the returnable forms section, or a pack of at most 80 pages so Omera can still brief you and add an answers page.";
+    case "INVALID_PDF_SIZE":
+      return "This PDF is larger than the 4 MB upload limit. Compress it or export a smaller copy, then try again.";
     case "ENCRYPTED_PDF":
-      return "This PDF is password-protected. Remove the password in your PDF app, then upload it again.";
+      return "This PDF is password-protected. Remove the password in your PDF app (unlock it), then upload the copy.";
     case "UNSUPPORTED_XFA":
       return "This PDF uses a special form format we cannot complete yet. Export it as a regular PDF from Adobe or your browser, then upload that file.";
     case "FORM_INFERENCE_FAILED":
@@ -28,7 +32,7 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
     case "UNSUPPORTED_CHARACTER":
       return "An answer uses characters this PDF font cannot display. Try simpler spelling or English for that field.";
     case "FILE_TOO_LARGE":
-      return "PDF is too large (max 4 MB). Use a smaller file.";
+      return "This PDF is larger than 4 MB. Compress it or split the tender pack, then upload again.";
     case "UNAUTHORIZED":
       return "Sign in to Omera, then upload your form again.";
     case "ORIGIN_FORBIDDEN":

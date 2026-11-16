@@ -15,6 +15,8 @@ test.describe("completed form flow", () => {
     // Upload a fillable AcroForm PDF (gate G4 fixture).
     const upload = page.locator('input[type="file"]');
     await upload.setInputFiles("tests/e2e/fixtures/g4-acroform.pdf");
+    await expect(page.getByRole("button", { name: "Start filling" })).toBeVisible();
+    await page.getByRole("button", { name: "Start filling" }).click();
     await expect(page.getByText("Field 1 of")).toBeVisible();
 
     // Question: exactly one active question per screen.

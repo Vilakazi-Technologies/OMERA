@@ -8,8 +8,8 @@ as the success output, no automatic speech output.
 
 | Class | Path | Limits |
 |---|---|---|
-| AcroForm PDF with fillable fields | C10 codec inspect (`inspectPdfFields`) → Xavani labels/prompts (`extractFormFields`) → C10 fill (`fillPdfFields`) on export | ≤ 4 000 000 byte upload; ≤ 20 pages; ≤ 100 fillable fields; approved font `assets/fonts/NotoSans-Regular.ttf`; export response ≤ 8 000 000 bytes |
-| Flat / text PDF (no AcroForm) | Text extract (`extractTextFromPdf`) → AI field inference (`inferFormFieldsFromDocument`) → answers appendix page on export (`appendAnswersSummaryPdf`) | Needs enough extractable text (not a blank scan); ≤ 50 inferred fields; download adds a **Completed answers** page — original pages are not overlaid |
+| AcroForm PDF with fillable fields | C10 codec inspect (`inspectPdfFields`) → Xavani labels/prompts (`extractFormFields`) → C10 fill (`fillPdfFields`) on export | ≤ 4 000 000 byte upload; ≤ **40 pages** for in-place fill; ≤ 100 fillable fields; approved font `assets/fonts/NotoSans-Regular.ttf`; export response ≤ 8 000 000 bytes |
+| Mixed / flat PDF (tender, RFP, RFQ, no AcroForm, or over 40 pages) | Text extract (first **80 pages**, 80 000 characters) → document briefing → field inference (heuristic + AI; vision on form-like pages) → answers appendix on export | Missing AcroForm is not a failure. Readable text with no blanks still gets a briefing. Blank/faint scans 422 (`UNREADABLE_DOCUMENT`). ≤ 50 inferred fields; download adds a **Completed answers** page |
 | Owner flat templates (optional) | Approved fingerprint in `templates.ts` → rectangle overlay (gate G4) | Registry starts empty; unknown fingerprints are not used for inference |
 
 ### Signatures
@@ -33,8 +33,8 @@ form route in this MVP.
 - Encrypted documents (422) — never decrypted server-side.
 - Unsupported MIME types (415) — non-PDF on the analyze route.
 - Files over 4 000 000 bytes (413); multipart bodies over 4 100 000 bytes (413).
-- Malformed PDFs and bad magic bytes (422); scans with no text and no AcroForm
-  (422, `NO_FILLABLE_FIELDS`).
+- Malformed PDFs and bad magic bytes (422); scans with no extractable text
+  (422, `UNREADABLE_DOCUMENT`). Long packs without AcroForm are inferred, not rejected.
 - Text that exceeds an approved rectangle (422, `VALUE_TOO_LONG`); choices
   outside the stored options (400/422, `INVALID_CHOICE`); missing required
   values (400/422, `MISSING_REQUIRED_VALUE` / `REQUIRED_FIELD`).

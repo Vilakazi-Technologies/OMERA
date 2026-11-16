@@ -20,8 +20,17 @@ vi.mock("@/lib/forms/extract-fields", () => ({
 vi.mock("@/lib/forms/infer-form-fields", () => ({
   inferFormFieldsFromDocument: vi.fn(),
 }));
+vi.mock("@/lib/forms/pdf-text", () => ({
+  extractPdfDocument: vi.fn(),
+}));
+vi.mock("@/lib/forms/document-brief", () => ({
+  buildDocumentBrief: vi.fn(),
+}));
 vi.mock("@/lib/db/form-sessions", () => ({
   createFormSession: vi.fn(),
+}));
+vi.mock("@/lib/limits/rate-limit", () => ({
+  allowRequest: vi.fn(() => true),
 }));
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
@@ -29,8 +38,22 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractFormFields } from "@/lib/forms/extract-fields";
 import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
+import { extractPdfDocument } from "@/lib/forms/pdf-text";
+import { buildDocumentBrief } from "@/lib/forms/document-brief";
 import { createFormSession, type StoredFormField } from "@/lib/db/form-sessions";
 import { POST } from "@/app/api/forms/analyze/route";
+
+const BRIEF = {
+  title: "Leave application",
+  documentKind: "application" as const,
+  summary: "Staff leave form.",
+  eligibility: "Employees.",
+  deadlines: [],
+  requiredAttachments: [],
+  actionsNow: ["Complete the applicant details."],
+  implications: [],
+  fillableSections: ["Applicant details"],
+};
 
 const PDF_BYTES = new Uint8Array([
   0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a, 0x25, 0xe2, 0xe3,
@@ -100,6 +123,13 @@ beforeEach(() => {
   vi.mocked(inspectPdfFields).mockResolvedValue(DEFS as never);
   vi.mocked(extractFormFields).mockResolvedValue(INTERPRETED as never);
   vi.mocked(inferFormFieldsFromDocument).mockReset();
+  vi.mocked(extractPdfDocument).mockResolvedValue({
+    pages: [{ pageNumber: 1, text: "Full name: ______" }],
+    text: "Full name: ______",
+    totalPages: 1,
+    truncated: false,
+  });
+  vi.mocked(buildDocumentBrief).mockResolvedValue(BRIEF);
   vi.mocked(createFormSession).mockImplementation(async (input) => ({
     id: "session-1",
     fileName: input.fileName,
@@ -108,9 +138,10 @@ beforeEach(() => {
     languageId: input.languageId,
     storagePath: input.storagePath ?? null,
     documentSha256: input.documentSha256 ?? null,
-    documentKind: "acroform",
+    documentKind: input.documentKind ?? "acroform",
     revision: 1,
     status: "in_progress",
+    brief: input.brief ?? BRIEF,
   }) as never);
 });
 
@@ -135,6 +166,7 @@ it("a_valid_pdf_creates_a_session", async () => {
     createHash("sha256").update(PDF_BYTES).digest("hex"),
   );
   expect(created.documentKind).toBe("acroform");
+  expect(created.brief).toEqual(BRIEF);
 });
 
 it("a_malformed_pdf_returns_422", async () => {
@@ -164,6 +196,12 @@ it("a_scan_is_rejected_when_inference_finds_nothing", async () => {
     new Error("NO_FILLABLE_FIELDS"),
   );
   vi.mocked(inferFormFieldsFromDocument).mockResolvedValueOnce([]);
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce({
+    pages: [],
+    text: "",
+    totalPages: 1,
+    truncated: false,
+  });
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(422);
   expect(await response.json()).toStrictEqual({
@@ -171,6 +209,40 @@ it("a_scan_is_rejected_when_inference_finds_nothing", async () => {
   });
   expect(bucketState.uploaded).toHaveLength(0);
   expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
+});
+
+it("a_long_pack_without_acroform_is_inferred_not_rejected", async () => {
+  vi.mocked(inspectPdfFields).mockRejectedValueOnce(
+    new Error("PDF_PAGE_LIMIT"),
+  );
+  vi.mocked(inferFormFieldsFromDocument).mockResolvedValueOnce(INTERPRETED);
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  const created = vi.mocked(createFormSession).mock.calls[0][0] as {
+    documentKind: string;
+    brief: unknown;
+  };
+  expect(created.documentKind).toBe("flat");
+  expect(created.brief).toEqual(BRIEF);
+});
+
+it("readable_text_with_no_blanks_still_creates_a_briefing_session", async () => {
+  vi.mocked(inspectPdfFields).mockRejectedValueOnce(
+    new Error("NO_FILLABLE_FIELDS"),
+  );
+  vi.mocked(inferFormFieldsFromDocument).mockResolvedValueOnce([]);
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce({
+    pages: [{ pageNumber: 1, text: "Invitation to tender for accounting services. Closing date 12 December 2026." }],
+    text: "Invitation to tender for accounting services. Closing date 12 December 2026.",
+    totalPages: 12,
+    truncated: false,
+  });
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  const created = vi.mocked(createFormSession).mock.calls[0][0] as {
+    fields: unknown[];
+  };
+  expect(created.fields).toEqual([]);
 });
 
 it("an_encrypted_pdf_is_rejected_without_inference", async () => {
