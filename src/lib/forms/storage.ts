@@ -16,7 +16,7 @@ export type FormsBucket = {
   remove(paths: string[]): Promise<{ error: unknown }>;
 };
 
-const TRUSTED_ID = /^[A-Za-z0-9-]{1,64}$/;
+const TRUSTED_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 function assertTrustedId(name: string, value: string): void {
   if (!TRUSTED_ID.test(value)) throw new Error("INVALID_STORAGE_IDENTITY");

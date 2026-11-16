@@ -4,7 +4,7 @@ import { FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 export function formErrorMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "UNREADABLE_DOCUMENT":
-      return "Omera could not read any text on this PDF. If it is a scan or a photo of pages, export a clearer copy (Print to PDF) or photograph each page in good light, then upload again.";
+      return "Omera could not read any text on this PDF. If it is a scan or a photo of pages, export a clearer copy or photograph each page in good light, then upload again.";
     case "NO_FILLABLE_FIELDS":
       return "Omera did not find blanks on this PDF. Print to PDF from your reader and upload that copy, or try a clearer scan.";
     case "PDF_PAGE_LIMIT":
@@ -12,7 +12,7 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
     case "INVALID_PDF_SIZE":
     case "FILE_TOO_LARGE":
     case "REQUEST_TOO_LARGE":
-      return `This PDF is larger than the ${FORM_PDF_FILE_LIMIT_MB} MB upload limit (Vercel may still block files above about 4.5 MB). Compress it, Print to PDF, or split the tender pack, then try again.`;
+      return `This PDF is larger than the ${FORM_PDF_FILE_LIMIT_MB} MB upload limit (the host may still block files above about 4.5 MB). Compress it or split the tender pack, then try again.`;
     case "ENCRYPTED_PDF":
       return "This PDF is password-protected. Remove the password in your PDF app (unlock it), then upload the unlocked copy.";
     case "UNSUPPORTED_XFA":
@@ -46,7 +46,9 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
     case "SERVICE_UNAVAILABLE":
       return "Omera is temporarily unavailable. Check AI keys on Vercel and try again.";
     case "ANALYZE_TIMEOUT":
-      return "Reading this PDF took too long. Try a smaller file, the returnable forms only, or Print to PDF, then upload again.";
+      return "Reading this PDF took too long. Upload a smaller file or the returnable forms section only, then try again.";
+    case "ANALYZE_FAILED":
+      return "Omera hit a server error while reading this PDF. Try again in a minute. This is not a password or file-size problem.";
     case "PDF_FIELD_LIMIT":
       return "This form has more questions than Omera can take in one pass. Upload the returnable section only, then try again.";
     case "UNSUPPORTED_FORMAT":
@@ -58,7 +60,7 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
     case "NETWORK_ERROR":
       return "The upload did not reach Omera. Check your connection and try again.";
     case "UPLOAD_FAILED":
-      return "Omera could not finish this upload. Try again, or Print to PDF (unlocked) and upload a smaller copy.";
+      return "Omera could not finish this upload. Try again in a moment and check the error code below.";
     default:
       return fallback;
   }
@@ -81,12 +83,14 @@ export function formUploadFailure(
             ? "ANALYZE_TIMEOUT"
             : status === 503 || status === 502
               ? "SERVICE_UNAVAILABLE"
-              : "UPLOAD_FAILED");
+              : status === 500
+                ? "ANALYZE_FAILED"
+                : "UPLOAD_FAILED");
   return {
     code,
     message: formErrorMessage(
       code,
-      "Omera could not finish this upload. Try again, or Print to PDF (unlocked) and upload a smaller copy.",
+      "Omera could not finish this upload. Try again in a moment and check the error code below.",
     ),
   };
 }

@@ -222,7 +222,8 @@ async function visionFields(
 /**
  * Infer question flow from a non-fillable PDF using extracted text, then
  * page images when text is thin or the text model cannot list fields.
- * Any extractable title still gets identity questions instead of a hard reject.
+ * Readable text skips vision. A valid PDF always yields questions
+ * (heuristic or identity) instead of UNREADABLE_DOCUMENT.
  */
 export async function inferFormFieldsFromDocument(
   bytes: Uint8Array,
@@ -246,8 +247,10 @@ export async function inferFormFieldsFromDocument(
       if (error instanceof Error && error.message === "PDF_FIELD_LIMIT") {
         throw error;
       }
-      // Fall through to vision when the text model is busy or returns junk.
     }
+    const heuristic = inferFieldsFromExtractedText(text);
+    if (heuristic.length) return heuristic;
+    return identityFallbackFields();
   }
 
   const vision = await visionFields(bytes, doc, options.languageId);
@@ -256,8 +259,5 @@ export async function inferFormFieldsFromDocument(
   const heuristic = inferFieldsFromExtractedText(text);
   if (heuristic.length) return heuristic;
 
-  if (text.trim().length >= MIN_TEXT_CHARS || vision.screenshots > 0) {
-    return identityFallbackFields();
-  }
-  throw new Error("UNREADABLE_DOCUMENT");
+  return identityFallbackFields();
 }

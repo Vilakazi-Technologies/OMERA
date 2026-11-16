@@ -191,7 +191,7 @@ it("a_scan_falls_back_to_inference_when_ai_finds_fields", async () => {
   expect(created.documentKind).toBe("flat");
 });
 
-it("a_scan_is_rejected_when_inference_finds_nothing", async () => {
+it("a_valid_pdf_with_no_blanks_still_starts_a_session", async () => {
   vi.mocked(inspectPdfFields).mockRejectedValueOnce(
     new Error("NO_FILLABLE_FIELDS"),
   );
@@ -203,12 +203,14 @@ it("a_scan_is_rejected_when_inference_finds_nothing", async () => {
     truncated: false,
   });
   const response = await POST(postPdf(PDF_BYTES));
-  expect(response.status).toBe(422);
-  expect(await response.json()).toStrictEqual({
-    error: "UNREADABLE_DOCUMENT",
-  });
-  expect(bucketState.uploaded).toHaveLength(0);
-  expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
+  expect(response.status).toBe(201);
+  const created = vi.mocked(createFormSession).mock.calls[0][0] as {
+    fields: { id: string }[];
+  };
+  expect(created.fields.map((field) => field.id)).toContain(
+    "field_1_bidder_name",
+  );
+  expect(bucketState.uploaded).toHaveLength(1);
 });
 
 it("a_long_pack_without_acroform_is_inferred_not_rejected", async () => {
@@ -240,9 +242,13 @@ it("readable_text_with_no_blanks_still_creates_a_briefing_session", async () => 
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(201);
   const created = vi.mocked(createFormSession).mock.calls[0][0] as {
-    fields: unknown[];
+    fields: { id: string }[];
+    brief: unknown;
   };
-  expect(created.fields).toEqual([]);
+  expect(created.brief).toEqual(BRIEF);
+  expect(created.fields.map((field) => field.id)).toContain(
+    "field_1_bidder_name",
+  );
 });
 
 it("an_encrypted_pdf_is_rejected_without_inference", async () => {
@@ -253,7 +259,7 @@ it("an_encrypted_pdf_is_rejected_without_inference", async () => {
   expect(vi.mocked(inferFormFieldsFromDocument)).not.toHaveBeenCalled();
 });
 
-it("inference_busy_returns_502_without_asking_for_a_fillable_file", async () => {
+it("inference_busy_still_starts_a_session_with_identity_questions", async () => {
   vi.mocked(inspectPdfFields).mockRejectedValueOnce(
     new Error("NO_FILLABLE_FIELDS"),
   );
@@ -261,10 +267,13 @@ it("inference_busy_returns_502_without_asking_for_a_fillable_file", async () => 
     new Error("FORM_INFERENCE_FAILED"),
   );
   const response = await POST(postPdf(PDF_BYTES));
-  expect(response.status).toBe(502);
-  expect(await response.json()).toStrictEqual({
-    error: "FORM_INFERENCE_FAILED",
-  });
+  expect(response.status).toBe(201);
+  const created = vi.mocked(createFormSession).mock.calls[0][0] as {
+    fields: { id: string }[];
+  };
+  expect(created.fields.map((field) => field.id)).toContain(
+    "field_1_bidder_name",
+  );
 });
 
 it("an_unsupported_format_returns_415", async () => {

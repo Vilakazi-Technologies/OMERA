@@ -170,6 +170,35 @@ describe("form page review flow", () => {
     expect(alert.textContent).not.toMatch(/password/i);
   });
 
+  it("shows ANALYZE_FAILED for a raw 500 without unlock copy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return new Response("<html>Internal Server Error</html>", {
+            status: 500,
+            headers: { "Content-Type": "text/html" },
+          });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.7"], "form.pdf", { type: "application/pdf" })],
+      },
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/ANALYZE_FAILED/);
+    expect(alert.textContent).not.toMatch(/unlock/i);
+    expect(alert.textContent).not.toMatch(/print/i);
+  });
+
   it("shows a briefing before questions", async () => {
     vi.stubGlobal(
       "fetch",

@@ -47,6 +47,16 @@ it("the_path_uses_trusted_identifiers", async () => {
   ).toThrow("INVALID_STORAGE_IDENTITY");
 });
 
+it("accepts Clerk-style user ids with underscores", () => {
+  expect(
+    buildStoragePath({
+      userId: "user_2abcXYZClerkId01",
+      sessionId: "session-9",
+      fileName: "form.pdf",
+    }),
+  ).toBe("user_2abcXYZClerkId01/session-9/form.pdf");
+});
+
 it("a_failed_session_removes_the_object", async () => {
   const bucket = fakeBucket();
   const path = await storeOriginal(bucket, {

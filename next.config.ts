@@ -32,6 +32,7 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
   async headers() {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },

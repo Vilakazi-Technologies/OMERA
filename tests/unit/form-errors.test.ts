@@ -48,12 +48,19 @@ it("maps HTML platform failures to a real code instead of the old combined fallb
   expect(formUploadFailure(413, {}).code).toBe("FILE_TOO_LARGE");
   expect(formUploadFailure(504, {}).code).toBe("ANALYZE_TIMEOUT");
   expect(formUploadFailure(502, {}).code).toBe("SERVICE_UNAVAILABLE");
+  expect(formUploadFailure(500, {}).code).toBe("ANALYZE_FAILED");
   expect(formUploadFailure(429, {}).code).toBe("RATE_LIMITED");
   expect(formUploadFailure(422, { error: "UNREADABLE_DOCUMENT" }).code).toBe(
     "UNREADABLE_DOCUMENT",
   );
   expect(formUploadFailure(502, { error: "SESSION_CREATE_FAILED" }).message).toMatch(
     /database|storage/i,
+  );
+  expect(formErrorMessage("UPLOAD_FAILED", "fallback")).not.toMatch(
+    /unlock|print/i,
+  );
+  expect(formErrorMessage("ANALYZE_FAILED", "fallback")).not.toMatch(
+    /unlock|print/i,
   );
 });
 

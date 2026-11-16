@@ -1,3 +1,4 @@
+import "./pdfjs-dom";
 import { PDFParse } from "pdf-parse";
 import { FORM_PDF_READ_PAGE_LIMIT, FORM_VISION_MAX_PAGES } from "@/lib/forms/pdf-limits";
 

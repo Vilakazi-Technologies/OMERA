@@ -13,12 +13,12 @@ import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractPdfDocument } from "@/lib/forms/pdf-text";
 import { buildDocumentBrief } from "@/lib/forms/document-brief";
 import {
-  FORM_MIN_READABLE_CHARS,
   FORM_PDF_FILE_LIMIT,
   FORM_PDF_MULTIPART_LIMIT,
 } from "@/lib/forms/pdf-limits";
 import type { FormDocumentKind } from "@/lib/forms/contracts";
 import type { StoredFormField } from "@/lib/db/form-sessions";
+import { identityFallbackFields } from "@/lib/forms/identity-fallback-fields";
 import {
   FORMS_BUCKET,
   removeStoredObject,
@@ -155,17 +155,6 @@ function classifyInspectError(error: unknown): string {
   return "MALFORMED_PDF";
 }
 
-function classifyInferError(error: unknown): { code: string; status: number } {
-  const code = error instanceof Error ? error.message : "FORM_INFERENCE_FAILED";
-  if (code === "UNREADABLE_DOCUMENT" || code === "PDF_FIELD_LIMIT") {
-    return { code, status: 422 };
-  }
-  if (code === "CHAT_UNAVAILABLE" || code === "FORM_INFERENCE_FAILED") {
-    return { code: "FORM_INFERENCE_FAILED", status: 502 };
-  }
-  return { code: "FORM_INFERENCE_FAILED", status: 502 };
-}
-
 export async function POST(request: Request) {
   try {
     const identity = await requireIdentity();
@@ -220,11 +209,9 @@ export async function POST(request: Request) {
       const inspected = await inspectPdfFields(file.bytes);
       try {
         interpreted = await extractFormFields(inspected, { languageId });
-      } catch (error) {
-        throw new ApiError(
-          error instanceof Error ? error.message : "FORM_TRANSLATION_FAILED",
-          502,
-        );
+      } catch {
+        interpreted = identityFallbackFields();
+        documentKind = "flat";
       }
     } catch (error) {
       if (error instanceof ApiError && error.code !== "NO_FILLABLE_FIELDS") {
@@ -237,9 +224,8 @@ export async function POST(request: Request) {
           languageId,
           document: extracted,
         });
-      } catch (inferError) {
-        const mapped = classifyInferError(inferError);
-        throw new ApiError(mapped.code, mapped.status);
+      } catch {
+        interpreted = identityFallbackFields();
       }
       documentKind = "flat";
     }
@@ -248,11 +234,8 @@ export async function POST(request: Request) {
       languageId,
       fileName,
     });
-    if (
-      !interpreted.length &&
-      extracted.text.trim().length < FORM_MIN_READABLE_CHARS
-    ) {
-      throw new ApiError("UNREADABLE_DOCUMENT", 422);
+    if (!interpreted.length) {
+      interpreted = identityFallbackFields();
     }
 
     const documentSha256 = createHash("sha256")

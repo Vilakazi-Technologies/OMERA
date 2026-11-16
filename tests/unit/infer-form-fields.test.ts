@@ -100,31 +100,30 @@ it("uses vision when extracted text is too short", async () => {
   expect(completeConfiguredJson).not.toHaveBeenCalled();
 });
 
-it("uses vision when the text model fails on a text PDF", async () => {
+it("skips vision when a text PDF has extractable labels", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc("Application for leave\nName: ______\nDate: ______"),
   );
   vi.mocked(completeConfiguredJson).mockRejectedValueOnce(
     new Error("INVALID_INFERRED_FIELDS"),
   );
-  vi.mocked(screenshotPdfPages).mockResolvedValueOnce([
-    "data:image/png;base64,bbb",
-  ]);
-  vi.mocked(completeOpenRouterVisionJson).mockImplementationOnce(
-    async (_config, _system, _input, _images, parse) => parse(NAME_FIELD),
-  );
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields[0].label).toBe("Full name");
+  expect(fields.map((field) => field.label)).toEqual(
+    expect.arrayContaining(["Name", "Date"]),
+  );
+  expect(screenshotPdfPages).not.toHaveBeenCalled();
+  expect(completeOpenRouterVisionJson).not.toHaveBeenCalled();
 });
 
-it("rejects blank scans when vision also finds nothing", async () => {
+it("uses identity questions when a valid PDF has no extractable text", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(textDoc(""));
   vi.mocked(screenshotPdfPages).mockResolvedValueOnce([]);
-  await expect(
-    inferFormFieldsFromDocument(PDF_BYTES, { languageId: "eng" }),
-  ).rejects.toThrow("UNREADABLE_DOCUMENT");
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields.map((field) => field.id)).toContain("field_1_bidder_name");
 });
 
 it("keeps a short title instead of rejecting the pack", async () => {
