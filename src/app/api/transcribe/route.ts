@@ -8,6 +8,7 @@ import { isKnownLanguage } from "@/lib/speech/capabilities";
 import { SpeechError, transcribeAudio } from "@/lib/speech/transcribe";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /** Raw JSON body limit: base64 audio plus metadata. */
 const TRANSCRIBE_BODY_LIMIT = 2800000;
@@ -17,6 +18,7 @@ const TRANSCRIBE_AUDIO_LIMIT = 2000000;
 const SUPPORTED_MIME_TYPES = new Set([
   "audio/wav",
   "audio/x-wav",
+  "audio/webm",
   "audio/mpeg",
   "audio/flac",
   "audio/aac",

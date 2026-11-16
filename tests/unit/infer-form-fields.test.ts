@@ -116,3 +116,46 @@ it("rejects blank scans when vision also finds nothing", async () => {
     inferFormFieldsFromDocument(PDF_BYTES, { languageId: "eng" }),
   ).rejects.toThrow("UNREADABLE_DOCUMENT");
 });
+
+it("accepts slightly messy model JSON instead of failing the session", async () => {
+  vi.mocked(extractTextFromPdf).mockResolvedValueOnce(
+    "Application for annual leave\nFull name: ______\nStart date: ______",
+  );
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) =>
+      parse({
+        fields: [
+          {
+            label: "Full name",
+            prompt: "What is your full name?",
+            kind: "date",
+            required: "yes",
+            options: ["unused"],
+          },
+        ],
+      }),
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(completeConfiguredJson).toHaveBeenCalled();
+  expect(fields[0].label).toBe("Full name");
+  expect(fields[0].kind).toBe("text");
+});
+
+it("starts a session from labeled blanks when AI is down", async () => {
+  vi.mocked(extractTextFromPdf).mockResolvedValueOnce(
+    "Application for leave\nFull name: ______\nDate: ______\nSignature: ______",
+  );
+  vi.mocked(completeConfiguredJson).mockRejectedValue(
+    new Error("CHAT_UNAVAILABLE"),
+  );
+  vi.mocked(screenshotPdfPages).mockResolvedValueOnce([]);
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields.map((field) => field.label)).toEqual(
+    expect.arrayContaining(["Full name", "Date", "Signature"]),
+  );
+  expect(fields.find((field) => field.kind === "signature")).toBeTruthy();
+});

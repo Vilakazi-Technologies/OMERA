@@ -9,6 +9,7 @@ it("never mentions AcroForm or fillable jargon", () => {
     "UNSUPPORTED_XFA",
     "FORM_INFERENCE_FAILED",
     "MALFORMED_PDF",
+    "UNAUTHORIZED",
   ];
   for (const code of codes) {
     const message = formErrorMessage(code, "fallback");

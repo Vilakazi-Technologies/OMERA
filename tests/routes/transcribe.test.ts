@@ -105,6 +105,19 @@ it("a_provider_timeout_returns_504", async () => {
   expect(await response.json()).toEqual({ error: "VOICE_TIMEOUT" });
 });
 
+it("accepts_webm_when_wav_decode_is_unavailable", async () => {
+  const fetchMock = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(JSON.stringify(completed())));
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await POST(post(validBody({ mimeType: "audio/webm" })));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    text: NATIVE_TEXT,
+    languageId: "zul",
+  });
+});
+
 it("a_valid_clip_returns_native_text", async () => {
   const fetchMock = vi
     .fn<typeof fetch>()

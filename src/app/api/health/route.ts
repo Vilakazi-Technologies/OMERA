@@ -12,7 +12,7 @@ import { isGoogleWebSearchConfigured } from "@/lib/search/google-custom-search";
 export const runtime = "nodejs";
 
 /** Hard bound on the database reachability probe. */
-const DB_TIMEOUT_MS = 2000;
+const DB_TIMEOUT_MS = 8000;
 
 export async function GET() {
   const xavani = xavaniHealth();

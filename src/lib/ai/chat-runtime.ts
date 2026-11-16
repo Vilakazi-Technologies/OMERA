@@ -91,7 +91,27 @@ export async function completeConfiguredJson<T>(
 ): Promise<T> {
   const provider = resolveChatProvider();
   if (provider === "xavani") {
-    return completeXavaniJson(getXavaniConfig(), systemPrompt, input, parse, requestSignal);
+    try {
+      return await completeXavaniJson(
+        getXavaniConfig(),
+        systemPrompt,
+        input,
+        parse,
+        requestSignal,
+      );
+    } catch {
+      try {
+        return await completeOpenRouterJson(
+          getOpenRouterConfig(),
+          systemPrompt,
+          input,
+          parse,
+          requestSignal,
+        );
+      } catch {
+        throw new Error("CHAT_UNAVAILABLE");
+      }
+    }
   }
   if (provider === "openrouter") {
     return completeOpenRouterJson(

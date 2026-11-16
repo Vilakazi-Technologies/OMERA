@@ -29,6 +29,10 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
       return "An answer uses characters this PDF font cannot display. Try simpler spelling or English for that field.";
     case "FILE_TOO_LARGE":
       return "PDF is too large (max 4 MB). Use a smaller file.";
+    case "UNAUTHORIZED":
+      return "Sign in to Omera, then upload your form again.";
+    case "ORIGIN_FORBIDDEN":
+      return "This session could not be verified. Refresh the page, sign in, and try again.";
     case "QUOTA_EXCEEDED":
       return "Too many requests right now. Wait a minute and try again.";
     case "SERVICE_UNAVAILABLE":

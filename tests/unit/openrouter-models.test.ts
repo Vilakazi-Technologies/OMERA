@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   OPENROUTER_PRIMARY_MODEL,
   openRouterModelChain,
+  openRouterVisionModelChain,
   resolveOpenRouterModelId,
 } from "@/lib/ai/openrouter-models";
 
@@ -38,5 +39,16 @@ describe("openRouterModelChain", () => {
     expect(chain[0]).toBe("openai/gpt-4o-mini");
     expect(chain.includes(OPENROUTER_PRIMARY_MODEL)).toBe(true);
     expect(chain.length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("openRouterVisionModelChain", () => {
+  it("does not fall back to text-only llama for page screenshots", () => {
+    const chain = openRouterVisionModelChain(OPENROUTER_PRIMARY_MODEL, {
+      NODE_ENV: "test",
+    });
+    expect(chain.some((slug) => slug.includes("llama"))).toBe(false);
+    expect(chain[0]).toBe(OPENROUTER_PRIMARY_MODEL);
+    expect(chain.includes("google/gemini-2.5-flash")).toBe(true);
   });
 });

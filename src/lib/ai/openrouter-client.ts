@@ -2,6 +2,7 @@ import "server-only";
 import { buildOmeraSystemPrompt } from "@/lib/ai/omera-system-prompt";
 import {
   openRouterModelChain,
+  openRouterVisionModelChain,
   resolveOpenRouterModelId,
   resolveOpenRouterVisionModelId,
 } from "@/lib/ai/openrouter-models";
@@ -331,7 +332,7 @@ async function completeOpenRouterVisionRaw(
     AbortSignal.timeout(120000),
     ...(requestSignal ? [requestSignal] : []),
   ]);
-  const models = openRouterModelChain(config.model, env);
+  const models = openRouterVisionModelChain(config.model, env);
   // Gemini vision on OpenRouter often rejects response_format — JSON is enforced via system prompt.
   const response = await post(
     config,
@@ -439,5 +440,10 @@ export async function completeOpenRouterJson<T>(
   if (typeof content !== "string" || !content.trim()) {
     throw new Error("INVALID_OPENROUTER_RESPONSE");
   }
-  return parse(JSON.parse(content));
+  try {
+    return parse(parseJsonFromModelText(content));
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error("INVALID_OPENROUTER_RESPONSE");
+    throw error;
+  }
 }

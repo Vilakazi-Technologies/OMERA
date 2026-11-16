@@ -19,7 +19,7 @@ const INSPECTED: PdfFieldInfo[] = [
   },
 ];
 
-it("a_failed_analysis_returns_no_demo_fields", async () => {
+it("a_failed_analysis_falls_back_to_humanized_labels", async () => {
   vi.mocked(completeConfiguredJson).mockImplementationOnce(
     async (_system, _input, parse) =>
       parse({
@@ -28,11 +28,15 @@ it("a_failed_analysis_returns_no_demo_fields", async () => {
         ],
       } as never),
   );
-  const error = await extractFormFields(INSPECTED, {
+  const fields = await extractFormFields(INSPECTED, {
     languageId: "zul",
-  }).catch((failure: unknown) => failure);
-  expect(error).toBeInstanceOf(Error);
-  expect((error as Error).message).toBe("OMITTED_FIELD_ID");
+  });
+  expect(fields.map((field) => field.id).sort()).toEqual(
+    ["full_name", "method", "permission"].sort(),
+  );
+  expect(fields.find((field) => field.id === "full_name")?.label).toBe(
+    "Full name",
+  );
 });
 
 it("translated_prompts_keep_the_canonical_field_names", async () => {

@@ -126,6 +126,33 @@ describe("form page review flow", () => {
     expect(alert.textContent).not.toMatch(/fillable/i);
   });
 
+  it("treats a clerk 404 HTML rewrite as a sign-in problem", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return new Response("<html>404</html>", {
+            status: 404,
+            headers: { "Content-Type": "text/html" },
+          });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.7"], "form.pdf", { type: "application/pdf" })],
+      },
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/sign in/i);
+  });
+
   it("a_save_failure_prevents_advancement", async () => {
     vi.stubGlobal(
       "fetch",

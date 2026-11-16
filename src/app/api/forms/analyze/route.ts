@@ -19,6 +19,7 @@ import {
 } from "@/lib/forms/storage";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const MULTIPART_LIMIT = 4100000;
 const FILE_LIMIT = 4000000;

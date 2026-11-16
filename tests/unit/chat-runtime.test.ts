@@ -3,23 +3,28 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/ai/xavani-client", () => ({
   getXavaniConfig: vi.fn(),
   createXavaniChatStream: vi.fn(),
+  completeXavaniJson: vi.fn(),
   xavaniReachable: vi.fn(),
 }));
 vi.mock("@/lib/ai/openrouter-client", () => ({
   getOpenRouterConfig: vi.fn(),
   createOpenRouterChatStream: vi.fn(),
+  completeOpenRouterJson: vi.fn(),
 }));
 
 import {
   createXavaniChatStream,
+  completeXavaniJson,
   getXavaniConfig,
   xavaniReachable,
 } from "@/lib/ai/xavani-client";
 import {
+  completeOpenRouterJson,
   createOpenRouterChatStream,
   getOpenRouterConfig,
 } from "@/lib/ai/openrouter-client";
 import {
+  completeConfiguredJson,
   createConfiguredChatStream,
   researchHandledByXavani,
 } from "@/lib/ai/chat-runtime";
@@ -97,6 +102,24 @@ describe("provider selection", () => {
     );
 
     expect(vi.mocked(createXavaniChatStream).mock.calls[0][5]).toBe(true);
+  });
+});
+
+describe("completeConfiguredJson", () => {
+  it("falls back to OpenRouter when Xavani JSON fails", async () => {
+    xavaniConfigured();
+    openRouterConfigured();
+    vi.mocked(completeXavaniJson).mockRejectedValueOnce(new Error("INVALID_XAVANI_RESPONSE"));
+    vi.mocked(completeOpenRouterJson).mockImplementationOnce(
+      async (_config, _system, _input, parse) => parse({ ok: true }),
+    );
+    const result = await completeConfiguredJson(
+      "sys",
+      "input",
+      (value) => value as { ok: boolean },
+    );
+    expect(result).toEqual({ ok: true });
+    expect(completeOpenRouterJson).toHaveBeenCalled();
   });
 });
 

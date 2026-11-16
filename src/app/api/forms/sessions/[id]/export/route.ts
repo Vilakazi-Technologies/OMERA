@@ -17,6 +17,8 @@ import {
 } from "@/lib/forms/contracts";
 import { FORMS_BUCKET } from "@/lib/forms/storage";
 
+export const maxDuration = 60;
+
 type Params = { params: Promise<{ id: string }> };
 
 const APPROVED_FONT_PATH = join(

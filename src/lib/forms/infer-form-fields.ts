@@ -7,6 +7,7 @@ import {
 } from "@/lib/ai/openrouter-client";
 import type { StoredFormField } from "@/lib/db/form-sessions";
 import { extractTextFromPdf, screenshotPdfPages } from "@/lib/forms/pdf-text";
+import { inferFieldsFromExtractedText } from "@/lib/forms/infer-from-text";
 import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
 
 const MAX_INFERRED_FIELDS = 50;
@@ -62,38 +63,42 @@ function parseInferred(response: unknown): InferredRaw[] {
   }
   const parsed: InferredRaw[] = [];
   for (const entry of fields) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      throw new Error("INVALID_INFERRED_FIELDS");
-    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const record = entry as Record<string, unknown>;
     const label = typeof record.label === "string" ? record.label.trim() : "";
-    const prompt = typeof record.prompt === "string" ? record.prompt.trim() : "";
-    const kind = record.kind;
-    const required = record.required === true;
-    if (!label || !prompt) throw new Error("INVALID_INFERRED_FIELDS");
+    const promptRaw = typeof record.prompt === "string" ? record.prompt.trim() : "";
+    if (!label) continue;
+    const prompt = promptRaw || `What is your ${label.toLowerCase()}?`;
+    let kind: InferredRaw["kind"] = "text";
     if (
-      kind !== "text" &&
-      kind !== "checkbox" &&
-      kind !== "choice" &&
-      kind !== "signature"
+      record.kind === "checkbox" ||
+      record.kind === "choice" ||
+      record.kind === "signature"
     ) {
-      throw new Error("INVALID_INFERRED_FIELDS");
+      kind = record.kind;
+    } else if (record.kind === "date" || record.kind === "number") {
+      kind = "text";
     }
+    const required = record.required === true;
     let options: string[] | undefined;
     if (kind === "choice") {
-      if (!Array.isArray(record.options) || record.options.length < 2) {
-        throw new Error("INVALID_INFERRED_FIELDS");
-      }
-      options = record.options.filter(
+      const rawOptions = Array.isArray(record.options) ? record.options : [];
+      options = rawOptions.filter(
         (option): option is string => typeof option === "string" && !!option.trim(),
       );
-      if (options.length < 2) throw new Error("INVALID_INFERRED_FIELDS");
-    } else if (record.options !== undefined) {
-      throw new Error("INVALID_INFERRED_FIELDS");
+      if (options.length < 2) {
+        kind = "text";
+        options = undefined;
+      }
     }
     parsed.push({ label, prompt, kind, required, options });
   }
+  if (!parsed.length) throw new Error("INVALID_INFERRED_FIELDS");
   return parsed;
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function toStored(fields: InferredRaw[]): StoredFormField[] {
@@ -118,15 +123,27 @@ async function inferFromText(
   text: string,
   languageId: string,
 ): Promise<StoredFormField[]> {
-  const inferred = await completeConfiguredJson(
-    INFER_FORM_INSTRUCTIONS,
-    JSON.stringify({
-      languageId,
-      extractedText: text.slice(0, 12000),
-    }),
-    parseInferred,
-  );
-  return sortFieldsForQuestionFlow(toStored(inferred));
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const inferred = await completeConfiguredJson(
+        INFER_FORM_INSTRUCTIONS,
+        JSON.stringify({
+          languageId,
+          extractedText: text.slice(0, 12000),
+        }),
+        parseInferred,
+      );
+      return sortFieldsForQuestionFlow(toStored(inferred));
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && error.message === "PDF_FIELD_LIMIT") {
+        throw error;
+      }
+      if (attempt === 0) await pause(350);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("FORM_INFERENCE_FAILED");
 }
 
 async function inferFromVision(
@@ -178,6 +195,9 @@ export async function inferFormFieldsFromDocument(
       }
     }
   }
+
+  const heuristic = inferFieldsFromExtractedText(text);
+  if (heuristic.length) return heuristic;
 
   if (text.length >= MIN_TEXT_CHARS) throw new Error("FORM_INFERENCE_FAILED");
   throw new Error("UNREADABLE_DOCUMENT");

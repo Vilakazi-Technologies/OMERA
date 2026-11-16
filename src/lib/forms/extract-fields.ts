@@ -96,8 +96,8 @@ export async function extractFormFields(
     try {
       const prompts = await translateDefs(defs, options.languageId);
       merged.push(...mergeTranslated(slice, prompts));
-    } catch (error) {
-      if (error instanceof Error && SCHEMA_ERRORS.has(error.message)) throw error;
+    } catch {
+      // Schema mistakes and model outages must not block a fillable PDF.
       merged.push(...fallbackFormFields(slice));
     }
   }

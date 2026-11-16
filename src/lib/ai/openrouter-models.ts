@@ -32,6 +32,13 @@ const DEFAULT_OPENROUTER_FALLBACKS = [
   "meta-llama/llama-3.2-3b-instruct:free",
 ] as const;
 
+/** Vision-capable fallbacks only — text-only slugs break form page screenshots. */
+const DEFAULT_OPENROUTER_VISION_FALLBACKS = [
+  "google/gemini-2.5-flash",
+  OPENROUTER_PRIMARY_MODEL,
+  "google/gemini-2.0-flash-001",
+] as const;
+
 /** Ordered model list for OpenRouter `models` (primary first, max 5). */
 export function openRouterModelChain(
   primary: string,
@@ -42,6 +49,23 @@ export function openRouterModelChain(
       .map((slug) => slug.trim())
       .filter(Boolean) ?? [];
   const chain = [primary, ...fromEnv, ...DEFAULT_OPENROUTER_FALLBACKS];
+  const unique: string[] = [];
+  for (const slug of chain) {
+    if (!unique.includes(slug)) unique.push(slug);
+  }
+  return unique.slice(0, 5);
+}
+
+/** Ordered vision models (primary first, max 5). Excludes text-only fallbacks. */
+export function openRouterVisionModelChain(
+  primary: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const fromEnv =
+    env.OPENROUTER_VISION_FALLBACK_MODELS?.split(",")
+      .map((slug) => slug.trim())
+      .filter(Boolean) ?? [];
+  const chain = [primary, ...fromEnv, ...DEFAULT_OPENROUTER_VISION_FALLBACKS];
   const unique: string[] = [];
   for (const slug of chain) {
     if (!unique.includes(slug)) unique.push(slug);

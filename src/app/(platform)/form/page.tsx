@@ -227,12 +227,19 @@ export default function FormFillPage() {
         body,
       });
       if (!res.ok) {
+        if (res.status === 401 || res.status === 307 || res.status === 302) {
+          setError(formErrorMessage("UNAUTHORIZED", "Sign in to Omera, then upload your form again."));
+          return;
+        }
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
         };
+        const code =
+          data.error ??
+          (res.status === 404 || res.status === 403 ? "UNAUTHORIZED" : undefined);
         setError(
           formErrorMessage(
-            data.error,
+            code,
             "Omera could not read this PDF. Try again in a moment, or upload a clearer copy.",
           ),
         );
