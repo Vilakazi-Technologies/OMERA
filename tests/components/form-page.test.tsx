@@ -137,9 +137,37 @@ describe("form page review flow", () => {
       },
     });
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/could not read|clearer|scan|password|4 MB/i);
+    expect(alert.textContent).toMatch(/could not read any text|scan|clearer/i);
+    expect(alert.textContent).toMatch(/UNREADABLE_DOCUMENT/);
+    expect(alert.textContent).not.toMatch(/password/i);
     expect(alert.textContent).not.toMatch(/acroform/i);
     expect(alert.textContent).not.toMatch(/fillable/i);
+  });
+
+  it("shows a distinct size error with the code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return jsonResponse({ error: "FILE_TOO_LARGE" }, 413);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.7"], "huge.pdf", { type: "application/pdf" })],
+      },
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/10 MB/i);
+    expect(alert.textContent).toMatch(/FILE_TOO_LARGE/);
+    expect(alert.textContent).not.toMatch(/password/i);
   });
 
   it("shows a briefing before questions", async () => {

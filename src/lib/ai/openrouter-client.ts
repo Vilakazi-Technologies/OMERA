@@ -300,9 +300,9 @@ export async function completeOpenRouterJsonString(
 }
 
 function visionImageParts(imageDataUrls: string[]) {
-  return imageDataUrls.slice(0, 3).map((url) => ({
+  return imageDataUrls.slice(0, 10).map((url) => ({
     type: "image_url" as const,
-    image_url: { url, detail: "low" as const },
+    image_url: { url, detail: "high" as const },
   }));
 }
 

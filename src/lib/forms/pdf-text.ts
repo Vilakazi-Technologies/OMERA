@@ -1,6 +1,18 @@
 import { PDFParse } from "pdf-parse";
 import { FORM_PDF_READ_PAGE_LIMIT, FORM_VISION_MAX_PAGES } from "@/lib/forms/pdf-limits";
 
+export function classifyPdfReadError(error: unknown): "ENCRYPTED_PDF" | "MALFORMED_PDF" {
+  if (!(error instanceof Error)) return "MALFORMED_PDF";
+  if (
+    error.message === "ENCRYPTED_PDF" ||
+    error.name === "EncryptedPDFError" ||
+    /encrypt|password/i.test(error.message)
+  ) {
+    return "ENCRYPTED_PDF";
+  }
+  return "MALFORMED_PDF";
+}
+
 export type PdfPageText = {
   pageNumber: number;
   text: string;
@@ -38,6 +50,8 @@ export async function extractPdfDocument(
       totalPages,
       truncated: totalPages > pages.length,
     };
+  } catch (error) {
+    throw new Error(classifyPdfReadError(error));
   } finally {
     await parser.destroy();
   }
@@ -47,10 +61,9 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   return (await extractPdfDocument(buffer)).text;
 }
 
-/** Rasterize selected pages so vision can read labels on scans. */
-export async function screenshotPdfPages(
+async function screenshotOnce(
   bytes: Uint8Array,
-  maxPages = 3,
+  maxPages: number,
   pageNumbers?: number[],
 ): Promise<string[]> {
   const parser = new PDFParse({ data: bytes });
@@ -61,7 +74,7 @@ export async function screenshotPdfPages(
         .slice(0, FORM_VISION_MAX_PAGES) ?? [];
     const result = await parser.getScreenshot({
       ...(partial.length ? { partial } : { first: maxPages }),
-      desiredWidth: 768,
+      desiredWidth: 1024,
       imageDataUrl: true,
       imageBuffer: false,
     });
@@ -73,5 +86,24 @@ export async function screenshotPdfPages(
       );
   } finally {
     await parser.destroy();
+  }
+}
+
+/** Rasterize selected pages so vision can read labels on scans. */
+export async function screenshotPdfPages(
+  bytes: Uint8Array,
+  maxPages = FORM_VISION_MAX_PAGES,
+  pageNumbers?: number[],
+): Promise<string[]> {
+  try {
+    const first = await screenshotOnce(bytes, maxPages, pageNumbers);
+    if (first.length) return first;
+  } catch {
+    // Retry with the first N pages when targeted pages fail (odd page trees).
+  }
+  try {
+    return await screenshotOnce(bytes, maxPages, undefined);
+  } catch {
+    return [];
   }
 }

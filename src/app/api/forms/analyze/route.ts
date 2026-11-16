@@ -13,6 +13,7 @@ import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractPdfDocument } from "@/lib/forms/pdf-text";
 import { buildDocumentBrief } from "@/lib/forms/document-brief";
 import {
+  FORM_MIN_READABLE_CHARS,
   FORM_PDF_FILE_LIMIT,
   FORM_PDF_MULTIPART_LIMIT,
 } from "@/lib/forms/pdf-limits";
@@ -136,8 +137,10 @@ const PDF_ERRORS = new Set([
 const INFER_FALLBACK = new Set([
   "NO_FILLABLE_FIELDS",
   "PDF_PAGE_LIMIT",
+  "PDF_FIELD_LIMIT",
   "UNSUPPORTED_FIELD_TYPE",
   "INVALID_PDF",
+  "MALFORMED_PDF",
 ]);
 
 function classifyInspectError(error: unknown): string {
@@ -197,14 +200,19 @@ export async function POST(request: Request) {
 
     const languageId = (fields.get("languageId") ?? "eng").trim() || "eng";
     const fileName = file.fileName || "form.pdf";
-    const extracted = await extractPdfDocument(Buffer.from(file.bytes)).catch(
-      () => ({
-        pages: [] as { pageNumber: number; text: string }[],
+    let extracted: Awaited<ReturnType<typeof extractPdfDocument>>;
+    try {
+      extracted = await extractPdfDocument(Buffer.from(file.bytes));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "MALFORMED_PDF";
+      if (code === "ENCRYPTED_PDF") throw new ApiError("ENCRYPTED_PDF", 422);
+      extracted = {
+        pages: [],
         text: "",
         totalPages: 0,
         truncated: false,
-      }),
-    );
+      };
+    }
 
     let interpreted: StoredFormField[];
     let documentKind: FormDocumentKind = "acroform";
@@ -240,7 +248,10 @@ export async function POST(request: Request) {
       languageId,
       fileName,
     });
-    if (!interpreted.length && extracted.text.trim().length < 40) {
+    if (
+      !interpreted.length &&
+      extracted.text.trim().length < FORM_MIN_READABLE_CHARS
+    ) {
       throw new ApiError("UNREADABLE_DOCUMENT", 422);
     }
 
@@ -297,6 +308,12 @@ export async function POST(request: Request) {
       );
     }
   } catch (error) {
+    const code = error instanceof ApiError ? error.code : "SERVICE_UNAVAILABLE";
+    console.error(
+      "[forms/analyze]",
+      code,
+      error instanceof Error ? error.message : error,
+    );
     return apiErrorResponse(error);
   }
 }

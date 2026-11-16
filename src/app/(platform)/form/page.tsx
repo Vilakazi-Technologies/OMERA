@@ -11,7 +11,12 @@ import { ChatComposer } from "@/components/chat-composer";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
 import { activeQuestion } from "@/lib/forms/questions";
-import { formErrorMessage, missingRequiredFields } from "@/lib/forms/form-errors";
+import {
+  formErrorMessage,
+  formUploadFailure,
+  missingRequiredFields,
+} from "@/lib/forms/form-errors";
+import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
 import { cn } from "@/lib/cn";
 
@@ -151,6 +156,7 @@ export default function FormFillPage() {
   const [restoring, setRestoring] = useState(true);
   const [editingFromReview, setEditingFromReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
 
   // Restore through the server session ID after a refresh. Only the session
@@ -260,9 +266,11 @@ export default function FormFillPage() {
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const code = body.error ?? String(res.status);
       setError(
-        `Save failed (${body.error ?? res.status}). Your answer was not recorded — try again.`,
+        `Save failed (${code}). Your answer was not recorded — try again.`,
       );
+      setErrorCode(code);
       return false;
     }
     const data = (await res.json()) as {
@@ -294,7 +302,14 @@ export default function FormFillPage() {
   async function uploadFile(file: File) {
     setUploading(true);
     setError(null);
+    setErrorCode(null);
     try {
+      if (file.size > FORM_PDF_FILE_LIMIT) {
+        const alert = formUploadFailure(413, { error: "FILE_TOO_LARGE" });
+        setError(alert.message);
+        setErrorCode(alert.code);
+        return;
+      }
       const body = new FormData();
       body.append("file", file);
       body.append("languageId", languageId);
@@ -304,21 +319,21 @@ export default function FormFillPage() {
       });
       if (!res.ok) {
         if (res.status === 401 || res.status === 307 || res.status === 302) {
-          setError(formErrorMessage("UNAUTHORIZED", "Sign in to Omera, then upload your form again."));
+          setError(
+            formErrorMessage(
+              "UNAUTHORIZED",
+              "Sign in to Omera, then upload your form again.",
+            ),
+          );
+          setErrorCode("UNAUTHORIZED");
           return;
         }
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
         };
-        const code =
-          data.error ??
-          (res.status === 404 || res.status === 403 ? "UNAUTHORIZED" : undefined);
-        setError(
-          formErrorMessage(
-            code,
-            "Omera could not read this PDF. If it is a scan, try a clearer copy; if it is password-protected, unlock it first. Max 4 MB.",
-          ),
-        );
+        const alert = formUploadFailure(res.status, data);
+        setError(alert.message);
+        setErrorCode(alert.code);
         return;
       }
       const data = (await res.json()) as {
@@ -347,6 +362,14 @@ export default function FormFillPage() {
         brief: normalizeBrief(data.brief),
       });
       setStep("briefing");
+    } catch {
+      setError(
+        formErrorMessage(
+          "NETWORK_ERROR",
+          "The upload did not reach Omera. Check your connection and try again.",
+        ),
+      );
+      setErrorCode("NETWORK_ERROR");
     } finally {
       setUploading(false);
     }
@@ -355,6 +378,7 @@ export default function FormFillPage() {
   function startFilling() {
     if (!session) return;
     setError(null);
+    setErrorCode(null);
     if (!session.fields.length) {
       setStep("review");
       return;
@@ -454,6 +478,7 @@ export default function FormFillPage() {
       setError(
         `Complete required fields first: ${missing.map((f) => f.label).join(", ")}.`,
       );
+      setErrorCode("INCOMPLETE_FORM");
       return;
     }
     setExporting(true);
@@ -467,12 +492,14 @@ export default function FormFillPage() {
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
         };
+        const alert = formUploadFailure(res.status, body);
         setError(
           formErrorMessage(
             body.error,
             `Export failed (${body.error ?? res.status}). Fix answers and try again.`,
           ),
         );
+        setErrorCode(alert.code);
         return;
       }
       const mode = res.headers.get("X-Form-Export-Mode");
@@ -517,6 +544,11 @@ export default function FormFillPage() {
             className="mx-auto mb-4 max-w-lg rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300"
           >
             {error}
+            {errorCode ? (
+              <span className="mt-1 block font-mono text-[11px] tracking-wide text-red-300/55">
+                {errorCode}
+              </span>
+            ) : null}
           </p>
         )}
 
@@ -539,7 +571,8 @@ export default function FormFillPage() {
               <p className="mt-2 text-sm text-slate-400">
                 Tenders, RFPs, RFQs, and application packs — not only short
                 fillable PDFs. Omera reads the document, briefs you, then asks
-                only the fill-in questions. Max 4&nbsp;MB, first 80 pages.
+                only the fill-in questions. Max {FORM_PDF_FILE_LIMIT_MB}&nbsp;MB,
+                first 80 pages. Unlock passworded files first.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
                 {uploading ? "Reading your form…" : "Choose file"}

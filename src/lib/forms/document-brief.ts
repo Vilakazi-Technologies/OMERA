@@ -1,6 +1,9 @@
 import "server-only";
 import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
-import { FORM_PDF_TEXT_CHAR_BUDGET } from "@/lib/forms/pdf-limits";
+import {
+  FORM_MIN_READABLE_CHARS,
+  FORM_PDF_TEXT_CHAR_BUDGET,
+} from "@/lib/forms/pdf-limits";
 
 export const DOCUMENT_KIND_VALUES = [
   "tender",
@@ -230,7 +233,7 @@ export async function buildDocumentBrief(
   options: { languageId: string; fileName: string },
 ): Promise<FormDocumentBrief> {
   const trimmed = text.trim();
-  if (trimmed.length < 40) {
+  if (trimmed.length < FORM_MIN_READABLE_CHARS) {
     return emptyDocumentBrief(options.fileName);
   }
   try {

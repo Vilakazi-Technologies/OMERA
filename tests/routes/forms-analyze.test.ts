@@ -278,8 +278,19 @@ it("an_unsupported_format_returns_415", async () => {
   expect(vi.mocked(inspectPdfFields)).not.toHaveBeenCalled();
 });
 
+it("a_long_pack_with_too_many_acroform_fields_is_inferred_not_rejected", async () => {
+  vi.mocked(inspectPdfFields).mockRejectedValueOnce(
+    new Error("PDF_FIELD_LIMIT"),
+  );
+  vi.mocked(inferFormFieldsFromDocument).mockResolvedValueOnce(INTERPRETED);
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  expect(vi.mocked(inferFormFieldsFromDocument)).toHaveBeenCalled();
+});
+
 it("an_oversized_file_returns_413", async () => {
-  const big = new Uint8Array(4000001);
+  const { FORM_PDF_FILE_LIMIT } = await import("@/lib/forms/pdf-limits");
+  const big = new Uint8Array(FORM_PDF_FILE_LIMIT + 1);
   big.set(PDF_BYTES);
   const response = await POST(postPdf(big));
   expect(response.status).toBe(413);

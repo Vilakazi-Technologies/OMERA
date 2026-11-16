@@ -409,9 +409,10 @@ async function rejectBoth(source: Uint8Array, error: string) {
   await expect(fillPdfFields(source, {}, await fontFixture)).rejects.toThrow(error);
 }
 
-it("accepts a valid PDF padded to exactly 4000000 bytes without modifying its bytes", async () => {
+it("accepts a valid PDF padded to exactly the upload limit without modifying its bytes", async () => {
+  const { FORM_PDF_FILE_LIMIT } = await import("@/lib/forms/pdf-limits");
   const source = await boundaryFixture();
-  const padded = new Uint8Array(4000000).fill(0x20);
+  const padded = new Uint8Array(FORM_PDF_FILE_LIMIT).fill(0x20);
   padded.set(source);
   const before = Buffer.from(padded);
   expect(await inspectPdfFields(padded)).toStrictEqual([
@@ -422,8 +423,9 @@ it("accepts a valid PDF padded to exactly 4000000 bytes without modifying its by
   expect(Buffer.compare(Buffer.from(padded), before)).toBe(0);
 });
 
-it("rejects a valid PDF padded to 4000001 bytes", async () => {
-  const padded = new Uint8Array(4000001).fill(0x20);
+it("rejects a valid PDF one byte over the upload limit", async () => {
+  const { FORM_PDF_FILE_LIMIT } = await import("@/lib/forms/pdf-limits");
+  const padded = new Uint8Array(FORM_PDF_FILE_LIMIT + 1).fill(0x20);
   padded.set(await boundaryFixture());
   await rejectBoth(padded, "INVALID_PDF_SIZE");
 });

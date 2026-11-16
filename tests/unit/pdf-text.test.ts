@@ -1,6 +1,13 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { expect, it } from "vitest";
-import { extractTextFromPdf } from "@/lib/forms/pdf-text";
+import { classifyPdfReadError, extractTextFromPdf } from "@/lib/forms/pdf-text";
+
+it("classifies password errors separately from generic parse failures", () => {
+  const encrypted = new Error("No password given");
+  encrypted.name = "EncryptedPDFError";
+  expect(classifyPdfReadError(encrypted)).toBe("ENCRYPTED_PDF");
+  expect(classifyPdfReadError(new Error("bad xref"))).toBe("MALFORMED_PDF");
+});
 
 it("extracts text through pdf-parse version 2", async () => {
   const pdf = await PDFDocument.create();

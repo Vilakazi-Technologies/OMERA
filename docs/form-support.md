@@ -8,7 +8,7 @@ as the success output, no automatic speech output.
 
 | Class | Path | Limits |
 |---|---|---|
-| AcroForm PDF with fillable fields | C10 codec inspect (`inspectPdfFields`) → Xavani labels/prompts (`extractFormFields`) → C10 fill (`fillPdfFields`) on export | ≤ 4 000 000 byte upload; ≤ **40 pages** for in-place fill; ≤ 100 fillable fields; approved font `assets/fonts/NotoSans-Regular.ttf`; export response ≤ 8 000 000 bytes |
+| AcroForm PDF with fillable fields | C10 codec inspect (`inspectPdfFields`) → Xavani labels/prompts (`extractFormFields`) → C10 fill (`fillPdfFields`) on export | ≤ 10 000 000 byte upload (Vercel may still 413 near 4.5 MB); ≤ **40 pages** for in-place fill; ≤ 100 fillable fields; approved font `assets/fonts/NotoSans-Regular.ttf`; export response ≤ 8 000 000 bytes |
 | Mixed / flat PDF (tender, RFP, RFQ, no AcroForm, or over 40 pages) | Text extract (first **80 pages**, 80 000 characters) → document briefing → field inference (heuristic + AI; vision on form-like pages) → answers appendix on export | Missing AcroForm is not a failure. Readable text with no blanks still gets a briefing. Blank/faint scans 422 (`UNREADABLE_DOCUMENT`). ≤ 50 inferred fields; download adds a **Completed answers** page |
 | Owner flat templates (optional) | Approved fingerprint in `templates.ts` → rectangle overlay (gate G4) | Registry starts empty; unknown fingerprints are not used for inference |
 
@@ -23,18 +23,18 @@ PKI digital signature and does not use certificate signing.
 Analyzed uploads must be PDF bytes (magic `%PDF-`). Accepted `Content-Type`
 values include `application/pdf`, common PDF aliases, and
 `application/octet-stream` when the bytes are still a PDF. The Supabase
-`omera-forms` bucket remains **PDF-only** at 4 MB (see migration
-`20261024090000_tighten_form_bucket.sql`). DOCX/images are not analyzed on the
-form route in this MVP.
+`omera-forms` bucket is **PDF-only** at 10 MB (see migration
+`20261116130000_form_bucket_10mb.sql`). Apply that migration on production
+Supabase; until then the bucket may still reject at 4 MB. DOCX/images are not
+analyzed on the form route in this MVP.
 
 ## Rejected documents
 
 - XFA forms (`UNSUPPORTED_XFA`, 422).
 - Encrypted documents (422) — never decrypted server-side.
 - Unsupported MIME types (415) — non-PDF on the analyze route.
-- Files over 4 000 000 bytes (413); multipart bodies over 4 100 000 bytes (413).
-- Malformed PDFs and bad magic bytes (422); scans with no extractable text
-  (422, `UNREADABLE_DOCUMENT`). Long packs without AcroForm are inferred, not rejected.
+- Files over 10 000 000 bytes (413 `FILE_TOO_LARGE`); multipart bodies over 10 200 000 bytes (413 `REQUEST_TOO_LARGE`). A non-JSON 413 from the platform is shown as `FILE_TOO_LARGE`.
+- Malformed PDFs and bad magic bytes (422); scans with **no** extractable text **and** no page screenshots (422, `UNREADABLE_DOCUMENT`). Passworded files are `ENCRYPTED_PDF`. Long packs without AcroForm are inferred, not rejected. Title-length text still gets a briefing plus identity questions.
 - Text that exceeds an approved rectangle (422, `VALUE_TOO_LONG`); choices
   outside the stored options (400/422, `INVALID_CHOICE`); missing required
   values (400/422, `MISSING_REQUIRED_VALUE` / `REQUIRED_FIELD`).
@@ -67,5 +67,6 @@ form route in this MVP.
 
 ## Storage bucket
 
-The `omera-forms` bucket matches the application boundary: 4 MB maximum and
-`application/pdf` only. Larger or other types are rejected before upload.
+The `omera-forms` bucket matches the application boundary: 10 MB maximum and
+`application/pdf` only. Larger or other types are rejected before upload. If
+the live bucket is still 4 MB, apply `20261116130000_form_bucket_10mb.sql`.

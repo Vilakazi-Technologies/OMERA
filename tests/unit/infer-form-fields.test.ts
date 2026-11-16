@@ -127,6 +127,35 @@ it("rejects blank scans when vision also finds nothing", async () => {
   ).rejects.toThrow("UNREADABLE_DOCUMENT");
 });
 
+it("keeps a short title instead of rejecting the pack", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc("Invitation to tender"),
+  );
+  vi.mocked(completeConfiguredJson).mockRejectedValue(
+    new Error("CHAT_UNAVAILABLE"),
+  );
+  vi.mocked(screenshotPdfPages).mockResolvedValueOnce([]);
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields.map((field) => field.id)).toContain("field_5_what_to_complete");
+});
+
+it("uses identity questions when screenshots exist but vision finds no blanks", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(textDoc(""));
+  vi.mocked(screenshotPdfPages).mockResolvedValueOnce([
+    "data:image/png;base64,ccc",
+  ]);
+  vi.mocked(completeOpenRouterVisionJson).mockRejectedValue(
+    new Error("INVALID_OPENROUTER_VISION_RESPONSE"),
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields[0].label).toMatch(/company or bidder/i);
+  expect(completeOpenRouterVisionJson).toHaveBeenCalled();
+});
+
 it("accepts slightly messy model JSON instead of failing the session", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc("Application for annual leave\nFull name: ______\nStart date: ______"),
@@ -172,7 +201,7 @@ it("starts a session from labeled blanks when AI is down", async () => {
   expect(fields.find((field) => field.kind === "signature")).toBeTruthy();
 });
 
-it("returns no questions for readable narrative instead of rejecting the pack", async () => {
+it("returns identity questions for readable narrative instead of rejecting the pack", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc(
       "Invitation to tender\nThe municipality seeks a registered accounting firm.\nEvaluation criteria are listed in section 4.",
@@ -181,8 +210,11 @@ it("returns no questions for readable narrative instead of rejecting the pack", 
   vi.mocked(completeConfiguredJson).mockImplementationOnce(
     async (_system, _input, parse) => parse({ fields: [] }),
   );
+  vi.mocked(screenshotPdfPages).mockResolvedValueOnce([]);
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields).toEqual([]);
+  expect(fields.map((field) => field.label)).toEqual(
+    expect.arrayContaining(["What you need to complete"]),
+  );
 });

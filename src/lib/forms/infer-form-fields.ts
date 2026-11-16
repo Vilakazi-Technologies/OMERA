@@ -14,13 +14,15 @@ import {
 import { inferFieldsFromExtractedText } from "@/lib/forms/infer-from-text";
 import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
 import { selectFormLikePageNumbers } from "@/lib/forms/form-like-pages";
+import { identityFallbackFields } from "@/lib/forms/identity-fallback-fields";
 import {
   FORM_MAX_INFERRED_FIELDS,
+  FORM_MIN_READABLE_CHARS,
   FORM_PDF_TEXT_CHAR_BUDGET,
   FORM_VISION_MAX_PAGES,
 } from "@/lib/forms/pdf-limits";
 
-const MIN_TEXT_CHARS = 40;
+const MIN_TEXT_CHARS = FORM_MIN_READABLE_CHARS;
 
 export const INFER_FORM_INSTRUCTIONS =
   "You identify only the blanks a person must fill on a South African tender, RFP, RFQ, application, or form. " +
@@ -161,18 +163,30 @@ async function inferFromVision(
   languageId: string,
   extractedText: string,
 ): Promise<StoredFormField[]> {
-  const inferred = await completeOpenRouterVisionJson(
-    getOpenRouterVisionConfig(),
-    INFER_FORM_VISION_INSTRUCTIONS,
-    JSON.stringify({
-      languageId,
-      extractedText: extractedText.slice(0, 4000),
-      note: "Page images follow. List only blanks the person must complete.",
-    }),
-    images,
-    parseInferred,
-  );
-  return sortFieldsForQuestionFlow(toStored(inferred));
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const inferred = await completeOpenRouterVisionJson(
+        getOpenRouterVisionConfig(),
+        INFER_FORM_VISION_INSTRUCTIONS,
+        JSON.stringify({
+          languageId,
+          extractedText: extractedText.slice(0, 4000),
+          note: "Page images follow. List only blanks the person must complete.",
+        }),
+        images,
+        parseInferred,
+      );
+      return sortFieldsForQuestionFlow(toStored(inferred));
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && error.message === "PDF_FIELD_LIMIT") {
+        throw error;
+      }
+      if (attempt === 0) await pause(400);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("FORM_INFERENCE_FAILED");
 }
 
 function textIsSparse(doc: PdfTextDocument): boolean {
@@ -185,28 +199,30 @@ async function visionFields(
   bytes: Uint8Array,
   doc: PdfTextDocument,
   languageId: string,
-): Promise<StoredFormField[]> {
+): Promise<{ fields: StoredFormField[]; screenshots: number }> {
   const pageNumbers = selectFormLikePageNumbers(doc.pages, FORM_VISION_MAX_PAGES);
   const images = await screenshotPdfPages(
     bytes,
     FORM_VISION_MAX_PAGES,
     pageNumbers.length ? pageNumbers : undefined,
-  ).catch(() => []);
-  if (!images.length || !isOpenRouterConfigured()) return [];
+  );
+  if (!images.length) return { fields: [], screenshots: 0 };
+  if (!isOpenRouterConfigured()) return { fields: [], screenshots: images.length };
   try {
-    return await inferFromVision(images, languageId, doc.text);
+    const fields = await inferFromVision(images, languageId, doc.text);
+    return { fields, screenshots: images.length };
   } catch (error) {
     if (error instanceof Error && error.message === "PDF_FIELD_LIMIT") {
       throw error;
     }
-    return [];
+    return { fields: [], screenshots: images.length };
   }
 }
 
 /**
  * Infer question flow from a non-fillable PDF using extracted text, then
  * page images when text is thin or the text model cannot list fields.
- * Readable tenders with no blanks return an empty field list (briefing still runs).
+ * Any extractable title still gets identity questions instead of a hard reject.
  */
 export async function inferFormFieldsFromDocument(
   bytes: Uint8Array,
@@ -234,14 +250,14 @@ export async function inferFormFieldsFromDocument(
     }
   }
 
-  if (textIsSparse(doc) || text.length >= MIN_TEXT_CHARS) {
-    const fromVision = await visionFields(bytes, doc, options.languageId);
-    if (fromVision.length) return fromVision;
-  }
+  const vision = await visionFields(bytes, doc, options.languageId);
+  if (vision.fields.length) return vision.fields;
 
   const heuristic = inferFieldsFromExtractedText(text);
   if (heuristic.length) return heuristic;
 
-  if (text.length >= MIN_TEXT_CHARS) return [];
+  if (text.trim().length >= MIN_TEXT_CHARS || vision.screenshots > 0) {
+    return identityFallbackFields();
+  }
   throw new Error("UNREADABLE_DOCUMENT");
 }

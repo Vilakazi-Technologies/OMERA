@@ -1,8 +1,15 @@
 /** Shared PDF form-fill limits. Keep in sync with docs/form-support.md. */
 
 /** Max original PDF upload (bytes). Multipart wrapper is slightly larger. */
-export const FORM_PDF_FILE_LIMIT = 4_000_000;
-export const FORM_PDF_MULTIPART_LIMIT = 4_100_000;
+export const FORM_PDF_FILE_LIMIT = 10_000_000;
+export const FORM_PDF_MULTIPART_LIMIT = 10_200_000;
+export const FORM_PDF_FILE_LIMIT_MB = 10;
+
+/**
+ * Vercel Node request bodies are often capped near 4.5 MB on the platform.
+ * App + bucket allow 10 MB; a platform 413 still maps to FILE_TOO_LARGE.
+ */
+export const FORM_PDF_PLATFORM_HINT_MB = 4.5;
 
 /** In-place AcroForm inspect/fill. Longer packs fall back to text + answers appendix. */
 export const FORM_PDF_FILL_PAGE_LIMIT = 40;
@@ -14,6 +21,9 @@ export const FORM_PDF_READ_PAGE_LIMIT = 80;
 export const FORM_PDF_TEXT_CHAR_BUDGET = 80_000;
 
 /** Raster pages sent to vision when text is thin. */
-export const FORM_VISION_MAX_PAGES = 6;
+export const FORM_VISION_MAX_PAGES = 10;
+
+/** Title-length extracts still get a briefing instead of UNREADABLE_DOCUMENT. */
+export const FORM_MIN_READABLE_CHARS = 20;
 
 export const FORM_MAX_INFERRED_FIELDS = 50;

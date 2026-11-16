@@ -21,7 +21,7 @@ change a query.
 
 - Bucket: `omera-forms`, private.
 - Path: `<userId>/<sessionId>/<file>`. The server derives every segment.
-- Upload limit: 4 MB, PDF only, enforced in code and in the bucket.
+- Upload limit: 10 MB, PDF only, enforced in code and in the bucket (migration `20261116130000_form_bucket_10mb.sql`).
 - No public URL is issued. Downloads go through an authenticated route.
 
 ## RLS
