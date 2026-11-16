@@ -13,6 +13,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/ai/models",
   "/api/store/complete-json",
   "/api/store/complete-vision-json",
+  // Form/voice APIs still require a session in-handler. Listing them here
+  // stops Clerk's development handshake from turning unsigned POSTs into
+  // empty 500s (X-Clerk-Auth-Reason: dev-browser-missing).
+  "/api/forms(.*)",
+  "/api/transcribe",
 ]);
 
 const isApiRoute = createRouteMatcher(["/api/(.*)"]);
