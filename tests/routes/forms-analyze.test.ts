@@ -113,12 +113,18 @@ function fakeBucket(state: {
   };
 }
 
-const bucketState = { uploaded: [] as string[], removed: [] as string[], failUpload: false };
+const bucketState = {
+  uploaded: [] as string[],
+  removed: [] as string[],
+  failUpload: false,
+  uploadError: undefined as unknown,
+};
 
 beforeEach(() => {
   bucketState.uploaded.length = 0;
   bucketState.removed.length = 0;
   bucketState.failUpload = false;
+  bucketState.uploadError = undefined;
   vi.mocked(requireIdentity).mockResolvedValue({
     userId: "omera-user-1",
     authUserId: "auth-1",
