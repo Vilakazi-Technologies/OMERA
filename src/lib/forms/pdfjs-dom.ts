@@ -102,11 +102,7 @@ class NodeImageData {
 }
 
 export function ensurePdfJsDom(): void {
-  const g = globalThis as typeof globalThis & {
-    DOMMatrix?: unknown;
-    Path2D?: unknown;
-    ImageData?: unknown;
-  };
+  const g = globalThis as unknown as Record<string, unknown>;
   if (typeof g.DOMMatrix !== "function") g.DOMMatrix = NodeDOMMatrix;
   if (typeof g.Path2D !== "function") g.Path2D = NodePath2D;
   if (typeof g.ImageData !== "function") g.ImageData = NodeImageData;
