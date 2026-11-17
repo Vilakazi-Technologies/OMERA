@@ -10,7 +10,9 @@ fails, and how to recover it.
 - Model: optional. The service runs without a key.
 
 Origin: `https://xavani-omera.vercel.app` (Vercel proxy)
-Backend: `https://xavani-omera.onrender.com` (Render, always-on)
+Backend: `https://xavani-omera.onrender.com` (Render free plan)
+
+The service sleeps after 15 minutes without inbound traffic.
 
 ## Modes
 
