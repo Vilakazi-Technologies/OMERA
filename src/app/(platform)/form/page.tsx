@@ -118,6 +118,9 @@ export default function FormFillPage() {
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const skipRestoreRef = useRef(false);
+  const flowRef = useRef(0);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Restore through the server session ID after a refresh. Only the session
   // reference lives in local storage — never form answers. Identity is
@@ -221,7 +224,9 @@ export default function FormFillPage() {
     nextIndex: number,
   ): Promise<boolean> {
     if (!session) return false;
-    const res = await fetch(`/api/forms/sessions/${session.sessionId}`, {
+    const generation = flowRef.current;
+    const sessionId = session.sessionId;
+    const res = await fetch(`/api/forms/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -230,6 +235,7 @@ export default function FormFillPage() {
         currentIndex: nextIndex,
       }),
     });
+    if (flowRef.current !== generation) return false;
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       const code = body.error ?? String(res.status);
@@ -247,34 +253,50 @@ export default function FormFillPage() {
       ? (data.session.fields
           .map(normalizeField)
           .filter((field): field is ClientField => field !== null))
-      : session.fields;
-    setSession({
-      ...session,
-      fields,
-      currentIndex:
-        typeof data.session.currentIndex === "number"
-          ? data.session.currentIndex
-          : nextIndex,
-      revision: data.revision,
-      status:
-        typeof data.session.status === "string"
-          ? data.session.status
-          : session.status,
-      brief:
-        normalizeBrief(data.session.brief) ??
-        session.brief ??
-        fallbackDocumentBrief({
-          fileName: session.fileName,
-          fieldLabels: fields.map((field) => field.label),
-        }),
+      : null;
+    if (flowRef.current !== generation) return false;
+    setSession((current) => {
+      if (!current || current.sessionId !== sessionId) return current;
+      const nextFields = fields ?? current.fields;
+      return {
+        ...current,
+        fields: nextFields,
+        currentIndex:
+          typeof data.session.currentIndex === "number"
+            ? data.session.currentIndex
+            : nextIndex,
+        revision: data.revision,
+        status:
+          typeof data.session.status === "string"
+            ? data.session.status
+            : current.status,
+        brief:
+          normalizeBrief(data.session.brief) ??
+          current.brief ??
+          fallbackDocumentBrief({
+            fileName: current.fileName,
+            fieldLabels: nextFields.map((field) => field.label),
+          }),
+      };
     });
     return true;
   }
 
   async function uploadFile(file: File) {
+    uploadAbortRef.current?.abort();
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
+    const generation = flowRef.current + 1;
+    flowRef.current = generation;
+    skipRestoreRef.current = true;
     setUploading(true);
     setError(null);
     setErrorCode(null);
+    let timedOut = false;
+    const timer = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 130_000);
     try {
       if (file.size > FORM_PDF_FILE_LIMIT) {
         const alert = formUploadFailure(413, { error: "FILE_TOO_LARGE" });
@@ -288,7 +310,9 @@ export default function FormFillPage() {
       const res = await fetch("/api/forms/analyze", {
         method: "POST",
         body,
+        signal: controller.signal,
       });
+      if (flowRef.current !== generation) return;
       if (!res.ok) {
         if (res.status === 401 || res.status === 307 || res.status === 302) {
           setError(
@@ -319,6 +343,7 @@ export default function FormFillPage() {
       const fields = data.fields
         .map(normalizeField)
         .filter((field): field is ClientField => field !== null);
+      if (flowRef.current !== generation) return;
       skipRestoreRef.current = true;
       localStorage.setItem(
         FORM_REF_KEY,
@@ -335,24 +360,46 @@ export default function FormFillPage() {
         brief: briefFromPayload(data.brief, data.fileName, fields),
       });
       setStep("briefing");
-    } catch {
+    } catch (error) {
+      if (flowRef.current !== generation) return;
+      const aborted =
+        (error instanceof DOMException && error.name === "AbortError") ||
+        (error instanceof Error && error.name === "AbortError");
+      if (aborted && !timedOut) return;
+      const code = timedOut ? "ANALYZE_TIMEOUT" : "NETWORK_ERROR";
       setError(
         formErrorMessage(
-          "NETWORK_ERROR",
-          "The upload did not reach Omera. Check your connection and try again.",
+          code,
+          timedOut
+            ? "Reading this PDF took too long. Upload a smaller file or the returnable forms section only, then try again."
+            : "The upload did not reach Omera. Check your connection and try again.",
         ),
       );
-      setErrorCode("NETWORK_ERROR");
+      setErrorCode(code);
     } finally {
-      setUploading(false);
+      window.clearTimeout(timer);
+      if (flowRef.current === generation) {
+        setUploading(false);
+        if (uploadAbortRef.current === controller) uploadAbortRef.current = null;
+      }
     }
   }
 
-  function startNewUpload() {
+  function resetToUpload() {
+    flowRef.current += 1;
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
+    skipRestoreRef.current = true;
     localStorage.removeItem(FORM_REF_KEY);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setSession(null);
     setError(null);
     setErrorCode(null);
+    setExportNote(null);
+    setEditingFromReview(false);
+    setSaving(false);
+    setExporting(false);
+    setUploading(false);
     setStep("upload");
   }
 
@@ -361,7 +408,7 @@ export default function FormFillPage() {
     setError(null);
     setErrorCode(null);
     if (!session.fields.length) {
-      startNewUpload();
+      resetToUpload();
       return;
     }
     setStep("questions");
@@ -515,7 +562,18 @@ export default function FormFillPage() {
             Upload · briefing · fill only the questions · download PDF
           </p>
         </div>
-        <LanguageSelect value={languageId} onChange={setLanguageId} />
+        <div className="flex items-center gap-2">
+          {session && step !== "upload" ? (
+            <button
+              type="button"
+              onClick={() => resetToUpload()}
+              className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white hover:bg-white/10"
+            >
+              {step === "briefing" ? "Upload another" : "Replace document"}
+            </button>
+          ) : null}
+          <LanguageSelect value={languageId} onChange={setLanguageId} />
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
@@ -558,6 +616,7 @@ export default function FormFillPage() {
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
                 {uploading ? "Reading your form…" : "Choose file"}
                 <input
+                  ref={fileInputRef}
                   type="file"
                   className="hidden"
                   accept=".pdf,application/pdf"
@@ -575,6 +634,13 @@ export default function FormFillPage() {
                   <p className="text-sm text-slate-400">
                     Reading the whole document… then a briefing you can scroll.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => resetToUpload()}
+                    className="mt-2 rounded-full border border-white/20 px-4 py-1.5 text-sm text-white hover:bg-white/10"
+                  >
+                    Cancel upload
+                  </button>
                 </div>
               )}
             </div>
@@ -598,6 +664,13 @@ export default function FormFillPage() {
                 >
                   Start filling
                 </button>
+                <button
+                  type="button"
+                  onClick={() => resetToUpload()}
+                  className="mt-3 w-full rounded-full border border-white/20 py-2.5 text-sm text-white hover:bg-white/10"
+                >
+                  Upload another
+                </button>
                 <p className="mt-2 text-center text-xs text-slate-500">
                   Or say “start filling” — type or tap the microphone.
                 </p>
@@ -605,7 +678,7 @@ export default function FormFillPage() {
             ) : (
               <button
                 type="button"
-                onClick={() => startNewUpload()}
+                onClick={() => resetToUpload()}
                 className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
               >
                 Upload a form with questions
@@ -623,6 +696,13 @@ export default function FormFillPage() {
               <p className="mt-1 truncate text-sm font-medium text-white">
                 {session.fileName}
               </p>
+              <button
+                type="button"
+                onClick={() => resetToUpload()}
+                className="mt-3 rounded-full border border-white/20 px-4 py-1.5 text-sm text-white hover:bg-white/10"
+              >
+                Replace document
+              </button>
               {step === "questions" && current && (
                 <>
                   <p className="mt-6 text-xs text-white/50">

@@ -78,7 +78,7 @@ const INTERPRETED: StoredFormField[] = [
     label: "Full name",
     type: "text",
     required: true,
-    prompt: "What is your full name?",
+    prompt: "Full name",
     kind: "text",
   },
 ];

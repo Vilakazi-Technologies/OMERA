@@ -40,7 +40,7 @@ it("extracts a generated GPL RFP header and offers Start filling questions", asy
   expect(brief.fillableSections.join(" ")).toMatch(/SBD 4/);
 
   const fields = inferFieldsFromExtractedText(extracted.text);
-  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/Bidder name/i);
   expect(fields.some((field) => /SBD 3\.3/i.test(field.label))).toBe(true);
   expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
   expect(fields.length).toBeGreaterThan(0);

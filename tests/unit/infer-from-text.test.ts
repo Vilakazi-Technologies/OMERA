@@ -11,7 +11,10 @@ const GAUTENG_RFP_FIXTURE = [
   "NON-COMPULSORY : 14 OCTOBER 2026 BRIEFING SESSION VENUE: MICROSOFT TEAMS",
   "These are documents required for this bidding. Should the bidder fail to submit the following documents, the bid will be disqualified automatically:",
   "the bid will be disqualified automatically:",
-  "the paid will be disqualified automatically:",
+  "the paid will be disqualified automatically: ______",
+  "Page 4 of 12",
+  "— 3 —",
+  "what is your paid",
   "Bidders must submit relevant signed reference letters for",
   "The bidder shall submit:",
   "2. Pricing Schedule (Firm Pricing) SBD 3.3 Yes",
@@ -28,9 +31,15 @@ it("does not turn RFP disqualification scraps into questions", () => {
   expect(blob).not.toMatch(/disqualif/i);
   expect(blob).not.toMatch(/what is your paid/i);
   expect(blob).not.toMatch(/non-?compulsory briefing/i);
-  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
-  expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
-  expect(fields[0]?.label).toMatch(/NAME OF BIDDER|CSD|Tax|company/i);
+  expect(blob).not.toMatch(/\bpage\s+\d+/i);
+  expect(fields.map((field) => field.label)).toEqual([
+    "Bidder name",
+    "CSD number",
+    "Tax reference",
+    "SBD 4 — Bidders disclosure",
+    "SBD 3.3 — Pricing schedule",
+    "Signature",
+  ]);
 });
 
 it("reads a blank on the line under a short label", () => {
@@ -107,7 +116,7 @@ it("infers RFPO blanks without turning warnings into questions", () => {
   const blob = fields.map((field) => `${field.label} ${field.prompt}`).join(" | ");
   expect(blob).not.toMatch(/disqualif/i);
   expect(blob).not.toMatch(/what is your paid/i);
-  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/Bidder name/i);
   expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
 });
 
@@ -161,7 +170,7 @@ it("infers SBD returnables and ellipsis blanks without AcroForm", () => {
     ].join("\n"),
   );
   const labels = fields.map((field) => field.label).join(" | ");
-  expect(labels).toMatch(/NAME OF BIDDER/i);
+  expect(labels).toMatch(/Bidder name/i);
   expect(labels).toMatch(/SBD 3\.3/i);
   expect(labels).toMatch(/SBD 4/i);
   expect(fields.some((field) => field.kind === "signature")).toBe(true);

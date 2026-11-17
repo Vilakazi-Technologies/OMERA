@@ -1,4 +1,5 @@
 import type { StoredFormField } from "@/lib/db/form-sessions";
+import { humanQuestionLabel } from "@/lib/forms/fill-item-filter";
 import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
 import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
@@ -45,9 +46,20 @@ export function labelsCoverSameQuestion(existing: string, candidate: string): bo
   return shorter.every((word) => longer.includes(word));
 }
 
+function presentField(field: StoredFormField): StoredFormField | null {
+  const label = humanQuestionLabel(field.label);
+  if (!label) return null;
+  return {
+    ...field,
+    label,
+    prompt: label,
+  };
+}
+
 /**
  * Union of AcroForm widgets, model rows, and printed blanks / SBD returnables.
- * Keeps the first occurrence's id (AcroForm names must survive for PDF fill).
+ * Drops warning scraps and page markers, rewrites labels into bidder language,
+ * and keeps the first occurrence's id (AcroForm names must survive for PDF fill).
  */
 export function mergeFillFields(
   ...lists: StoredFormField[][]
@@ -55,14 +67,12 @@ export function mergeFillFields(
   const merged: StoredFormField[] = [];
   for (const list of lists) {
     for (const field of list) {
-      const label = field.label.replace(/\s+/g, " ").trim();
-      if (!label) continue;
-      if (
-        merged.some((row) => labelsCoverSameQuestion(row.label, label))
-      ) {
+      const next = presentField(field);
+      if (!next) continue;
+      if (merged.some((row) => labelsCoverSameQuestion(row.label, next.label))) {
         continue;
       }
-      merged.push(field);
+      merged.push(next);
       if (merged.length >= FORM_MAX_INFERRED_FIELDS) {
         return sortFieldsForQuestionFlow(merged);
       }

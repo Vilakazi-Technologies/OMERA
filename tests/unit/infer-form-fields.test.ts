@@ -73,7 +73,7 @@ it("adds printed Name: ____ blanks when the model omitted them", async () => {
   });
   const labels = fields.map((field) => field.label).join(" | ");
   expect(labels).toMatch(/SBD 4/i);
-  expect(labels).toMatch(/NAME OF BIDDER/i);
+  expect(labels).toMatch(/Bidder name/i);
   expect(labels).toMatch(/CSD/i);
   expect(fields.some((field) => field.kind === "signature")).toBe(true);
 });
@@ -257,7 +257,7 @@ it("drops AI warning scraps and keeps bidder identity fields", async () => {
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields.map((field) => field.label).join(" ")).toMatch(/Name of bidder/i);
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/Bidder name/i);
   expect(fields.map((field) => `${field.label} ${field.prompt}`).join(" ")).not.toMatch(
     /disqualif|what is your paid/i,
   );
@@ -285,7 +285,7 @@ it("passes documentClass for RFPO into the text model", async () => {
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields[0]?.label).toMatch(/Name of bidder/i);
+  expect(fields[0]?.label).toMatch(/Bidder name/i);
 });
 
 it("forces text inference for an RFP with SBD returnables", async () => {
@@ -300,7 +300,7 @@ it("forces text inference for an RFP with SBD returnables", async () => {
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/Bidder name/i);
   expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
   expect(screenshotPdfPages).not.toHaveBeenCalled();
 });

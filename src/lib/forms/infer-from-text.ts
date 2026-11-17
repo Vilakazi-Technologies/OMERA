@@ -1,15 +1,15 @@
 import type { StoredFormField } from "@/lib/db/form-sessions";
-import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
+import { mergeFillFields } from "@/lib/forms/merge-fill-fields";
 import {
   FILL_BLANK_RUN,
+  humanQuestionLabel,
   isAnswerOrAttachItem,
-  promptForFillItem,
 } from "@/lib/forms/fill-item-filter";
 import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
 const MAX_HEURISTIC_FIELDS = FORM_MAX_INFERRED_FIELDS;
 const SKIP_LINE =
-  /^(page\s+\d+\b|application(\s+form)?$|application\s+for\b.{0,60}$|form$|instructions?$|please\s+(complete|fill)\b|note:|background$|introduction$|scope of work\b|evaluation criteria\b)/i;
+  /^(page\s+\d+\b|[-–—]\s*\d+\s*[-–—]|application(\s+form)?$|application\s+for\b.{0,60}$|form$|instructions?$|please\s+(complete|fill)\b|note:|background$|introduction$|scope of work\b|evaluation criteria\b)/i;
 const SKIP_LABEL =
   /^(closing date|closing time|page|rfq no|rfp no|bid no|bid number|tender no|non-?compulsory|briefing session|venue)$/i;
 const FORM_TITLES: Record<string, string> = {
@@ -51,19 +51,21 @@ function pushField(
 ): void {
   const trimmed = label.replace(/[:.]+$/, "").replace(/\s+/g, " ").trim();
   if (!trimmed || trimmed.length < 2 || SKIP_LABEL.test(trimmed)) return;
-  if (!force && !isAnswerOrAttachItem(trimmed, sourceLine || trimmed)) return;
-  const key = trimmed.toLowerCase();
+  const human = humanQuestionLabel(trimmed);
+  if (!human || SKIP_LABEL.test(human)) return;
+  if (!force && !isAnswerOrAttachItem(human, sourceLine || trimmed)) return;
+  const key = human.toLowerCase();
   if (seen.has(key)) return;
   seen.add(key);
   const index = fields.length + 1;
   fields.push({
-    id: slugId(trimmed, index),
-    label: trimmed,
+    id: slugId(human, index),
+    label: human,
     type: "text",
     required:
       kind === "signature" ||
-      /name|date|id\b|id number|sbd|mbd|bidder|csd|tax|b-?bb+ee/i.test(trimmed),
-    prompt: promptForFillItem(trimmed, kind),
+      /name|date|id\b|id number|sbd|mbd|bidder|csd|tax|b-?bb+ee/i.test(human),
+    prompt: human,
     kind,
   });
 }
@@ -167,5 +169,5 @@ export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
   }
 
   inferReturnableForms(text, fields, seen);
-  return sortFieldsForQuestionFlow(fields);
+  return mergeFillFields(fields);
 }

@@ -577,4 +577,69 @@ describe("form page review flow", () => {
     expect(created).toEqual(["application/pdf"]);
     expect(clicked).toEqual(["form-completed.pdf"]);
   });
+
+  it("discards the session from briefing and from questions so a new PDF starts clean", async () => {
+    let uploads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          uploads += 1;
+          if (uploads < 3) return jsonResponse(analyzePayload(), 201);
+          return jsonResponse(
+            {
+              ...analyzePayload(),
+              sessionId: "s-2",
+              fileName: "other.pdf",
+              fields: [
+                {
+                  id: "csd",
+                  label: "CSD number",
+                  prompt: "CSD number",
+                  required: true,
+                  kind: "text",
+                },
+              ],
+            },
+            201,
+          );
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = () =>
+      container.querySelector('input[type="file"]') as HTMLInputElement;
+    const choose = (name: string) => {
+      fireEvent.change(input(), {
+        target: {
+          files: [new File(["%PDF-1.7"], name, { type: "application/pdf" })],
+        },
+      });
+    };
+
+    choose("form.pdf");
+    await screen.findByRole("button", { name: "Start filling" });
+    fireEvent.click(screen.getAllByRole("button", { name: "Upload another" })[0]);
+    await screen.findByText("Upload your form");
+    expect(screen.queryByText("What is your full name?")).toBeNull();
+    expect(localStorage.getItem("omera-form-ref")).toBeNull();
+
+    choose("form.pdf");
+    await screen.findByRole("button", { name: "Start filling" });
+    fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
+    await screen.findByText("What is your full name?");
+    fireEvent.click(screen.getAllByRole("button", { name: "Replace document" })[0]);
+    await screen.findByText("Upload your form");
+    expect(screen.queryByText("What is your full name?")).toBeNull();
+    expect(localStorage.getItem("omera-form-ref")).toBeNull();
+
+    choose("other.pdf");
+    await screen.findByRole("button", { name: "Start filling" });
+    fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
+    expect((await screen.findAllByText("CSD number")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("What is your full name?")).toBeNull();
+    expect(localStorage.getItem("omera-form-ref")).toContain("s-2");
+  });
 });

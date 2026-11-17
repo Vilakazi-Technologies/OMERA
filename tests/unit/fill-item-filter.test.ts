@@ -1,9 +1,11 @@
 import { expect, it } from "vitest";
 import {
+  humanQuestionLabel,
   isAnswerOrAttachItem,
   isBoilerplateInstruction,
   isJunkFragment,
   isModelFillItem,
+  promptForFillItem,
 } from "@/lib/forms/fill-item-filter";
 
 it("never treats disqualification scraps as fill-in questions", () => {
@@ -51,4 +53,32 @@ it("keeps ordinary form labels so generic PDFs are not over-filtered", () => {
   expect(isModelFillItem("Email address", "What is the email address?")).toBe(
     true,
   );
+});
+
+it("drops page markers, mid-sentence scraps, and warning lines that end in a blank", () => {
+  expect(isJunkFragment("Page 4")).toBe(true);
+  expect(isJunkFragment("Page 4 of 12")).toBe(true);
+  expect(isJunkFragment("— 3 —")).toBe(true);
+  expect(isJunkFragment("what is your paid")).toBe(true);
+  expect(humanQuestionLabel("the paid will be disqualified automatically")).toBe(
+    null,
+  );
+  expect(
+    isBoilerplateInstruction(
+      "the bid will be disqualified automatically",
+      "the bid will be disqualified automatically",
+      "the bid will be disqualified automatically: ______",
+    ),
+  ).toBe(true);
+  expect(
+    isAnswerOrAttachItem(
+      "following documents the bid will be",
+      "following documents the bid will be: ______",
+    ),
+  ).toBe(false);
+  expect(promptForFillItem("paid", "text")).toBe("");
+  expect(promptForFillItem("NAME OF BIDDER", "text")).toBe("Bidder name");
+  expect(promptForFillItem("CSD number", "text")).toBe("CSD number");
+  expect(promptForFillItem("Tax reference", "text")).toBe("Tax reference");
+  expect(promptForFillItem("Signature", "signature")).toBe("Signature");
 });
