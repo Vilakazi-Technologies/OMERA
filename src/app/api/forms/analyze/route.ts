@@ -234,6 +234,9 @@ export async function POST(request: Request) {
     const brief = await buildDocumentBrief(extracted.text, {
       languageId,
       fileName,
+      pagesRead: extracted.pages.length,
+      pageCount: extracted.totalPages,
+      truncated: extracted.truncated,
     });
     const hasFillableQuestions = interpreted.length > 0;
 

@@ -31,13 +31,23 @@ const FIELDS = [
 const BRIEF = {
   title: "Leave application",
   documentKind: "application" as const,
-  summary: "A staff leave form for municipal employees.",
+  summary:
+    "A staff leave form for municipal employees.\n\nIt records leave dates, a reason, and a manager sign-off before payroll runs.",
   eligibility: "Permanent staff.",
   deadlines: ["Submit before month end"],
-  requiredAttachments: [],
+  requiredAttachments: ["Leave roster"],
   actionsNow: ["Fill in your name and dates"],
   implications: ["Incomplete forms are returned"],
   fillableSections: ["Applicant details"],
+  sections: ["Applicant details", "Leave period", "Approval"],
+  keyFacts: ["Leave year 2026"],
+  parties: [{ role: "Employer", name: "City of Tshwane" }],
+  whatWasRead: {
+    pagesRead: 3,
+    pageCount: 3,
+    truncated: false,
+    note: "Omera read all 3 pages that could be extracted as text.",
+  },
 };
 
 function analyzePayload() {
@@ -219,8 +229,13 @@ describe("form page review flow", () => {
         files: [new File(["%PDF-1.7"], "form.pdf", { type: "application/pdf" })],
       },
     });
-    await screen.findByText("A staff leave form for municipal employees.");
+    await screen.findByText(/A staff leave form for municipal employees/i);
     expect(screen.getByText("What you must do now")).toBeVisible();
+    expect(screen.getByText("Key facts")).toBeVisible();
+    expect(screen.getByText("Parties")).toBeVisible();
+    expect(screen.getByText("Outline")).toBeVisible();
+    expect(screen.getByText("What Omera read")).toBeVisible();
+    expect(screen.getByLabelText("Document briefing")).toHaveClass("overflow-y-auto");
     expect(screen.queryByText("What is your full name?")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
     await screen.findByText("What is your full name?");
@@ -246,7 +261,7 @@ describe("form page review flow", () => {
         files: [new File(["%PDF-1.7"], "tender.pdf", { type: "application/pdf" })],
       },
     });
-    await screen.findByText("A staff leave form for municipal employees.");
+    await screen.findByText(/A staff leave form for municipal employees/i);
     expect(screen.getByRole("button", { name: "Start filling" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
     await screen.findByText("What is your full name?");
@@ -295,8 +310,12 @@ describe("form page review flow", () => {
       "This PDF is a product brochure about municipal accounting software.",
     );
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("What this is about")).toBeVisible();
     expect(screen.getByText(/no fill-in questions/i)).toBeVisible();
     expect(screen.getByText(/Omera found no fill-in questions/i)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Start filling" }),
+    ).toBeNull();
     fireEvent.click(
       screen.getByRole("button", { name: "Upload a form with questions" }),
     );

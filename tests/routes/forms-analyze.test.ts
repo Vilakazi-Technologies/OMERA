@@ -53,6 +53,15 @@ const BRIEF = {
   actionsNow: ["Complete the applicant details."],
   implications: [],
   fillableSections: ["Applicant details"],
+  sections: ["Applicant details"],
+  keyFacts: [],
+  parties: [],
+  whatWasRead: {
+    pagesRead: 1,
+    pageCount: 1,
+    truncated: false,
+    note: "Omera read all 1 page that could be extracted as text.",
+  },
 };
 
 const PDF_BYTES = new Uint8Array([
@@ -156,6 +165,26 @@ beforeEach(() => {
     status: "in_progress",
     brief: input.brief ?? BRIEF,
   }) as never);
+});
+
+it("passes language and page coverage into the briefing", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce({
+    pages: Array.from({ length: 80 }, (_, index) => ({
+      pageNumber: index + 1,
+      text: "tender",
+    })),
+    text: "Invitation to tender",
+    totalPages: 120,
+    truncated: true,
+  });
+  const response = await POST(postPdf(PDF_BYTES, { languageId: "zul" }));
+  expect(response.status).toBe(201);
+  expect(vi.mocked(buildDocumentBrief).mock.calls[0][1]).toMatchObject({
+    languageId: "zul",
+    pagesRead: 80,
+    pageCount: 120,
+    truncated: true,
+  });
 });
 
 it("a_valid_pdf_creates_a_session", async () => {

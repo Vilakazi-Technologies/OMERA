@@ -8,6 +8,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat-composer";
+import { FormDocumentBriefPanel } from "@/components/form-document-brief";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
 import { activeQuestion } from "@/lib/forms/questions";
@@ -15,34 +16,14 @@ import {
   formErrorMessage,
   formUploadFailure,
   missingRequiredFields,
-  NO_FILL_IN_PLACES_MESSAGE,
 } from "@/lib/forms/form-errors";
+import { tryParseDocumentBrief } from "@/lib/forms/document-brief-schema";
+import type { FormDocumentBrief } from "@/lib/forms/document-brief-schema";
 import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
 import { cn } from "@/lib/cn";
 
 type Step = "upload" | "briefing" | "questions" | "review" | "complete";
-
-type ClientBrief = {
-  title: string;
-  documentKind: "tender" | "rfp" | "rfq" | "application" | "form" | "other";
-  summary: string;
-  eligibility: string;
-  deadlines: string[];
-  requiredAttachments: string[];
-  actionsNow: string[];
-  implications: string[];
-  fillableSections: string[];
-};
-
-const KIND_LABEL: Record<ClientBrief["documentKind"], string> = {
-  tender: "Tender",
-  rfp: "Request for proposal (RFP)",
-  rfq: "Request for quotation (RFQ)",
-  application: "Application",
-  form: "Form",
-  other: "Document",
-};
 
 type ClientField = {
   id: string;
@@ -62,7 +43,7 @@ type LocalSession = {
   languageId: string;
   revision: number;
   status: string;
-  brief: ClientBrief | null;
+  brief: FormDocumentBrief | null;
 };
 
 const FORM_REF_KEY = "omera-form-ref";
@@ -98,40 +79,8 @@ function normalizeField(raw: unknown): ClientField | null {
   };
 }
 
-function normalizeBrief(raw: unknown): ClientBrief | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const record = raw as Record<string, unknown>;
-  const kind = record.documentKind;
-  const documentKind: ClientBrief["documentKind"] =
-    kind === "tender" ||
-    kind === "rfp" ||
-    kind === "rfq" ||
-    kind === "application" ||
-    kind === "form" ||
-    kind === "other"
-      ? kind
-      : "other";
-  const list = (value: unknown) =>
-    Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string" && !!item.trim())
-      : [];
-  const title = typeof record.title === "string" ? record.title.trim() : "";
-  const summary = typeof record.summary === "string" ? record.summary.trim() : "";
-  if (!title && !summary) return null;
-  return {
-    title: title || "Uploaded document",
-    documentKind,
-    summary: summary || title,
-    eligibility:
-      typeof record.eligibility === "string" && record.eligibility.trim()
-        ? record.eligibility.trim()
-        : "Not stated.",
-    deadlines: list(record.deadlines),
-    requiredAttachments: list(record.requiredAttachments),
-    actionsNow: list(record.actionsNow),
-    implications: list(record.implications),
-    fillableSections: list(record.fillableSections),
-  };
+function normalizeBrief(raw: unknown): FormDocumentBrief | null {
+  return tryParseDocumentBrief(raw);
 }
 
 function sessionHasAnswers(fields: ClientField[], currentIndex: number): boolean {
@@ -601,7 +550,7 @@ export default function FormFillPage() {
                 <div className="mt-4 flex flex-col items-center gap-2">
                   <Loader2 className="size-6 animate-spin text-slate-400" />
                   <p className="text-sm text-slate-400">
-                    Reading the whole document… then a short briefing.
+                    Reading the whole document… then a briefing you can scroll.
                   </p>
                 </div>
               )}
@@ -610,90 +559,12 @@ export default function FormFillPage() {
         )}
 
         {!restoring && step === "briefing" && session && (
-          <div className="mx-auto max-w-lg">
-            <p className="text-xs uppercase tracking-wider text-slate-500">
-              {KIND_LABEL[session.brief?.documentKind ?? "other"]}
-            </p>
-            <h2 className="mt-1 text-lg font-semibold text-white">
-              {session.brief?.title ?? session.fileName}
-            </h2>
-            <p className="mt-1 truncate text-xs text-slate-500">
-              {session.fileName}
-            </p>
-            <div className="mt-4 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">
-              <p>{session.brief?.summary ?? "Omera has this file ready."}</p>
-              {session.brief?.eligibility ? (
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">
-                    Who this is for
-                  </p>
-                  <p className="mt-1">{session.brief.eligibility}</p>
-                </div>
-              ) : null}
-              {session.brief?.actionsNow.length ? (
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">
-                    What you must do now
-                  </p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {session.brief.actionsNow.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {session.brief?.deadlines.length ? (
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">
-                    Dates
-                  </p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {session.brief.deadlines.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {session.brief?.requiredAttachments.length ? (
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">
-                    Attachments to gather
-                  </p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {session.brief.requiredAttachments.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {session.brief?.implications.length ? (
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">
-                    If you skip this
-                  </p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {session.brief.implications.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {session.brief?.fillableSections.length ? (
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">
-                    Forms Omera will ask about
-                  </p>
-                  <p className="mt-1 text-slate-300">
-                    {session.brief.fillableSections.join(" · ")}
-                  </p>
-                </div>
-              ) : null}
-              <p className="text-xs text-slate-500">
-                {session.fields.length
-                  ? `${session.fields.length} fill-in question${session.fields.length === 1 ? "" : "s"} found. Narrative pages are skipped.`
-                  : NO_FILL_IN_PLACES_MESSAGE}
-              </p>
-            </div>
+          <div className="mx-auto w-full max-w-2xl pb-4">
+            <FormDocumentBriefPanel
+              brief={session.brief}
+              fileName={session.fileName}
+              questionCount={session.fields.length}
+            />
             {session.fields.length ? (
               <>
                 <button

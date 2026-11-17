@@ -279,7 +279,7 @@ export async function completeOpenRouterJsonString(
     JSON.stringify({
       model: config.model,
       stream: false,
-      max_tokens: maxOutputTokens(),
+      max_tokens: Math.min(4096, Math.max(maxOutputTokens(), 3072)),
       response_format: { type: "json_object" },
       provider: { sort: "latency", allow_fallbacks: true },
       messages: [

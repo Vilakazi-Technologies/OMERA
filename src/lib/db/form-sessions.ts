@@ -4,7 +4,7 @@ import type {
   FormDocumentKind,
   FormDocumentStatus,
 } from "@/lib/forms/contracts";
-import type { FormDocumentBrief } from "@/lib/forms/document-brief";
+import type { FormDocumentBrief } from "@/lib/forms/document-brief-schema";
 import type { FormField, FormSession } from "@/lib/types";
 
 export type StoredFormField = FormField & {
