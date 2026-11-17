@@ -4,7 +4,9 @@ import { INFER_FORM_INSTRUCTIONS } from "@/lib/forms/infer-form-fields";
 
 describe("infer form prompt", () => {
   it("forbids turning warnings into questions for every pack type", () => {
-    expect(INFER_FORM_INSTRUCTIONS).toMatch(/RFP, RFPO, RFQ/);
+    expect(INFER_FORM_INSTRUCTIONS).toMatch(
+      /RFP, RFPO, RFQ, RFB, RFI, EOI, bid, tender, quotation, proposal, application, and ordinary fillable forms/,
+    );
     expect(INFER_FORM_INSTRUCTIONS).toMatch(/ordinary fillable forms/);
     expect(INFER_FORM_INSTRUCTIONS).toMatch(/Never turn boilerplate/);
     expect(INFER_FORM_INSTRUCTIONS).toMatch(/disqualified/);
