@@ -14,7 +14,7 @@ export function fallbackFormFields(
   inspected: PdfFieldInfo[],
 ): StoredFormField[] {
   return inspected.map((field) => {
-    const label = humanizeFieldId(field.id);
+    const label = field.widgetLabel?.trim() || humanizeFieldId(field.id);
     let prompt = `What is your ${label.toLowerCase()}?`;
     if (field.kind === "signature") {
       prompt = `Type your full name to sign "${label}" (printed signature — not a digital certificate).`;

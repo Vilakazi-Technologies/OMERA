@@ -1,11 +1,12 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
-  PDFButton, PDFCheckBox, PDFDocument, PDFDropdown, PDFField, PDFName,
-  PDFPage, PDFRadioGroup, PDFSignature, PDFTextField, PDFFont, rgb,
+  PDFButton, PDFCheckBox, PDFDict, PDFDocument, PDFDropdown, PDFField, PDFHexString,
+  PDFName, PDFPage, PDFRadioGroup, PDFSignature, PDFString, PDFTextField, PDFFont, rgb,
 } from "pdf-lib";
 import {
   FORM_PDF_FILE_LIMIT,
   FORM_PDF_FILL_PAGE_LIMIT,
+  FORM_PDF_INSPECT_FIELD_LIMIT,
 } from "@/lib/forms/pdf-limits";
 
 export type PdfFieldInfo = {
@@ -15,6 +16,7 @@ export type PdfFieldInfo = {
   initialValue: string | boolean;
   options?: string[];
   maxLength?: number;
+  widgetLabel?: string;
 };
 
 function pageForWidget(pdf: PDFDocument, widget: { P?: () => unknown }): PDFPage {
@@ -50,32 +52,113 @@ function drawSignatureLabel(
   }
 }
 
+function pdfDictText(dict: PDFDict, key: string): string | undefined {
+  const value = dict.lookupMaybe(PDFName.of(key), PDFString, PDFHexString);
+  if (!value) return undefined;
+  const text = value.decodeText().replace(/\s+/g, " ").trim();
+  return text || undefined;
+}
+
+function widgetLabelFromDict(dict: PDFDict): string | undefined {
+  return pdfDictText(dict, "TU") ?? pdfDictText(dict, "TM");
+}
+
+function withWidgetLabel(
+  info: PdfFieldInfo,
+  label: string | undefined,
+): PdfFieldInfo {
+  if (!label || label === info.id) return info;
+  return { ...info, widgetLabel: label.slice(0, 160) };
+}
+
 function describe(field: PDFField): PdfFieldInfo | null {
+  const tooltip = widgetLabelFromDict(field.acroField.dict);
   if (field instanceof PDFSignature) {
-    return {
-      id: field.getName(),
-      kind: "signature",
-      required: field.isRequired(),
-      initialValue: "",
-    };
+    return withWidgetLabel(
+      {
+        id: field.getName(),
+        kind: "signature",
+        required: field.isRequired(),
+        initialValue: "",
+      },
+      tooltip,
+    );
   }
   if (field instanceof PDFButton || field.isReadOnly()) return null;
   const base = { id: field.getName(), required: field.isRequired() };
   if (field instanceof PDFTextField) {
     if (field.isRichFormatted()) throw new Error("UNSUPPORTED_FIELD_TYPE");
-    return { ...base, kind: "text", initialValue: field.getText() ?? "", maxLength: field.getMaxLength() };
+    return withWidgetLabel(
+      { ...base, kind: "text", initialValue: field.getText() ?? "", maxLength: field.getMaxLength() },
+      tooltip,
+    );
   }
   if (field instanceof PDFCheckBox) {
-    return { ...base, kind: "checkbox", initialValue: field.isChecked() };
+    return withWidgetLabel(
+      { ...base, kind: "checkbox", initialValue: field.isChecked() },
+      tooltip,
+    );
   }
   if (field instanceof PDFDropdown) {
     if (field.isMultiselect() || field.isEditable()) throw new Error("UNSUPPORTED_FIELD_TYPE");
-    return { ...base, kind: "choice", options: field.getOptions(), initialValue: field.getSelected()[0] ?? "" };
+    return withWidgetLabel(
+      { ...base, kind: "choice", options: field.getOptions(), initialValue: field.getSelected()[0] ?? "" },
+      tooltip,
+    );
   }
   if (field instanceof PDFRadioGroup) {
-    return { ...base, kind: "choice", options: field.getOptions(), initialValue: field.getSelected() ?? "" };
+    return withWidgetLabel(
+      { ...base, kind: "choice", options: field.getOptions(), initialValue: field.getSelected() ?? "" },
+      tooltip,
+    );
   }
   throw new Error("UNSUPPORTED_FIELD_TYPE");
+}
+
+function describeWidgetAnnot(annot: PDFDict, index: number): PdfFieldInfo | null {
+  const subtype = annot.lookupMaybe(PDFName.of("Subtype"), PDFName);
+  if (subtype && subtype.toString() !== "/Widget") return null;
+  const ft = annot.lookupMaybe(PDFName.of("FT"), PDFName)?.toString();
+  if (!ft) return null;
+  const id =
+    pdfDictText(annot, "T") ??
+    pdfDictText(annot, "TM") ??
+    `widget_${index}`;
+  const tooltip = widgetLabelFromDict(annot);
+  const required = false;
+  if (ft === "/Sig") {
+    return withWidgetLabel({ id, kind: "signature", required, initialValue: "" }, tooltip);
+  }
+  if (ft === "/Tx") {
+    return withWidgetLabel({ id, kind: "text", required, initialValue: "" }, tooltip);
+  }
+  if (ft === "/Ch") {
+    return withWidgetLabel({ id, kind: "choice", required, initialValue: "", options: [] }, tooltip);
+  }
+  if (ft === "/Btn") {
+    return withWidgetLabel({ id, kind: "checkbox", required, initialValue: false }, tooltip);
+  }
+  return null;
+}
+
+function describePageWidgets(pdf: PDFDocument): PdfFieldInfo[] {
+  const fields: PdfFieldInfo[] = [];
+  const seen = new Set<string>();
+  let index = 0;
+  for (const page of pdf.getPages()) {
+    const annots = page.node.Annots();
+    if (!annots) continue;
+    for (let i = 0; i < annots.size(); i += 1) {
+      const annot = annots.lookup(i);
+      if (!(annot instanceof PDFDict)) continue;
+      const info = describeWidgetAnnot(annot, index);
+      index += 1;
+      if (!info || seen.has(info.id)) continue;
+      seen.add(info.id);
+      fields.push(info);
+    }
+  }
+  return fields;
 }
 
 function isEncryptedPdfError(error: unknown): boolean {
@@ -87,7 +170,8 @@ function isEncryptedPdfError(error: unknown): boolean {
   );
 }
 
-async function load(bytes: Uint8Array) {
+async function load(bytes: Uint8Array, options: { enforceFillLimits?: boolean } = {}) {
+  const enforceFillLimits = options.enforceFillLimits !== false;
   if (!bytes.length || bytes.length > FORM_PDF_FILE_LIMIT) throw new Error("INVALID_PDF_SIZE");
   if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("INVALID_PDF");
   let pdf: PDFDocument;
@@ -97,17 +181,23 @@ async function load(bytes: Uint8Array) {
     if (isEncryptedPdfError(error)) throw new Error("ENCRYPTED_PDF");
     throw new Error("INVALID_PDF");
   }
-  if (pdf.getPageCount() > FORM_PDF_FILL_PAGE_LIMIT) throw new Error("PDF_PAGE_LIMIT");
+  if (enforceFillLimits && pdf.getPageCount() > FORM_PDF_FILL_PAGE_LIMIT) {
+    throw new Error("PDF_PAGE_LIMIT");
+  }
   if (pdf.catalog.getAcroForm()?.dict.has(PDFName.of("XFA"))) throw new Error("UNSUPPORTED_XFA");
   const form = pdf.getForm();
-  const fields = form.getFields().map(describe).filter((field): field is PdfFieldInfo => field !== null);
+  const fromForm = form.getFields().map(describe).filter((field): field is PdfFieldInfo => field !== null);
+  const fields = fromForm.length ? fromForm : describePageWidgets(pdf);
   if (!fields.length) throw new Error("NO_FILLABLE_FIELDS");
-  if (fields.length > 100) throw new Error("PDF_FIELD_LIMIT");
+  if (enforceFillLimits && fields.length > 100) throw new Error("PDF_FIELD_LIMIT");
+  if (!enforceFillLimits && fields.length > FORM_PDF_INSPECT_FIELD_LIMIT) {
+    return { pdf, form, fields: fields.slice(0, FORM_PDF_INSPECT_FIELD_LIMIT) };
+  }
   return { pdf, form, fields };
 }
 
 export async function inspectPdfFields(bytes: Uint8Array): Promise<PdfFieldInfo[]> {
-  return (await load(bytes)).fields;
+  return (await load(bytes, { enforceFillLimits: false })).fields;
 }
 
 export async function fillPdfFields(

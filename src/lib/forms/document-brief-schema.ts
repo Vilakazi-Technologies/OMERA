@@ -182,3 +182,39 @@ export function tryParseDocumentBrief(
     return null;
   }
 }
+
+/** Client-safe brief when analyze omits one — never leave the briefing screen empty. */
+export function fallbackDocumentBrief(input: {
+  fileName: string;
+  fieldLabels?: string[];
+  coverage?: BriefWhatWasRead;
+}): FormDocumentBrief {
+  const labels = (input.fieldLabels ?? [])
+    .map((label) => label.trim())
+    .filter(Boolean)
+    .slice(0, 16);
+  const title =
+    input.fileName.replace(/\.pdf$/i, "").trim() || "Uploaded document";
+  const coverage = input.coverage ?? defaultWhatWasRead();
+  return {
+    title,
+    documentKind: labels.length ? "form" : "other",
+    summary: labels.length
+      ? `Omera found ${labels.length} fill-in question${labels.length === 1 ? "" : "s"} on this PDF.\n\nYou will be asked about: ${labels.slice(0, 8).join("; ")}.`
+      : "Omera has this file ready. Scroll this briefing, then upload a form with questions if none were found.",
+    sections: [],
+    keyFacts: [],
+    parties: [],
+    eligibility: "Not stated in the pages Omera could read.",
+    deadlines: [],
+    requiredAttachments: [],
+    actionsNow: labels.length
+      ? ["Read this briefing, then start filling the questions on the form."]
+      : ["If this is the wrong file, upload a form with questions or blanks."],
+    implications: [
+      "Skipping the briefing can hide closing dates, returnables, and who issued the pack.",
+    ],
+    fillableSections: labels.slice(0, 12),
+    whatWasRead: coverage,
+  };
+}

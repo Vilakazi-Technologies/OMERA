@@ -209,6 +209,91 @@ describe("form page review flow", () => {
     expect(alert.textContent).not.toMatch(/print/i);
   });
 
+  it("shows briefing even when analyze omits a brief payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return jsonResponse(
+            {
+              sessionId: "s-acro",
+              fileName: "Gauteng Tender.pdf",
+              fields: FIELDS,
+              revision: 1,
+              status: "in_progress",
+            },
+            201,
+          );
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["%PDF-1.7"], "Gauteng Tender.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    expect(await screen.findByLabelText("Document briefing")).toBeVisible();
+    expect(screen.getByText("Full name")).toBeVisible();
+    expect(screen.queryByText("What is your full name?")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
+    await screen.findByText("What is your full name?");
+  });
+
+  it("restores a fresh session onto briefing not questions", async () => {
+    localStorage.setItem("omera-form-ref", JSON.stringify({ sessionId: "s-fresh" }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        const target = String(url);
+        if (target.endsWith("/api/auth/session")) {
+          return jsonResponse({ userId: "omera-user-1" }, 200);
+        }
+        if (target.includes("/api/forms/sessions/s-fresh")) {
+          return jsonResponse(
+            {
+              session: {
+                id: "s-fresh",
+                fileName: "Gauteng Tender.pdf",
+                fields: [
+                  {
+                    id: "permission",
+                    label: "Consent",
+                    prompt: "Do you consent?",
+                    required: false,
+                    kind: "checkbox",
+                    value: false,
+                  },
+                  FIELDS[0],
+                ],
+                currentIndex: 0,
+                languageId: "eng",
+                revision: 1,
+                status: "in_progress",
+                brief: BRIEF,
+              },
+            },
+            200,
+          );
+        }
+        throw new Error(`unexpected fetch: ${target}`);
+      }),
+    );
+    render(<FormFillPage />);
+    expect(await screen.findByLabelText("Document briefing")).toBeVisible();
+    expect(screen.queryByText("Do you consent?")).toBeNull();
+    expect(screen.getByRole("button", { name: "Start filling" })).toBeVisible();
+  });
+
   it("shows a briefing before questions", async () => {
     vi.stubGlobal(
       "fetch",

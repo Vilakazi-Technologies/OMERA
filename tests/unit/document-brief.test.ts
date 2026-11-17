@@ -13,6 +13,24 @@ import { defaultWhatWasRead } from "@/lib/forms/document-brief-schema";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
 import { selectFormLikePageNumbers } from "@/lib/forms/form-like-pages";
 
+it("heuristic briefing names AcroForm widgets when AI is unavailable", () => {
+  const brief = heuristicDocumentBrief(
+    "Gauteng Provincial Legislature request for proposal.",
+    "Gauteng Tender.pdf",
+    undefined,
+    [
+      { label: "Name of bidder" },
+      { label: "CSD number" },
+      { label: "Signature" },
+    ],
+  );
+  expect(brief.summary).toMatch(/Name of bidder/);
+  expect(brief.fillableSections).toEqual(
+    expect.arrayContaining(["Name of bidder", "CSD number"]),
+  );
+  expect(brief.actionsNow.join(" ")).toMatch(/Complete the returnable|Name of bidder/i);
+});
+
 it("classifies a municipal accounting tender from extractable text", () => {
   const brief = heuristicDocumentBrief(
     [

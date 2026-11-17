@@ -128,6 +128,27 @@ it("describes empty text, unchecked boxes and unselected choices", async () => {
   ]);
 });
 
+it("reads Apple Autofill-style widget tooltips as human labels", async () => {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([400, 400]);
+  const form = pdf.getForm();
+  const name = form.createTextField("topmostSubform[0].Page1[0].f1_01");
+  name.addToPage(page, { x: 40, y: 300, width: 200, height: 20 });
+  name.acroField.dict.set(
+    PDFName.of("TU"),
+    PDFHexString.fromText("Name of bidder"),
+  );
+  const source = await pdf.save();
+  const fields = await inspectPdfFields(source);
+  expect(fields).toEqual([
+    expect.objectContaining({
+      id: "topmostSubform[0].Page1[0].f1_01",
+      kind: "text",
+      widgetLabel: "Name of bidder",
+    }),
+  ]);
+});
+
 it("describes unconstrained text with an undefined maxLength", async () => {
   const source = await fixture();
   const fields = await inspectPdfFields(source);
@@ -315,7 +336,7 @@ it("keeps every input and font byte unchanged, including Uint8Array subview guar
   expect(pdf.getForm().getRadioGroup("method").getSelected()).toBe("Phone");
 });
 
-import { PDFArray, PDFDict, PDFName } from "pdf-lib";
+import { PDFArray, PDFDict, PDFHexString, PDFName } from "pdf-lib";
 
 it("preserves source AcroForm traversal instead of object-number order", async () => {
   const pdf = await PDFDocument.create();
@@ -455,11 +476,31 @@ it("accepts exactly 40 pages and 100 fillable fields, preserving exact IDs and p
 });
 
 it("rejects 41 pages for in-place fill", async () => {
-  await rejectBoth(await boundaryFixture(41), "PDF_PAGE_LIMIT");
+  const source = await boundaryFixture(41);
+  await expect(fillPdfFields(source, {}, await fontFixture)).rejects.toThrow(
+    "PDF_PAGE_LIMIT",
+  );
 });
 
-it("rejects 101 fillable fields", async () => {
-  await rejectBoth(await boundaryFixture(1, 101), "PDF_FIELD_LIMIT");
+it("inspects AcroForm widgets on packs longer than the in-place fill page cap", async () => {
+  const source = await boundaryFixture(41);
+  expect((await inspectPdfFields(source)).map((field) => field.id)).toEqual([
+    "field_0",
+  ]);
+});
+
+it("rejects 101 fillable fields on in-place fill", async () => {
+  const source = await boundaryFixture(1, 101);
+  await expect(fillPdfFields(source, {}, await fontFixture)).rejects.toThrow(
+    "PDF_FIELD_LIMIT",
+  );
+});
+
+it("inspects more than 100 AcroForm widgets for briefing", async () => {
+  const source = await boundaryFixture(1, 101);
+  expect((await inspectPdfFields(source)).map((field) => field.id)).toHaveLength(
+    101,
+  );
 });
 
 async function ignoredFieldsFixture(includeFillable: boolean) {

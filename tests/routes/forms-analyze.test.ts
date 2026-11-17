@@ -187,6 +187,36 @@ it("passes language and page coverage into the briefing", async () => {
   });
 });
 
+it("acroform_analyze_returns_brief_and_fields", async () => {
+  const response = await POST(postPdf(PDF_BYTES, { fileName: "gauteng-tender.pdf" }));
+  expect(response.status).toBe(201);
+  const body = (await response.json()) as {
+    brief: unknown;
+    fields: unknown[];
+    hasFillableQuestions: boolean;
+  };
+  expect(body.brief).toEqual(BRIEF);
+  expect(body.fields).toStrictEqual(INTERPRETED);
+  expect(body.hasFillableQuestions).toBe(true);
+  expect(vi.mocked(buildDocumentBrief)).toHaveBeenCalled();
+  expect(vi.mocked(buildDocumentBrief).mock.calls[0][1]).toMatchObject({
+    fileName: "gauteng-tender.pdf",
+    fields: [{ label: "Full name", kind: "text" }],
+  });
+});
+
+it("still_returns_a_heuristic_brief_when_brief_ai_throws", async () => {
+  vi.mocked(buildDocumentBrief).mockRejectedValueOnce(new Error("CHAT_UNAVAILABLE"));
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  const body = (await response.json()) as { brief: { summary?: string; title?: string } };
+  expect(body.brief?.title ?? body.brief?.summary).toBeTruthy();
+  const created = vi.mocked(createFormSession).mock.calls.at(-1)?.[0] as {
+    brief: { summary: string; fillableSections: string[] };
+  };
+  expect(created.brief.summary).toMatch(/Full name|fill-in question/i);
+});
+
 it("a_valid_pdf_creates_a_session", async () => {
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(201);

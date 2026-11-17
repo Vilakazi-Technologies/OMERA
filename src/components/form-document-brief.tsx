@@ -44,10 +44,12 @@ export function FormDocumentBriefPanel({
   brief,
   fileName,
   questionCount,
+  fieldLabels = [],
 }: {
   brief: FormDocumentBrief | null;
   fileName: string;
   questionCount: number;
+  fieldLabels?: string[];
 }) {
   const kind = KIND_LABEL[brief?.documentKind ?? "other"];
   const title = brief?.title ?? fileName;
@@ -154,6 +156,16 @@ export function FormDocumentBriefPanel({
                 ? `${questionCount} fill-in question${questionCount === 1 ? "" : "s"} found. Narrative pages are skipped.`
                 : NO_FILL_IN_PLACES_MESSAGE}
             </p>
+            {fieldLabels.length ? (
+              <ul className="mt-3 list-disc space-y-1 pl-5 marker:text-amber-200/50">
+                {fieldLabels.slice(0, 12).map((label) => (
+                  <li key={label}>{label}</li>
+                ))}
+                {fieldLabels.length > 12 ? (
+                  <li>and {fieldLabels.length - 12} more</li>
+                ) : null}
+              </ul>
+            ) : null}
           </BriefSection>
         </div>
       </div>

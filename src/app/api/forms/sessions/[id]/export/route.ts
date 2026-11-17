@@ -134,6 +134,7 @@ export async function GET(_req: Request, { params }: Params) {
         if (
           code === "NO_FILLABLE_FIELDS" ||
           code === "PDF_PAGE_LIMIT" ||
+          code === "PDF_FIELD_LIMIT" ||
           code === "EXPORT_FAILED"
         ) {
           filled = await appendAnswersSummaryPdf(

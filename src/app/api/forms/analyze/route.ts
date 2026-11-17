@@ -13,6 +13,10 @@ import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractPdfDocument } from "@/lib/forms/pdf-text";
 import { buildDocumentBrief } from "@/lib/forms/document-brief";
 import {
+  defaultWhatWasRead,
+  fallbackDocumentBrief,
+} from "@/lib/forms/document-brief-schema";
+import {
   FORM_PDF_FILE_LIMIT,
   FORM_PDF_MULTIPART_LIMIT,
 } from "@/lib/forms/pdf-limits";
@@ -231,13 +235,29 @@ export async function POST(request: Request) {
       documentKind = "flat";
     }
 
+    const fieldHints = interpreted.map((field) => ({
+      label: field.label,
+      kind: field.kind,
+    }));
+    const coverage = defaultWhatWasRead(
+      extracted.pages.length,
+      extracted.totalPages,
+      extracted.truncated,
+    );
     const brief = await buildDocumentBrief(extracted.text, {
       languageId,
       fileName,
       pagesRead: extracted.pages.length,
       pageCount: extracted.totalPages,
       truncated: extracted.truncated,
-    });
+      fields: fieldHints,
+    }).catch(() =>
+      fallbackDocumentBrief({
+        fileName,
+        fieldLabels: fieldHints.map((field) => field.label),
+        coverage,
+      }),
+    );
     const hasFillableQuestions = interpreted.length > 0;
 
     const documentSha256 = createHash("sha256")

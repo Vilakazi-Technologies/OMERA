@@ -40,7 +40,10 @@ function mergeTranslated(
   const translated = new Map(prompts.map((prompt) => [prompt.id, prompt]));
   return inspected.map((field) => ({
     id: field.id,
-    label: translated.get(field.id)?.label ?? field.id,
+    label:
+      translated.get(field.id)?.label ??
+      field.widgetLabel ??
+      field.id,
     type: "text" as const,
     required: field.required,
     prompt:

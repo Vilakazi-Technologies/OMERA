@@ -70,11 +70,9 @@ function parseInferred(response: unknown): InferredRaw[] {
   if (!Array.isArray(fields)) {
     throw new Error("INVALID_INFERRED_FIELDS");
   }
-  if (fields.length > FORM_MAX_INFERRED_FIELDS) {
-    throw new Error("PDF_FIELD_LIMIT");
-  }
   const parsed: InferredRaw[] = [];
   for (const entry of fields) {
+    if (parsed.length >= FORM_MAX_INFERRED_FIELDS) break;
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const record = entry as Record<string, unknown>;
     const label = typeof record.label === "string" ? record.label.trim() : "";

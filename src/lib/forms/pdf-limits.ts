@@ -14,6 +14,9 @@ export const FORM_PDF_PLATFORM_HINT_MB = 4.5;
 /** In-place AcroForm inspect/fill. Longer packs fall back to text + answers appendix. */
 export const FORM_PDF_FILL_PAGE_LIMIT = 40;
 
+/** Widgets inspect may keep for briefing/Q&A (fill still uses the 100-field cap). */
+export const FORM_PDF_INSPECT_FIELD_LIMIT = 250;
+
 /** Pages of text Omera reads for briefing and questions (first N). */
 export const FORM_PDF_READ_PAGE_LIMIT = 80;
 

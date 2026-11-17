@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   Download,
@@ -17,7 +17,10 @@ import {
   formUploadFailure,
   missingRequiredFields,
 } from "@/lib/forms/form-errors";
-import { tryParseDocumentBrief } from "@/lib/forms/document-brief-schema";
+import {
+  fallbackDocumentBrief,
+  tryParseDocumentBrief,
+} from "@/lib/forms/document-brief-schema";
 import type { FormDocumentBrief } from "@/lib/forms/document-brief-schema";
 import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
@@ -83,12 +86,18 @@ function normalizeBrief(raw: unknown): FormDocumentBrief | null {
   return tryParseDocumentBrief(raw);
 }
 
-function sessionHasAnswers(fields: ClientField[], currentIndex: number): boolean {
-  if (currentIndex > 0) return true;
-  return fields.some((field) => {
-    if (typeof field.value === "boolean") return true;
-    return typeof field.value === "string" && field.value.trim().length > 0;
-  });
+function briefFromPayload(
+  raw: unknown,
+  fileName: string,
+  fields: ClientField[],
+): FormDocumentBrief {
+  return (
+    tryParseDocumentBrief(raw) ??
+    fallbackDocumentBrief({
+      fileName,
+      fieldLabels: fields.map((field) => field.label),
+    })
+  );
 }
 
 function displayValue(field: ClientField): string {
@@ -108,6 +117,7 @@ export default function FormFillPage() {
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
+  const skipRestoreRef = useRef(false);
 
   // Restore through the server session ID after a refresh. Only the session
   // reference lives in local storage — never form answers. Identity is
@@ -154,7 +164,7 @@ export default function FormFillPage() {
           typeof data.session.currentIndex === "number"
             ? data.session.currentIndex
             : 0;
-        if (cancelled) return;
+        if (cancelled || skipRestoreRef.current) return;
         const restored: LocalSession = {
           sessionId: String(data.session.id),
           fileName: String(data.session.fileName ?? "form.pdf"),
@@ -172,12 +182,18 @@ export default function FormFillPage() {
             typeof data.session.status === "string"
               ? data.session.status
               : "in_progress",
-          brief: normalizeBrief(data.session.brief),
+          brief: briefFromPayload(
+            data.session.brief,
+            String(data.session.fileName ?? "form.pdf"),
+            fields,
+          ),
         };
         setSession(restored);
+        // Never skip briefing on a fresh analyze (index 0), even if AcroForm
+        // widgets already have default / empty / false values.
         if (currentIndex >= fields.length && fields.length > 0) {
           setStep("review");
-        } else if (sessionHasAnswers(fields, currentIndex)) {
+        } else if (currentIndex > 0) {
           setStep("questions");
         } else {
           setStep("briefing");
@@ -244,7 +260,13 @@ export default function FormFillPage() {
         typeof data.session.status === "string"
           ? data.session.status
           : session.status,
-      brief: normalizeBrief(data.session.brief) ?? session.brief,
+      brief:
+        normalizeBrief(data.session.brief) ??
+        session.brief ??
+        fallbackDocumentBrief({
+          fileName: session.fileName,
+          fieldLabels: fields.map((field) => field.label),
+        }),
     });
     return true;
   }
@@ -297,6 +319,7 @@ export default function FormFillPage() {
       const fields = data.fields
         .map(normalizeField)
         .filter((field): field is ClientField => field !== null);
+      skipRestoreRef.current = true;
       localStorage.setItem(
         FORM_REF_KEY,
         JSON.stringify({ sessionId: data.sessionId }),
@@ -309,7 +332,7 @@ export default function FormFillPage() {
         languageId,
         revision: data.revision,
         status: data.status,
-        brief: normalizeBrief(data.brief),
+        brief: briefFromPayload(data.brief, data.fileName, fields),
       });
       setStep("briefing");
     } catch {
@@ -564,6 +587,7 @@ export default function FormFillPage() {
               brief={session.brief}
               fileName={session.fileName}
               questionCount={session.fields.length}
+              fieldLabels={session.fields.map((field) => field.label)}
             />
             {session.fields.length ? (
               <>
@@ -761,7 +785,7 @@ export default function FormFillPage() {
       {!restoring && step === "briefing" && session && session.fields.length > 0 && (
         <ChatComposer
           onSend={(text) => {
-            if (isStartFillingUtterance(text) || text.trim().length > 0) {
+            if (isStartFillingUtterance(text)) {
               startFilling();
             }
           }}
