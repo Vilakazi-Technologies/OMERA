@@ -35,7 +35,7 @@ function slugId(label: string, index: number): string {
 
 function kindFromLabel(
   label: string,
-): StoredFormField["kind"] {
+): NonNullable<StoredFormField["kind"]> {
   if (/\bsign(ature|ed|here)?\b|\bsign\s+here\b/i.test(label)) return "signature";
   if (/\b(yes\/no|true\/false|tick|check\s*box)\b/i.test(label)) return "checkbox";
   return "text";
@@ -45,7 +45,7 @@ function pushField(
   fields: StoredFormField[],
   seen: Set<string>,
   label: string,
-  kind: StoredFormField["kind"],
+  kind: NonNullable<StoredFormField["kind"]>,
   sourceLine = "",
   force = false,
 ): void {
@@ -68,8 +68,11 @@ function pushField(
   });
 }
 
-function labelsFromLine(line: string): { label: string; kind: StoredFormField["kind"] }[] {
-  const found: { label: string; kind: StoredFormField["kind"] }[] = [];
+function labelsFromLine(line: string): {
+  label: string;
+  kind: NonNullable<StoredFormField["kind"]>;
+}[] {
+  const found: { label: string; kind: NonNullable<StoredFormField["kind"]> }[] = [];
   const labeled = new RegExp(
     String.raw`(.{2,80}?)[:?]\s*(?:_{2,}|\.{3,}|\u2026+|\u22ef+|[·.]{5,}|\[\s*\]|$)`,
     "g",
