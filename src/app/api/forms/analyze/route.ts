@@ -200,7 +200,11 @@ export async function POST(request: Request) {
       extracted = await extractPdfDocument(Buffer.from(file.bytes));
     } catch (error) {
       const code = error instanceof Error ? error.message : "MALFORMED_PDF";
-      console.error("[forms/analyze] PDF_TEXT_EXTRACT_FAILED", code, error);
+      console.error(
+        "[forms/analyze] PDF_TEXT_EXTRACT_FAILED",
+        code,
+        error instanceof Error ? (error.cause ?? error.message) : error,
+      );
       if (code === "ENCRYPTED_PDF") throw new ApiError("ENCRYPTED_PDF", 422);
       extracted = {
         pages: [],

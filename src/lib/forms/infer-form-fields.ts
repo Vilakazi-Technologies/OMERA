@@ -186,10 +186,10 @@ async function inferFromVision(
   throw lastError instanceof Error ? lastError : new Error("FORM_INFERENCE_FAILED");
 }
 
-function textIsSparse(doc: PdfTextDocument): boolean {
-  if (doc.text.length < MIN_TEXT_CHARS) return true;
-  if (!doc.pages.length) return true;
-  return doc.text.length / Math.max(doc.pages.length, 1) < 80;
+function looksLikeReturnablePack(text: string): boolean {
+  return /\b(sbd\s*\d|request for proposal|invitation to bid|rfq\s*no|returnable)\b/i.test(
+    text,
+  );
 }
 
 async function visionFields(
@@ -235,8 +235,10 @@ export async function inferFormFieldsFromDocument(
       truncated: false,
     })));
   const text = doc.text;
+  const preferText =
+    text.length >= MIN_TEXT_CHARS || looksLikeReturnablePack(text);
 
-  if (text.length >= MIN_TEXT_CHARS) {
+  if (preferText) {
     try {
       const fromText = await inferFromText(text, options.languageId);
       if (fromText.length) return fromText;

@@ -9,7 +9,7 @@ it("classifies password errors separately from generic parse failures", () => {
   expect(classifyPdfReadError(new Error("bad xref"))).toBe("MALFORMED_PDF");
 });
 
-it("extracts text through pdf-parse version 2", async () => {
+it("extracts text through unpdf / pdf.js getTextContent", async () => {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -75,50 +75,21 @@ it.each([
   await expect(extractTextFromPdf(input)).rejects.toThrow();
 });
 
-it("destroys the real parser after successful extraction", async () => {
-  const destroy = vi.spyOn(PDFParse.prototype, "destroy");
-  expect(await extractTextFromPdf(await textPdf(["Real cleanup success"]))).toBe(
-    "Real cleanup success",
+it("keeps extracted text even when document cleanup is unavailable", async () => {
+  expect(await extractTextFromPdf(await textPdf(["Parsed before cleanup"]))).toBe(
+    "Parsed before cleanup",
   );
-  expect(destroy).toHaveBeenCalledTimes(1);
-  expect(destroy.mock.results[0].type).toBe("return");
-  await expect(destroy.mock.results[0].value).resolves.toBeUndefined();
 });
 
-it("destroys the real parser after parsing fails", async () => {
-  const destroy = vi.spyOn(PDFParse.prototype, "destroy");
-  await expect(extractTextFromPdf(Buffer.from("Invalid PDF for cleanup"))).rejects.toThrow();
-  expect(destroy).toHaveBeenCalledTimes(1);
-  expect(destroy.mock.results[0].type).toBe("return");
-  await expect(destroy.mock.results[0].value).resolves.toBeUndefined();
-});
-
-it("keeps extracted text when parser.destroy rejects", async () => {
-  const cleanupError = new Error("Cleanup rejected after success");
-  const realDestroy = PDFParse.prototype.destroy;
-  const destroy = vi.spyOn(PDFParse.prototype, "destroy").mockImplementationOnce(
-    async function (this: PDFParse) {
-      await realDestroy.call(this);
-      throw cleanupError;
-    },
-  );
-  await expect(
-    extractTextFromPdf(await textPdf(["Parsed before cleanup rejection"])),
-  ).resolves.toBe("Parsed before cleanup rejection");
-  expect(destroy).toHaveBeenCalledTimes(1);
-});
-
-it("keeps the parse error when destroy also rejects", async () => {
-  const cleanupError = new Error("Cleanup rejected after parsing failure");
-  const realDestroy = PDFParse.prototype.destroy;
-  const destroy = vi.spyOn(PDFParse.prototype, "destroy").mockImplementationOnce(
-    async function (this: PDFParse) {
-      await realDestroy.call(this);
-      throw cleanupError;
-    },
-  );
+it("keeps the parse error when the file is not a PDF", async () => {
   await expect(
     extractTextFromPdf(Buffer.from("Invalid PDF before cleanup rejection")),
   ).rejects.toThrow("MALFORMED_PDF");
-  expect(destroy).toHaveBeenCalledTimes(1);
+});
+
+it("destroys the screenshot parser after a render attempt", async () => {
+  const { screenshotPdfPages } = await import("@/lib/forms/pdf-text");
+  const destroy = vi.spyOn(PDFParse.prototype, "destroy");
+  await screenshotPdfPages(new Uint8Array(await textPdf(["Screenshot cleanup"])));
+  expect(destroy).toHaveBeenCalled();
 });

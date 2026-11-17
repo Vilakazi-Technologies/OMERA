@@ -200,6 +200,23 @@ it("starts a session from labeled blanks when AI is down", async () => {
   expect(fields.find((field) => field.kind === "signature")).toBeTruthy();
 });
 
+it("forces text inference for an RFP with SBD returnables", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc(
+      "REQUEST FOR PROPOSAL\nRFQ NO :PR10069056\nSBD 4\nNAME OF BIDDER: ______\nSignature: ______",
+    ),
+  );
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) => parse({ fields: [] }),
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
+  expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
+  expect(screenshotPdfPages).not.toHaveBeenCalled();
+});
+
 it("returns no questions for readable narrative instead of rejecting the pack", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc(

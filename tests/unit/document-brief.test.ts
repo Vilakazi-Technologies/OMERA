@@ -10,6 +10,7 @@ import {
   documentBriefInstructions,
   emptyDocumentBrief,
   heuristicDocumentBrief,
+  looksLikeReadableExtract,
   parseDocumentBrief,
 } from "@/lib/forms/document-brief";
 import { defaultWhatWasRead } from "@/lib/forms/document-brief-schema";
@@ -137,6 +138,26 @@ it("briefs a GPL RFP header instead of faint-scan copy", () => {
   expect(brief.actionsNow.join(" ")).not.toMatch(/pages look faint/i);
   expect(brief.summary).not.toMatch(/very little text/i);
   expect(brief.eligibility).not.toMatch(/^Not stated\.?$/i);
+});
+
+it("treats RFP keywords and page markers as readable even when short", () => {
+  expect(looksLikeReadableExtract("REQUEST FOR PROPOSAL\nSBD 4")).toBe(true);
+  expect(looksLikeReadableExtract("-- 1 of 28 --\nGPL")).toBe(true);
+  expect(looksLikeReadableExtract("hi")).toBe(false);
+});
+
+it("replaces a faint-scan model brief when the extract is an RFP header", async () => {
+  vi.mocked(completeConfiguredJson).mockResolvedValueOnce(
+    emptyDocumentBrief("Gauteng Tender.pdf"),
+  );
+  const brief = await buildDocumentBrief(GPL_RFP_HEADER, {
+    languageId: "eng",
+    fileName: "Gauteng Tender.pdf",
+    pagesRead: 1,
+    pageCount: 1,
+  });
+  expect(brief.summary).not.toMatch(/very little text|pages look faint/i);
+  expect(brief.documentKind).toBe("rfp");
 });
 
 it("never shows faint-scan copy when thousands of characters were extracted", async () => {

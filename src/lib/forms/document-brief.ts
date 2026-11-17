@@ -137,6 +137,16 @@ function heuristicKeyFacts(sample: string): string[] {
   return facts;
 }
 
+/** Enough signal that a faint-scan stub is the wrong briefing. */
+export function looksLikeReadableExtract(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length >= 80) return true;
+  if (/--\s*\d+\s+of\s+\d+\s*--/.test(trimmed)) return true;
+  return /\b(request for proposal|versoek om voorstel|invitation to bid|sbd\s*\d|rfq\s*no|returnable|gauteng provincial legislature)\b/i.test(
+    trimmed,
+  );
+}
+
 function looksLikeFaintScanCopy(brief: FormDocumentBrief): boolean {
   const blob = [brief.summary, ...brief.actionsNow, ...brief.implications].join(
     "\n",
@@ -365,10 +375,11 @@ export async function buildDocumentBrief(
   const fields = options.fields ?? [];
   const heuristic = () =>
     heuristicDocumentBrief(trimmed, options.fileName, coverage, fields);
-  if (trimmed.length < FORM_MIN_READABLE_CHARS && !fields.length) {
+  const readable = looksLikeReadableExtract(trimmed);
+  if (!readable && trimmed.length < FORM_MIN_READABLE_CHARS && !fields.length) {
     return emptyDocumentBrief(options.fileName, coverage);
   }
-  if (trimmed.length < FORM_MIN_READABLE_CHARS) {
+  if (!readable && trimmed.length < FORM_MIN_READABLE_CHARS) {
     return heuristic();
   }
   try {
@@ -387,7 +398,7 @@ export async function buildDocumentBrief(
       (value) => parseDocumentBrief(value, coverage),
     );
     const merged = enrichBriefFromHeuristic(brief, heuristic());
-    if (looksLikeFaintScanCopy(merged) && trimmed.length >= 200) {
+    if (looksLikeFaintScanCopy(merged) && (readable || trimmed.length >= 80)) {
       return heuristic();
     }
     return merged;

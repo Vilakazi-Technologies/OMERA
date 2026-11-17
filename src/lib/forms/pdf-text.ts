@@ -1,6 +1,6 @@
 import { ensurePdfJsDom } from "@/lib/forms/pdfjs-dom";
-import { PDFParse } from "pdf-parse";
 import { FORM_PDF_READ_PAGE_LIMIT, FORM_VISION_MAX_PAGES } from "@/lib/forms/pdf-limits";
+import { extractText, getDocumentProxy } from "unpdf";
 
 ensurePdfJsDom();
 
@@ -36,46 +36,56 @@ export function joinPdfPageText(pages: PdfPageText[]): string {
     .trim();
 }
 
-async function destroyParser(parser: PDFParse): Promise<void> {
+async function destroyQuietly(target: unknown): Promise<void> {
   try {
-    await parser.destroy();
+    if (!target || typeof target !== "object" || !("destroy" in target)) return;
+    const destroy = (target as { destroy?: unknown }).destroy;
+    if (typeof destroy === "function") await (destroy as () => unknown).call(target);
   } catch {
-    // pdf.js destroy can reject on serverless after a successful parse.
-    // Never let cleanup replace extracted text with an empty briefing.
+    // pdf.js destroy can reject (or be missing) on serverless after a
+    // successful parse. Never let cleanup replace extracted text.
   }
 }
 
+/**
+ * Text extraction for Node 24 / Vercel. pdf-parse's pdf.js 5 worker +
+ * DOMMatrix viewport path throws MALFORMED_PDF there even when the file
+ * is a readable RFP. unpdf inlines the worker and uses getTextContent.
+ */
 export async function extractPdfDocument(
   buffer: Buffer,
   maxPages = FORM_PDF_READ_PAGE_LIMIT,
 ): Promise<PdfTextDocument> {
   ensurePdfJsDom();
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  const data = Uint8Array.from(buffer);
+  let pdf: Awaited<ReturnType<typeof getDocumentProxy>> | undefined;
   try {
-    const result = await parser.getText({ first: maxPages });
-    const pages: PdfPageText[] = result.pages.map((page) => ({
-      pageNumber: page.num,
-      text: page.text.trim(),
-    }));
-    const fromPages = joinPdfPageText(pages);
-    const fromJoined = result.text
-      .replace(/\n?--\s*\d+\s+of\s+\d+\s*--\n?/g, "\n")
-      .trim();
-    const text = fromPages || fromJoined;
+    pdf = await getDocumentProxy(data);
+    const extracted = await extractText(pdf, { mergePages: false });
+    const pageTexts = Array.isArray(extracted.text)
+      ? extracted.text
+      : [extracted.text];
     const totalPages =
-      typeof result.total === "number" && result.total > 0
-        ? result.total
-        : pages.length;
+      extracted.totalPages > 0 ? extracted.totalPages : pageTexts.length;
+    const limit = Math.min(totalPages, maxPages, pageTexts.length);
+    const pages: PdfPageText[] = pageTexts.slice(0, limit).map((text, index) => ({
+      pageNumber: index + 1,
+      text: (text ?? "").replace(/\n?--\s*\d+\s+of\s+\d+\s*--\n?/g, "\n").trim(),
+    }));
     return {
       pages,
-      text,
+      text: joinPdfPageText(pages),
       totalPages,
       truncated: totalPages > pages.length,
     };
   } catch (error) {
-    throw new Error(classifyPdfReadError(error));
+    console.error(
+      "[pdf-text] extract failed",
+      error instanceof Error ? error.message : error,
+    );
+    throw new Error(classifyPdfReadError(error), { cause: error });
   } finally {
-    await destroyParser(parser);
+    await destroyQuietly(pdf);
   }
 }
 
@@ -88,6 +98,8 @@ async function screenshotOnce(
   maxPages: number,
   pageNumbers?: number[],
 ): Promise<string[]> {
+  ensurePdfJsDom();
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: bytes });
   try {
     const partial =
@@ -107,7 +119,7 @@ async function screenshotOnce(
           typeof url === "string" && url.startsWith("data:image/"),
       );
   } finally {
-    await destroyParser(parser);
+    await destroyQuietly(parser);
   }
 }
 
