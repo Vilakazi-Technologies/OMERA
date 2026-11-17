@@ -200,6 +200,40 @@ it("starts a session from labeled blanks when AI is down", async () => {
   expect(fields.find((field) => field.kind === "signature")).toBeTruthy();
 });
 
+it("drops AI warning scraps and keeps bidder identity fields", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc(
+      "REQUEST FOR PROPOSAL\nSBD 4\nNAME OF BIDDER: ______\nthe bid will be disqualified automatically:",
+    ),
+  );
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) =>
+      parse({
+        fields: [
+          {
+            label: "the paid will be disqualified automatically",
+            prompt: "What is your paid",
+            kind: "text",
+            required: true,
+          },
+          {
+            label: "Name of bidder",
+            prompt: "What is the name of the bidding company?",
+            kind: "text",
+            required: true,
+          },
+        ],
+      }),
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/Name of bidder/i);
+  expect(fields.map((field) => `${field.label} ${field.prompt}`).join(" ")).not.toMatch(
+    /disqualif|what is your paid/i,
+  );
+});
+
 it("forces text inference for an RFP with SBD returnables", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc(

@@ -12,6 +12,10 @@ import {
   type BriefWhatWasRead,
   type FormDocumentBrief,
 } from "@/lib/forms/document-brief-schema";
+import {
+  detectFillDocumentClass,
+  toBriefDocumentKind,
+} from "@/lib/forms/fill-document-class";
 
 export type {
   BriefDocumentKind,
@@ -68,14 +72,7 @@ function firstTitleLine(sample: string, fileName: string): string {
 }
 
 function classifyKind(lower: string): BriefDocumentKind {
-  if (/\brfp\b|request for proposal/.test(lower)) return "rfp";
-  if (/\brfq\b|request for quotation/.test(lower)) return "rfq";
-  if (/\btender\b|\binvitation to bid\b|\bbid number\b/.test(lower)) {
-    return "tender";
-  }
-  if (/\bapplication\b/.test(lower)) return "application";
-  if (/\bform\b|\bsbd\s*\d/.test(lower)) return "form";
-  return "other";
+  return toBriefDocumentKind(detectFillDocumentClass(lower));
 }
 
 function heuristicParties(sample: string) {

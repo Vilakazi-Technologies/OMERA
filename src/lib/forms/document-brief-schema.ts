@@ -78,7 +78,9 @@ function asKind(value: unknown): BriefDocumentKind {
       return lower as BriefDocumentKind;
     }
     if (lower.includes("rfq") || lower.includes("quotation")) return "rfq";
-    if (lower.includes("rfp") || lower.includes("proposal")) return "rfp";
+    if (lower.includes("rfpo") || lower.includes("rfp") || lower.includes("proposal")) {
+      return "rfp";
+    }
     if (lower.includes("tender") || lower.includes("bid")) return "tender";
     if (lower.includes("application")) return "application";
     if (lower.includes("form")) return "form";

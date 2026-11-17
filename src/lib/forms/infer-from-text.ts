@@ -1,14 +1,18 @@
 import type { StoredFormField } from "@/lib/db/form-sessions";
 import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
+import {
+  FILL_BLANK_RUN,
+  isAnswerOrAttachItem,
+  promptForFillItem,
+} from "@/lib/forms/fill-item-filter";
 import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
 const MAX_HEURISTIC_FIELDS = FORM_MAX_INFERRED_FIELDS;
 const SKIP_LINE =
   /^(page\s+\d+|application|form|instructions?|please\s+(complete|fill)|note:|background|introduction|scope of work|evaluation criteria)/i;
 const SKIP_LABEL =
-  /^(closing date|closing time|page|rfq no|rfp no|bid number)$/i;
-const BLANK_RUN = /(?:_{2,}|\.{3,}|\u2026{1,}|\u22ef{1,}|[·.]{5,})/;
-const SBD_TITLES: Record<string, string> = {
+  /^(closing date|closing time|page|rfq no|rfp no|bid number|non-?compulsory|briefing session|venue)$/i;
+const FORM_TITLES: Record<string, string> = {
   "1": "SBD 1 invitation to bid",
   "3": "SBD 3 pricing schedule",
   "3.1": "SBD 3.1 pricing schedule",
@@ -37,27 +41,17 @@ function kindFromLabel(
   return "text";
 }
 
-function promptFor(label: string, kind: StoredFormField["kind"]): string {
-  if (kind === "signature") {
-    return `Type your full name to sign "${label}" (printed signature — not a digital certificate).`;
-  }
-  if (kind === "checkbox") {
-    return `Is this true: ${label}? (yes or no)`;
-  }
-  if (/^sbd\s*\d/i.test(label)) {
-    return `Provide the completed ${label} (or confirm it is filled).`;
-  }
-  return `What is your ${label.toLowerCase()}?`;
-}
-
 function pushField(
   fields: StoredFormField[],
   seen: Set<string>,
   label: string,
   kind: StoredFormField["kind"],
+  sourceLine = "",
+  force = false,
 ): void {
   const trimmed = label.replace(/[:.]+$/, "").replace(/\s+/g, " ").trim();
   if (!trimmed || trimmed.length < 2 || SKIP_LABEL.test(trimmed)) return;
+  if (!force && !isAnswerOrAttachItem(trimmed, sourceLine || trimmed)) return;
   const key = trimmed.toLowerCase();
   if (seen.has(key)) return;
   seen.add(key);
@@ -68,8 +62,8 @@ function pushField(
     type: "text",
     required:
       kind === "signature" ||
-      /name|date|id\b|id number|sbd|bidder|csd/i.test(trimmed),
-    prompt: promptFor(trimmed, kind),
+      /name|date|id\b|id number|sbd|mbd|bidder|csd|tax|b-?bb+ee/i.test(trimmed),
+    prompt: promptForFillItem(trimmed, kind),
     kind,
   });
 }
@@ -107,18 +101,23 @@ function labelsFromLine(line: string): { label: string; kind: StoredFormField["k
   return found;
 }
 
-function inferSbdReturnables(text: string, fields: StoredFormField[], seen: Set<string>): void {
-  for (const match of text.matchAll(/\bSBD\s*(\d+(?:\.\d+)?)\b/gi)) {
+function inferReturnableForms(text: string, fields: StoredFormField[], seen: Set<string>): void {
+  for (const match of text.matchAll(/\b(SBD|MBD)\s*(\d+(?:\.\d+)?)\b/gi)) {
     if (fields.length >= MAX_HEURISTIC_FIELDS) break;
-    const num = match[1];
-    const label = SBD_TITLES[num] ?? `SBD ${num}`;
-    pushField(fields, seen, label, "text");
+    const series = match[1].toUpperCase();
+    const num = match[2];
+    const sbdLabel = FORM_TITLES[num];
+    const label =
+      series === "MBD"
+        ? `MBD ${num}`
+        : (sbdLabel ?? `SBD ${num}`);
+    pushField(fields, seen, label, "text", label, true);
   }
 }
 
 /**
  * Last-resort questions from readable PDF text when AI inference is down.
- * Looks for labeled blanks ("Name: ______") and SBD returnables even without AcroForm.
+ * Looks for labeled blanks ("Name: ______") and SBD/MBD returnables even without AcroForm.
  */
 export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
   const seen = new Set<string>();
@@ -134,19 +133,19 @@ export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
     if (
       words > 18 &&
       !/[:_]/.test(line) &&
-      !BLANK_RUN.test(line) &&
+      !FILL_BLANK_RUN.test(line) &&
       !/[\[\(]\s*[\]\)]/.test(line) &&
-      !/\bsbd\s*\d/i.test(line)
+      !/\b(sbd|mbd)\s*\d/i.test(line)
     ) {
       continue;
     }
 
     for (const item of labelsFromLine(line)) {
       if (fields.length >= MAX_HEURISTIC_FIELDS) break;
-      pushField(fields, seen, item.label, item.kind);
+      pushField(fields, seen, item.label, item.kind, line);
     }
   }
 
-  inferSbdReturnables(text, fields, seen);
+  inferReturnableForms(text, fields, seen);
   return sortFieldsForQuestionFlow(fields);
 }

@@ -3,6 +3,36 @@ import { expect, it } from "vitest";
 import { inferFieldsFromExtractedText } from "@/lib/forms/infer-from-text";
 import { extractTextFromPdf } from "@/lib/forms/pdf-text";
 
+/** Fixture lines from GPL RFP PR10069056 — not the real PDF. */
+const GAUTENG_RFP_FIXTURE = [
+  "REQUEST FOR PROPOSAL",
+  "APPOINTMENT OF A SERVICE PROVIDER TO REDEVELOP THE WEBSITE FOR THE GPL",
+  "RFQ NO :PR10069056",
+  "NON-COMPULSORY : 14 OCTOBER 2026 BRIEFING SESSION VENUE: MICROSOFT TEAMS",
+  "These are documents required for this bidding. Should the bidder fail to submit the following documents, the bid will be disqualified automatically:",
+  "the bid will be disqualified automatically:",
+  "the paid will be disqualified automatically:",
+  "Bidders must submit relevant signed reference letters for",
+  "The bidder shall submit:",
+  "2. Pricing Schedule (Firm Pricing) SBD 3.3 Yes",
+  "3. Bidders Disclosure (SBD 4) Original completed and signed.",
+  "NAME OF BIDDER: …………………………………………………",
+  "CSD number: ______",
+  "Tax reference: ______",
+  "Signature: …………………………………………………",
+].join("\n");
+
+it("does not turn RFP disqualification scraps into questions", () => {
+  const fields = inferFieldsFromExtractedText(GAUTENG_RFP_FIXTURE);
+  const blob = fields.map((field) => `${field.label} ${field.prompt}`).join(" | ");
+  expect(blob).not.toMatch(/disqualif/i);
+  expect(blob).not.toMatch(/what is your paid/i);
+  expect(blob).not.toMatch(/non-?compulsory briefing/i);
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
+  expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
+  expect(fields[0]?.label).toMatch(/NAME OF BIDDER|CSD|Tax|company/i);
+});
+
 it("turns labeled blanks into a question list", () => {
   const fields = inferFieldsFromExtractedText(
     [
@@ -45,6 +75,24 @@ it("skips narrative paragraphs that are not fill-in lines", () => {
     ].join("\n"),
   );
   expect(fields.map((field) => field.label)).toEqual(["Company name"]);
+});
+
+it("infers RFQ returnables including MBD forms", () => {
+  const fields = inferFieldsFromExtractedText(
+    [
+      "REQUEST FOR QUOTATION",
+      "RFQ NO: Q-2026-11",
+      "Company name: ______",
+      "CSD number: ______",
+      "Returnable: MBD 4",
+      "Pricing schedule: ______",
+    ].join("\n"),
+  );
+  const labels = fields.map((field) => field.label).join(" | ");
+  expect(labels).toMatch(/Company name/i);
+  expect(labels).toMatch(/CSD/i);
+  expect(labels).toMatch(/MBD 4/i);
+  expect(labels).not.toMatch(/disqualif/i);
 });
 
 it("infers SBD returnables and ellipsis blanks without AcroForm", () => {
