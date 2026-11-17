@@ -81,7 +81,15 @@ function asKind(value: unknown): BriefDocumentKind {
     if (lower.includes("rfpo") || lower.includes("rfp") || lower.includes("proposal")) {
       return "rfp";
     }
-    if (lower.includes("tender") || lower.includes("bid")) return "tender";
+    if (
+      lower.includes("tender") ||
+      lower.includes("bid") ||
+      lower.includes("rfb") ||
+      /\b(sbd|mbd)\b/.test(lower)
+    ) {
+      return "tender";
+    }
+    if (lower.includes("rfi") || lower.includes("eoi")) return "other";
     if (lower.includes("application")) return "application";
     if (lower.includes("form")) return "form";
   }

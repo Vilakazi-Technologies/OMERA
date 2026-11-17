@@ -30,7 +30,7 @@ const MIN_TEXT_CHARS = FORM_MIN_READABLE_CHARS;
 
 export const INFER_FORM_INSTRUCTIONS =
   "You extract only questions a bidder or applicant must ANSWER, or DOCUMENTS they must ATTACH. " +
-  "Works for every pack type: RFP, RFPO, RFQ, bid, tender, quotation, application, and ordinary forms. " +
+  "Works for every pack type: RFP, RFPO, RFQ, RFB, RFI, EOI, bid, tender, quotation, proposal, application, and ordinary fillable forms. " +
   "Allowed topics: identity/company name, CSD, tax, B-BBEE, SBD/MBD forms, pricing, declarations (SBD 4), contact, signatures. " +
   "Never turn boilerplate, warnings, or narrative into questions — including sentences with " +
   "'disqualified', 'shall', 'must submit' (unless naming a specific SBD/MBD/returnable), " +
@@ -46,7 +46,8 @@ export const INFER_FORM_INSTRUCTIONS =
 
 export const INFER_FORM_VISION_INSTRUCTIONS =
   "You identify only blanks a person must complete or documents they must attach on form-like pages. " +
-  "Works for RFP, RFQ, bid, quotation, application, and generic forms. " +
+  "Works for RFP, RFPO, RFQ, RFB, RFI, EOI, bid, quotation, proposal, application, and generic AcroForm PDFs. " +
+  "On ordinary fillable forms, list every labeled widget or blank — do not drop them as boilerplate. " +
   "Skip narrative, warnings ('will be disqualified'), briefing notes, and evaluation text. " +
   "Return JSON only: { \"fields\": [ { \"label\": \"Human label\", \"prompt\": \"Question to ask\", " +
   "\"kind\": \"text\"|\"checkbox\"|\"choice\"|\"signature\", \"required\": boolean, \"options\": [\"...\"] } ] }. " +
@@ -205,7 +206,7 @@ async function inferFromVision(
 }
 
 function looksLikeReturnablePack(text: string): boolean {
-  return /\b(sbd\s*\d|request for proposal|invitation to bid|rfq\s*no|returnable)\b/i.test(
+  return /\b(sbd\s*\d|mbd\s*\d|request for propos|invitation to (?:bid|tender)|rfq\s*no|rfpo|rfb|rfi|eoi|returnable|versoek om voorstel)\b/i.test(
     text,
   );
 }

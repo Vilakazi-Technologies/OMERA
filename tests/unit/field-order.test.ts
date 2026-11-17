@@ -18,6 +18,19 @@ function field(
   };
 }
 
+it("keeps every ordinary AcroForm widget when sorting", () => {
+  const ordered = sortFieldsForQuestionFlow([
+    field("sig", "Signature", { kind: "signature" }),
+    field("dept", "Department"),
+    field("fn", "First name", { required: true }),
+    field("em", "Email"),
+  ]);
+  expect(ordered.map((row) => row.label).sort()).toEqual(
+    ["Department", "Email", "First name", "Signature"].sort(),
+  );
+  expect(ordered).toHaveLength(4);
+});
+
 it("orders identity, returnables, pricing, then signatures", () => {
   const ordered = sortFieldsForQuestionFlow([
     field("s", "Signature", { kind: "signature", required: true }),

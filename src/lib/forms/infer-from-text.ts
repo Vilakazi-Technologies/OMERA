@@ -9,7 +9,7 @@ import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
 const MAX_HEURISTIC_FIELDS = FORM_MAX_INFERRED_FIELDS;
 const SKIP_LINE =
-  /^(page\s+\d+|application|form|instructions?|please\s+(complete|fill)|note:|background|introduction|scope of work|evaluation criteria)/i;
+  /^(page\s+\d+\b|application(\s+form)?$|application\s+for\b.{0,60}$|form$|instructions?$|please\s+(complete|fill)\b|note:|background$|introduction$|scope of work\b|evaluation criteria\b)/i;
 const SKIP_LABEL =
   /^(closing date|closing time|page|rfq no|rfp no|bid number|non-?compulsory|briefing session|venue)$/i;
 const FORM_TITLES: Record<string, string> = {

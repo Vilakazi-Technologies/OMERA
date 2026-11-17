@@ -550,9 +550,9 @@ export default function FormFillPage() {
                 Upload your form
               </h2>
               <p className="mt-2 text-sm text-slate-400">
-                Tenders, RFPs, RFQs, and application packs — not only short
-                fillable PDFs. Omera reads the document, briefs you, then asks
-                only the fill-in questions. Max {FORM_PDF_FILE_LIMIT_MB}&nbsp;MB,
+                Tenders, RFPs, RFQs, RFB/RFI/EOI packs, applications, and
+                ordinary fillable PDFs. Omera reads the document, briefs you,
+                then asks only the fill-in questions. Max {FORM_PDF_FILE_LIMIT_MB}&nbsp;MB,
                 first 80 pages. Unlock passworded files first.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">

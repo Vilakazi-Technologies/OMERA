@@ -78,6 +78,7 @@ async function translateDefs(
 /**
  * Interpret codec-inspected fields through the configured chat runtime.
  * Falls back to humanized labels when AI is unavailable (MVP / rate limits).
+ * Never drop AcroForm widgets — ordinary fillable PDFs must keep every field.
  */
 export async function extractFormFields(
   inspected: PdfFieldInfo[],

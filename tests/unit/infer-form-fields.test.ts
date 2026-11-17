@@ -234,6 +234,31 @@ it("drops AI warning scraps and keeps bidder identity fields", async () => {
   );
 });
 
+it("passes documentClass for RFPO into the text model", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc("RFPO website redevelopment\nNAME OF BIDDER: ______"),
+  );
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, input, parse) => {
+      expect(String(input)).toMatch(/"documentClass":"rfp"/);
+      return parse({
+        fields: [
+          {
+            label: "Name of bidder",
+            prompt: "What is the name of bidder?",
+            kind: "text",
+            required: true,
+          },
+        ],
+      });
+    },
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  expect(fields[0]?.label).toMatch(/Name of bidder/i);
+});
+
 it("forces text inference for an RFP with SBD returnables", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc(

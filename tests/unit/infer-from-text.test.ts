@@ -77,6 +77,44 @@ it("skips narrative paragraphs that are not fill-in lines", () => {
   expect(fields.map((field) => field.label)).toEqual(["Company name"]);
 });
 
+it("infers RFPO blanks without turning warnings into questions", () => {
+  const fields = inferFieldsFromExtractedText(
+    [
+      "RFPO appointment of a service provider",
+      "These documents are required. Failure to submit means the bid will be disqualified automatically:",
+      "the paid will be disqualified automatically:",
+      "NAME OF BIDDER: ______",
+      "SBD 4",
+      "Signature: ______",
+    ].join("\n"),
+  );
+  const blob = fields.map((field) => `${field.label} ${field.prompt}`).join(" | ");
+  expect(blob).not.toMatch(/disqualif/i);
+  expect(blob).not.toMatch(/what is your paid/i);
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/NAME OF BIDDER/i);
+  expect(fields.some((field) => /SBD 4/i.test(field.label))).toBe(true);
+});
+
+it("infers a simple fillable form without dropping labeled blanks", () => {
+  const fields = inferFieldsFromExtractedText(
+    [
+      "Staff details form",
+      "First name: ______",
+      "Department: ______",
+      "Employee number: ______",
+      "Signature: ______",
+    ].join("\n"),
+  );
+  expect(fields.map((field) => field.label)).toEqual(
+    expect.arrayContaining([
+      "First name",
+      "Department",
+      "Employee number",
+      "Signature",
+    ]),
+  );
+});
+
 it("infers RFQ returnables including MBD forms", () => {
   const fields = inferFieldsFromExtractedText(
     [

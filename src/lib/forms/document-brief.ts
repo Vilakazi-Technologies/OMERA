@@ -33,9 +33,10 @@ export {
 export function documentBriefInstructions(languageId: string): string {
   const language = getLanguage(languageId);
   return (
-    "You brief a South African user on an uploaded PDF (tender pack, RFP, RFQ, application, or form). " +
+    "You brief a South African user on an uploaded PDF (tender, RFP, RFPO, RFQ, RFB, RFI, EOI, quotation, proposal, application, or ordinary fillable form). " +
     "You are Omera. Return JSON only with keys: " +
-    '{ "title": string, "documentKind": "tender"|"rfp"|"rfq"|"application"|"form"|"other", ' +
+    '{ "title": string, "documentKind": "tender"|"rfp"|"rfq"|"application"|"form"|"other" ' +
+    "(map RFB/bid to tender, RFPO/proposal to rfp, quotation to rfq, RFI/EOI to other), " +
     '"summary": string, "sections": string[], "keyFacts": string[], ' +
     '"parties": [{"role": string, "name": string}], "eligibility": string, ' +
     '"deadlines": string[], "requiredAttachments": string[], "actionsNow": string[], ' +
@@ -139,7 +140,7 @@ export function looksLikeReadableExtract(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length >= 80) return true;
   if (/--\s*\d+\s+of\s+\d+\s*--/.test(trimmed)) return true;
-  return /\b(request for proposal|versoek om voorstel|invitation to bid|sbd\s*\d|rfq\s*no|returnable|gauteng provincial legislature)\b/i.test(
+  return /\b(request for proposal|versoek om voorstel|invitation to bid|sbd\s*\d|rfq\s*no|rfpo|rfb|rfi|eoi|returnable|gauteng provincial legislature)\b/i.test(
     trimmed,
   );
 }
