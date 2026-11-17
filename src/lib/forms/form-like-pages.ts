@@ -12,7 +12,7 @@ const RETURNABLE =
 export function scoreFormLikePage(text: string): number {
   const t = text.replace(/\u00a0/g, " ");
   let score = 0;
-  if (/_{3,}/.test(t)) score += 4;
+  if (/_{3,}|\.{5,}|\u2026/.test(t)) score += 4;
   if (/\[_?\]|\(\s*\)/.test(t)) score += 2;
   if (FORM_HINT.test(t)) score += 3;
   if (/\bsign(ature)?\b|\bsign here\b/i.test(t)) score += 3;

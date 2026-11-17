@@ -93,7 +93,7 @@ it("destroys the real parser after parsing fails", async () => {
   await expect(destroy.mock.results[0].value).resolves.toBeUndefined();
 });
 
-it("characterizes finally: a cleanup rejection replaces successful extraction", async () => {
+it("keeps extracted text when parser.destroy rejects", async () => {
   const cleanupError = new Error("Cleanup rejected after success");
   const realDestroy = PDFParse.prototype.destroy;
   const destroy = vi.spyOn(PDFParse.prototype, "destroy").mockImplementationOnce(
@@ -102,12 +102,13 @@ it("characterizes finally: a cleanup rejection replaces successful extraction", 
       throw cleanupError;
     },
   );
-  await expect(extractTextFromPdf(await textPdf(["Parsed before cleanup rejection"])))
-    .rejects.toBe(cleanupError);
+  await expect(
+    extractTextFromPdf(await textPdf(["Parsed before cleanup rejection"])),
+  ).resolves.toBe("Parsed before cleanup rejection");
   expect(destroy).toHaveBeenCalledTimes(1);
 });
 
-it("characterizes finally: a cleanup rejection replaces the parsing failure", async () => {
+it("keeps the parse error when destroy also rejects", async () => {
   const cleanupError = new Error("Cleanup rejected after parsing failure");
   const realDestroy = PDFParse.prototype.destroy;
   const destroy = vi.spyOn(PDFParse.prototype, "destroy").mockImplementationOnce(
@@ -116,7 +117,8 @@ it("characterizes finally: a cleanup rejection replaces the parsing failure", as
       throw cleanupError;
     },
   );
-  await expect(extractTextFromPdf(Buffer.from("Invalid PDF before cleanup rejection")))
-    .rejects.toBe(cleanupError);
+  await expect(
+    extractTextFromPdf(Buffer.from("Invalid PDF before cleanup rejection")),
+  ).rejects.toThrow("MALFORMED_PDF");
   expect(destroy).toHaveBeenCalledTimes(1);
 });

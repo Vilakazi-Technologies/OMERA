@@ -47,6 +47,24 @@ it("skips narrative paragraphs that are not fill-in lines", () => {
   expect(fields.map((field) => field.label)).toEqual(["Company name"]);
 });
 
+it("infers SBD returnables and ellipsis blanks without AcroForm", () => {
+  const fields = inferFieldsFromExtractedText(
+    [
+      "REQUEST FOR PROPOSAL website for the GPL RFQ NO :PR10069056",
+      "CLOSING DATE: :19 OCTOBER 2026",
+      "Pricing Schedule SBD 3.3",
+      "Bidders Disclosure (SBD 4)",
+      "NAME OF BIDDER: …………………………………………………",
+      "Signature: …………………………………………………",
+    ].join("\n"),
+  );
+  const labels = fields.map((field) => field.label).join(" | ");
+  expect(labels).toMatch(/NAME OF BIDDER/i);
+  expect(labels).toMatch(/SBD 3\.3/i);
+  expect(labels).toMatch(/SBD 4/i);
+  expect(fields.some((field) => field.kind === "signature")).toBe(true);
+});
+
 it("reads a generated flat PDF and lists the blanks", async () => {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage();

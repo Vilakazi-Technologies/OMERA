@@ -1,6 +1,8 @@
-import "./pdfjs-dom";
+import { ensurePdfJsDom } from "@/lib/forms/pdfjs-dom";
 import { PDFParse } from "pdf-parse";
 import { FORM_PDF_READ_PAGE_LIMIT, FORM_VISION_MAX_PAGES } from "@/lib/forms/pdf-limits";
+
+ensurePdfJsDom();
 
 export function classifyPdfReadError(error: unknown): "ENCRYPTED_PDF" | "MALFORMED_PDF" {
   if (!(error instanceof Error)) return "MALFORMED_PDF";
@@ -26,21 +28,40 @@ export type PdfTextDocument = {
   truncated: boolean;
 };
 
+export function joinPdfPageText(pages: PdfPageText[]): string {
+  return pages
+    .map((page) => page.text.trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
+async function destroyParser(parser: PDFParse): Promise<void> {
+  try {
+    await parser.destroy();
+  } catch {
+    // pdf.js destroy can reject on serverless after a successful parse.
+    // Never let cleanup replace extracted text with an empty briefing.
+  }
+}
+
 export async function extractPdfDocument(
   buffer: Buffer,
   maxPages = FORM_PDF_READ_PAGE_LIMIT,
 ): Promise<PdfTextDocument> {
+  ensurePdfJsDom();
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {
-    const result = await parser.getText({
-      pageJoiner: "",
-      first: maxPages,
-    });
+    const result = await parser.getText({ first: maxPages });
     const pages: PdfPageText[] = result.pages.map((page) => ({
       pageNumber: page.num,
       text: page.text.trim(),
     }));
-    const text = result.text.trim();
+    const fromPages = joinPdfPageText(pages);
+    const fromJoined = result.text
+      .replace(/\n?--\s*\d+\s+of\s+\d+\s*--\n?/g, "\n")
+      .trim();
+    const text = fromPages || fromJoined;
     const totalPages =
       typeof result.total === "number" && result.total > 0
         ? result.total
@@ -54,7 +75,7 @@ export async function extractPdfDocument(
   } catch (error) {
     throw new Error(classifyPdfReadError(error));
   } finally {
-    await parser.destroy();
+    await destroyParser(parser);
   }
 }
 
@@ -86,7 +107,7 @@ async function screenshotOnce(
           typeof url === "string" && url.startsWith("data:image/"),
       );
   } finally {
-    await parser.destroy();
+    await destroyParser(parser);
   }
 }
 

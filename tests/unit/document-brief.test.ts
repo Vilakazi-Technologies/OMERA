@@ -4,8 +4,11 @@ vi.mock("@/lib/ai/chat-runtime", () => ({
   completeConfiguredJson: vi.fn(),
 }));
 
+import { completeConfiguredJson } from "@/lib/ai/chat-runtime";
 import {
+  buildDocumentBrief,
   documentBriefInstructions,
+  emptyDocumentBrief,
   heuristicDocumentBrief,
   parseDocumentBrief,
 } from "@/lib/forms/document-brief";
@@ -30,6 +33,19 @@ it("heuristic briefing names AcroForm widgets when AI is unavailable", () => {
   );
   expect(brief.actionsNow.join(" ")).toMatch(/Complete the returnable|Name of bidder/i);
 });
+
+const GPL_RFP_HEADER = [
+  "REQUEST FOR PROPOSAL",
+  "APPOINTMENT OF A SERVICE PROVIDER TO REDEVELOP THE WEBSITE FOR THE GPL FOR A PERIOD OF TWELVE MONTHS (12) MONTHS.",
+  "RFQ NO :PR10069056",
+  "NON-COMPULSORY : 14 OCTOBER 2026 BRIEFING SESSION VENUE: MICROSOFT TEAMS",
+  "CLOSING DATE: :19 OCTOBER 2026 TIME :11h00AM",
+  "These are documents required for this bidding.",
+  "2. Pricing Schedule (Firm Pricing) SBD 3.3 Yes",
+  "3. Bidders Disclosure (SBD 4) Original completed and signed.",
+  "NAME OF BIDDER: …………………………………………………BID NO.: ……………………..",
+  "Signature: …………………………………………………...………………",
+].join("\n");
 
 it("classifies a municipal accounting tender from extractable text", () => {
   const brief = heuristicDocumentBrief(
@@ -107,6 +123,35 @@ it("keeps a long outline, parties, and coverage from JSON", () => {
   expect(brief.whatWasRead.pageCount).toBe(120);
   expect(brief.whatWasRead.truncated).toBe(true);
   expect(brief.whatWasRead.note).toMatch(/Funda amakhasi/);
+});
+
+it("briefs a GPL RFP header instead of faint-scan copy", () => {
+  const brief = heuristicDocumentBrief(GPL_RFP_HEADER, "Gauteng Tender.pdf");
+  expect(brief.documentKind).toBe("rfp");
+  expect(brief.title).toMatch(/REQUEST FOR PROPOSAL/i);
+  expect(brief.parties.some((party) => /GPL/i.test(party.name))).toBe(true);
+  expect(brief.keyFacts.join(" ")).toMatch(/PR10069056/);
+  expect(brief.deadlines.join(" ")).toMatch(/19 OCTOBER 2026/i);
+  expect(brief.fillableSections.join(" ")).toMatch(/SBD 3\.3/);
+  expect(brief.fillableSections.join(" ")).toMatch(/SBD 4/);
+  expect(brief.actionsNow.join(" ")).not.toMatch(/pages look faint/i);
+  expect(brief.summary).not.toMatch(/very little text/i);
+  expect(brief.eligibility).not.toMatch(/^Not stated\.?$/i);
+});
+
+it("never shows faint-scan copy when thousands of characters were extracted", async () => {
+  vi.mocked(completeConfiguredJson).mockResolvedValueOnce(
+    emptyDocumentBrief("Gauteng Tender.pdf"),
+  );
+  const brief = await buildDocumentBrief(`${GPL_RFP_HEADER}\n${"scope of work ".repeat(200)}`, {
+    languageId: "eng",
+    fileName: "Gauteng Tender.pdf",
+    pagesRead: 28,
+    pageCount: 28,
+  });
+  expect(brief.summary).not.toMatch(/very little text|pages look faint/i);
+  expect(brief.documentKind).toBe("rfp");
+  expect(brief.keyFacts.join(" ")).toMatch(/PR10069056/);
 });
 
 it("asks the model to brief in the selected official language", () => {

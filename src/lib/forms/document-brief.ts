@@ -59,18 +59,17 @@ export function documentBriefInstructions(languageId: string): string {
 export const DOCUMENT_BRIEF_INSTRUCTIONS = documentBriefInstructions("eng");
 
 function firstTitleLine(sample: string, fileName: string): string {
-  return (
-    sample
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => line.length > 8 && line.length < 140) ??
-    fileName.replace(/\.pdf$/i, "")
-  );
+  const line = sample
+    .split(/\r?\n/)
+    .map((row) => row.replace(/\s+/g, " ").trim())
+    .find((row) => row.length > 8);
+  if (!line) return fileName.replace(/\.pdf$/i, "");
+  return line.slice(0, 140);
 }
 
 function classifyKind(lower: string): BriefDocumentKind {
-  if (/\brfq\b|request for quotation/.test(lower)) return "rfq";
   if (/\brfp\b|request for proposal/.test(lower)) return "rfp";
+  if (/\brfq\b|request for quotation/.test(lower)) return "rfq";
   if (/\btender\b|\binvitation to bid\b|\bbid number\b/.test(lower)) {
     return "tender";
   }
@@ -91,6 +90,15 @@ function heuristicParties(sample: string) {
     if (!parties.some((party) => party.name.toLowerCase() === name.toLowerCase())) {
       parties.push({ role: "Issuer", name });
     }
+  }
+  if (
+    /\bgauteng provincial legislature\b|\bfor the gpl\b|\bgpl\b/i.test(sample) &&
+    !parties.some((party) => /gauteng provincial legislature|\bgpl\b/i.test(party.name))
+  ) {
+    parties.push({
+      role: "Issuer",
+      name: "Gauteng Provincial Legislature (GPL)",
+    });
   }
   return parties;
 }
@@ -119,9 +127,64 @@ function heuristicKeyFacts(sample: string): string[] {
     sample,
   );
   if (bid) facts.push(bid[1].replace(/\s+/g, " ").trim());
+  const rfqNo = /\bRFQ\s*NO\s*:?\s*([A-Z0-9/.-]+)/i.exec(sample);
+  if (rfqNo) {
+    const fact = `RFQ NO ${rfqNo[1]}`;
+    if (!facts.some((item) => item.includes(rfqNo[1]))) facts.push(fact);
+  }
   const cidb = /\b(CIDB[^\n]{0,60})/i.exec(sample);
   if (cidb) facts.push(cidb[1].replace(/\s+/g, " ").trim());
   return facts;
+}
+
+function looksLikeFaintScanCopy(brief: FormDocumentBrief): boolean {
+  const blob = [brief.summary, ...brief.actionsNow, ...brief.implications].join(
+    "\n",
+  );
+  return /very little text|pages look faint|poor scan|clearer (copy|pdf)/i.test(
+    blob,
+  );
+}
+
+function enrichBriefFromHeuristic(
+  brief: FormDocumentBrief,
+  heuristic: FormDocumentBrief,
+): FormDocumentBrief {
+  const eligibility =
+    /not stated/i.test(brief.eligibility) &&
+    heuristic.eligibility &&
+    !/not stated/i.test(heuristic.eligibility)
+      ? heuristic.eligibility
+      : brief.eligibility;
+  return {
+    ...brief,
+    title:
+      brief.title === "Uploaded document" || /^gauteng tender$/i.test(brief.title)
+        ? heuristic.title || brief.title
+        : brief.title,
+    documentKind:
+      brief.documentKind === "other" && heuristic.documentKind !== "other"
+        ? heuristic.documentKind
+        : brief.documentKind,
+    parties: brief.parties.length ? brief.parties : heuristic.parties,
+    deadlines: brief.deadlines.length ? brief.deadlines : heuristic.deadlines,
+    keyFacts: brief.keyFacts.length ? brief.keyFacts : heuristic.keyFacts,
+    requiredAttachments: brief.requiredAttachments.length
+      ? brief.requiredAttachments
+      : heuristic.requiredAttachments,
+    fillableSections: brief.fillableSections.length
+      ? brief.fillableSections
+      : heuristic.fillableSections,
+    eligibility,
+    actionsNow:
+      looksLikeFaintScanCopy(brief) || !brief.actionsNow.length
+        ? heuristic.actionsNow
+        : brief.actionsNow,
+    implications: looksLikeFaintScanCopy(brief)
+      ? heuristic.implications
+      : brief.implications,
+    summary: looksLikeFaintScanCopy(brief) ? heuristic.summary : brief.summary,
+  };
 }
 
 export type BriefFieldHint = { label: string; kind?: string };
@@ -141,7 +204,8 @@ export function heuristicDocumentBrief(
   const closing =
     /((closing|submission|due)\s+date[:\s]+[^\n]{4,80})/i.exec(sample);
   if (closing) deadlines.push(closing[1].replace(/\s+/g, " ").trim());
-  const briefing = /(compulsory\s+briefing[^\n]{0,80})/i.exec(sample);
+  const briefing =
+    /((?:non-)?compulsory\s+briefing[^\n]{0,80})/i.exec(sample);
   if (briefing) deadlines.push(briefing[1].replace(/\s+/g, " ").trim());
 
   const requiredAttachments: string[] = [];
@@ -241,7 +305,10 @@ export function heuristicDocumentBrief(
     eligibility: /(?:eligible|qualification|who may)\s*[:\s]([^\n]{8,200})/i.exec(
       sample,
     )?.[1]
-      ?.trim() ?? "Not stated in the pages Omera could read.",
+      ?.trim() ??
+      (documentKind === "rfp" || documentKind === "rfq" || documentKind === "tender"
+        ? "Service providers invited to bid on this pack (see eligibility and returnables in the extract)."
+        : "Not stated in the pages Omera could read."),
     deadlines,
     requiredAttachments,
     actionsNow,
@@ -296,14 +363,16 @@ export async function buildDocumentBrief(
   );
   const trimmed = text.trim();
   const fields = options.fields ?? [];
+  const heuristic = () =>
+    heuristicDocumentBrief(trimmed, options.fileName, coverage, fields);
   if (trimmed.length < FORM_MIN_READABLE_CHARS && !fields.length) {
     return emptyDocumentBrief(options.fileName, coverage);
   }
   if (trimmed.length < FORM_MIN_READABLE_CHARS) {
-    return heuristicDocumentBrief(trimmed, options.fileName, coverage, fields);
+    return heuristic();
   }
   try {
-    return await completeConfiguredJson(
+    const brief = await completeConfiguredJson(
       documentBriefInstructions(options.languageId),
       JSON.stringify({
         languageId: options.languageId,
@@ -317,7 +386,12 @@ export async function buildDocumentBrief(
       }),
       (value) => parseDocumentBrief(value, coverage),
     );
+    const merged = enrichBriefFromHeuristic(brief, heuristic());
+    if (looksLikeFaintScanCopy(merged) && trimmed.length >= 200) {
+      return heuristic();
+    }
+    return merged;
   } catch {
-    return heuristicDocumentBrief(trimmed, options.fileName, coverage, fields);
+    return heuristic();
   }
 }
