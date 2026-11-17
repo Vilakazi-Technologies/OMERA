@@ -12,6 +12,7 @@ import {
   type PdfTextDocument,
 } from "@/lib/forms/pdf-text";
 import { inferFieldsFromExtractedText } from "@/lib/forms/infer-from-text";
+import { mergeFillFields } from "@/lib/forms/merge-fill-fields";
 import {
   detectFillDocumentClass,
   fillClassPromptHint,
@@ -257,20 +258,20 @@ export async function inferFormFieldsFromDocument(
   const preferText =
     text.length >= MIN_TEXT_CHARS || looksLikeReturnablePack(text);
 
+  const printed = inferFieldsFromExtractedText(text);
+
   if (preferText) {
     try {
       const fromText = await inferFromText(text, options.languageId);
-      if (fromText.length) return fromText;
+      return mergeFillFields(fromText, printed);
     } catch (error) {
       if (error instanceof Error && error.message === "PDF_FIELD_LIMIT") {
         throw error;
       }
     }
-    return inferFieldsFromExtractedText(text);
+    return printed;
   }
 
   const vision = await visionFields(bytes, doc, options.languageId);
-  if (vision.fields.length) return vision.fields;
-
-  return inferFieldsFromExtractedText(text);
+  return mergeFillFields(vision.fields, printed);
 }

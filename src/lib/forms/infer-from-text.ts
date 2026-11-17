@@ -11,7 +11,7 @@ const MAX_HEURISTIC_FIELDS = FORM_MAX_INFERRED_FIELDS;
 const SKIP_LINE =
   /^(page\s+\d+\b|application(\s+form)?$|application\s+for\b.{0,60}$|form$|instructions?$|please\s+(complete|fill)\b|note:|background$|introduction$|scope of work\b|evaluation criteria\b)/i;
 const SKIP_LABEL =
-  /^(closing date|closing time|page|rfq no|rfp no|bid number|non-?compulsory|briefing session|venue)$/i;
+  /^(closing date|closing time|page|rfq no|rfp no|bid no|bid number|tender no|non-?compulsory|briefing session|venue)$/i;
 const FORM_TITLES: Record<string, string> = {
   "1": "SBD 1 invitation to bid",
   "3": "SBD 3 pricing schedule",
@@ -73,17 +73,23 @@ function labelsFromLine(line: string): {
   kind: NonNullable<StoredFormField["kind"]>;
 }[] {
   const found: { label: string; kind: NonNullable<StoredFormField["kind"]> }[] = [];
+  const blankTail = String.raw`(?:_{2,}|\.{3,}|\u2026+|\u22ef+|[·.]{5,}|\[[\s_xX.]{0,8}\]|$)`;
   const labeled = new RegExp(
-    String.raw`(.{2,80}?)[:?]\s*(?:_{2,}|\.{3,}|\u2026+|\u22ef+|[·.]{5,}|\[\s*\]|$)`,
+    String.raw`(.{2,80}?)[:?]\s*${blankTail}`,
     "g",
   );
   for (const match of line.matchAll(labeled)) {
+    const after = line.slice(match.index! + match[0].length);
+    const consumedBlank = FILL_BLANK_RUN.test(match[0]) || /[:?]\s*$/.test(match[0]);
+    if (!consumedBlank && after.trim()) continue;
     const label = match[1]?.replace(/[.]+$/, "").trim();
     if (!label) continue;
     found.push({ label, kind: kindFromLabel(label) });
   }
   if (!found.length) {
-    const underlined = /^(.{2,80}?)\s+_{3,}/.exec(line);
+    const underlined = new RegExp(
+      String.raw`^(.{2,80}?)\s+(?:_{3,}|\.{5,}|\u2026{3,}|[·.]{5,})`,
+    ).exec(line);
     if (underlined) {
       found.push({
         label: underlined[1].replace(/[:.]+$/, "").trim(),
@@ -127,9 +133,9 @@ export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
   const fields: StoredFormField[] = [];
   const lines = text.split(/\r?\n/);
 
-  for (const raw of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
     if (fields.length >= MAX_HEURISTIC_FIELDS) break;
-    const line = raw.replace(/\u00a0/g, " ").trim();
+    const line = lines[index]!.replace(/\u00a0/g, " ").trim();
     if (line.length < 3 || line.length > 220) continue;
     if (SKIP_LINE.test(line)) continue;
     const words = line.split(/\s+/).length;
@@ -146,6 +152,17 @@ export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
     for (const item of labelsFromLine(line)) {
       if (fields.length >= MAX_HEURISTIC_FIELDS) break;
       pushField(fields, seen, item.label, item.kind, line);
+    }
+
+    const next = lines[index + 1]?.replace(/\u00a0/g, " ").trim() ?? "";
+    if (
+      next &&
+      FILL_BLANK_RUN.test(next) &&
+      next.replace(FILL_BLANK_RUN, "").trim().length < 8 &&
+      words <= 8 &&
+      !FILL_BLANK_RUN.test(line)
+    ) {
+      pushField(fields, seen, line.replace(/[:.]+$/, "").trim(), kindFromLabel(line), `${line}\n${next}`);
     }
   }
 

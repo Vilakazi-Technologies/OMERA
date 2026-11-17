@@ -33,6 +33,22 @@ it("does not turn RFP disqualification scraps into questions", () => {
   expect(fields[0]?.label).toMatch(/NAME OF BIDDER|CSD|Tax|company/i);
 });
 
+it("reads a blank on the line under a short label", () => {
+  const fields = inferFieldsFromExtractedText(
+    ["Staff details", "Surname", "________________", "Signature", "________________"].join(
+      "\n",
+    ),
+  );
+  expect(fields.map((field) => field.label)).toEqual(
+    expect.arrayContaining(["Surname", "Signature"]),
+  );
+});
+
+it("reads a box after a colon as a fill-in", () => {
+  const fields = inferFieldsFromExtractedText("Yes / No answer: [ ]");
+  expect(fields.map((field) => field.label).join(" ")).toMatch(/Yes \/ No answer/i);
+});
+
 it("turns labeled blanks into a question list", () => {
   const fields = inferFieldsFromExtractedText(
     [

@@ -1,7 +1,7 @@
 /** Shared rules: only ask what a person must answer or attach. */
 
 export const FILL_BLANK_RUN =
-  /(?:_{2,}|\.{3,}|\u2026{1,}|\u22ef{1,}|[·.]{5,})/;
+  /(?:_{2,}|\.{3,}|\u2026{1,}|\u22ef{1,}|[·.]{5,}|\[[\s_xX.]{0,8}\])/;
 
 const FILL_HINT =
   /\b(name of bidder|bidder'?s name|company name|trading as|full name|surname|initials|identity number|id number|csd|maaa|tax( reference| pin)?|vat number|b-?bb+ee|cidb|contact person|e-?mail|telephone|cell(phone)?|fax|postal address|physical address|registration number|ck number|cipc|signature|signatory|capacity|date of|birth|price|amount|ceiling price|bid price|director|shareholder|witness)\b/i;

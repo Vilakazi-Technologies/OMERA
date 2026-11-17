@@ -351,6 +351,12 @@ it("inference_busy_still_starts_a_briefing_session_without_invented_questions", 
   vi.mocked(inferFormFieldsFromDocument).mockRejectedValueOnce(
     new Error("FORM_INFERENCE_FAILED"),
   );
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce({
+    pages: [{ pageNumber: 1, text: "Invitation to tender. Evaluation criteria are listed below." }],
+    text: "Invitation to tender. Evaluation criteria are listed below.",
+    totalPages: 1,
+    truncated: false,
+  });
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(201);
   const created = vi.mocked(createFormSession).mock.calls[0][0] as {
@@ -359,6 +365,28 @@ it("inference_busy_still_starts_a_briefing_session_without_invented_questions", 
   };
   expect(created.fields).toEqual([]);
   expect(created.brief).toEqual(BRIEF);
+});
+
+it("acroform_widgets_still_pick_up_printed_blanks", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce({
+    pages: [
+      {
+        pageNumber: 1,
+        text: "Full name: (widget)\nCSD number: ______\nSignature: ______",
+      },
+    ],
+    text: "Full name: (widget)\nCSD number: ______\nSignature: ______",
+    totalPages: 1,
+    truncated: false,
+  });
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  const created = vi.mocked(createFormSession).mock.calls.at(-1)?.[0] as {
+    fields: { id: string; label: string; kind?: string }[];
+  };
+  expect(created.fields.find((field) => field.id === "full_name")).toBeTruthy();
+  expect(created.fields.map((field) => field.label).join(" ")).toMatch(/CSD/i);
+  expect(created.fields.some((field) => field.kind === "signature")).toBe(true);
 });
 
 it("an_unsupported_format_returns_415", async () => {

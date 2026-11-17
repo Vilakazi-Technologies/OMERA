@@ -179,6 +179,58 @@ it("asks the model to brief in the selected official language", () => {
   expect(documentBriefInstructions("zul")).toMatch(/isiZulu/);
   expect(documentBriefInstructions("afr")).toMatch(/Afrikaans/);
   expect(documentBriefInstructions("eng")).toMatch(/English/);
+  expect(documentBriefInstructions("eng")).toMatch(/never claim the scan is faint/i);
+});
+
+it("never returns an empty brief when the extract is readable and the model is down", async () => {
+  vi.mocked(completeConfiguredJson).mockRejectedValueOnce(
+    new Error("CHAT_UNAVAILABLE"),
+  );
+  const brief = await buildDocumentBrief(GPL_RFP_HEADER, {
+    languageId: "eng",
+    fileName: "Gauteng Tender.pdf",
+    pagesRead: 28,
+    pageCount: 28,
+  });
+  expect(brief.summary.trim().length).toBeGreaterThan(40);
+  expect(brief.documentKind).toBe("rfp");
+  expect(brief.deadlines.join(" ")).toMatch(/19 OCTOBER 2026/i);
+  expect(brief.actionsNow.length).toBeGreaterThan(0);
+  expect(brief.summary).not.toMatch(/very little text/i);
+});
+
+it("keeps a model briefing that understood the extract", async () => {
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, input, parse) => {
+      expect(String(input)).toMatch(/REQUEST FOR PROPOSAL/);
+      expect(String(input)).toMatch(/PR10069056/);
+      return parse({
+        title: "Website redevelopment for the GPL",
+        documentKind: "rfp",
+        summary:
+          "The Gauteng Provincial Legislature is procuring a twelve-month website redevelopment.\n\nBidders must complete SBD returnables and attend to the closing date.",
+        keyFacts: ["RFQ NO PR10069056"],
+        parties: [{ role: "Issuer", name: "Gauteng Provincial Legislature" }],
+        eligibility: "Service providers able to redevelop the GPL website",
+        deadlines: ["Closing date 19 OCTOBER 2026 11h00"],
+        requiredAttachments: ["SBD 4", "SBD 3.3"],
+        actionsNow: ["Complete SBD 4 and the pricing schedule"],
+        implications: ["Late bids are typically rejected"],
+        fillableSections: ["SBD 4"],
+      });
+    },
+  );
+  const brief = await buildDocumentBrief(GPL_RFP_HEADER, {
+    languageId: "eng",
+    fileName: "Gauteng Tender.pdf",
+    pagesRead: 28,
+    pageCount: 28,
+  });
+  expect(brief.title).toMatch(/website redevelopment/i);
+  expect(brief.summary).toMatch(/twelve-month/i);
+  expect(brief.parties.some((party) => /Gauteng Provincial Legislature/i.test(party.name))).toBe(
+    true,
+  );
 });
 
 it("treats start-filling phrases as confirmation", () => {

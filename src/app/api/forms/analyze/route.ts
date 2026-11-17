@@ -9,6 +9,8 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { createFormSession } from "@/lib/db/form-sessions";
 import { extractFormFields } from "@/lib/forms/extract-fields";
 import { inferFormFieldsFromDocument } from "@/lib/forms/infer-form-fields";
+import { inferFieldsFromExtractedText } from "@/lib/forms/infer-from-text";
+import { mergeFillFields } from "@/lib/forms/merge-fill-fields";
 import { inspectPdfFields } from "@/lib/forms/pdf-fields";
 import { extractPdfDocument } from "@/lib/forms/pdf-text";
 import { buildDocumentBrief } from "@/lib/forms/document-brief";
@@ -239,6 +241,10 @@ export async function POST(request: Request) {
       }
       documentKind = "flat";
     }
+    interpreted = mergeFillFields(
+      interpreted,
+      inferFieldsFromExtractedText(extracted.text),
+    );
 
     const fieldHints = interpreted.map((field) => ({
       label: field.label,

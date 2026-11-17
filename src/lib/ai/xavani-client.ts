@@ -1,5 +1,6 @@
 import "server-only";
 import { buildOmeraSystemPrompt } from "@/lib/ai/omera-system-prompt";
+import { parseJsonFromModelText } from "@/lib/ai/openrouter-client";
 
 export type XavaniConfig = { baseUrl: string; apiKey: string; model: string };
 type Message = { role: "user" | "assistant"; content: string };
@@ -324,5 +325,15 @@ export async function completeXavaniJson<T>(
   if (item.finish_reason !== "stop") throw new Error("INCOMPLETE_XAVANI_RESPONSE");
   const message = object(item.message);
   if (typeof message.content !== "string") throw new Error("INVALID_XAVANI_RESPONSE");
-  return parse(JSON.parse(message.content));
+  try {
+    return parse(parseJsonFromModelText(message.content));
+  } catch (error) {
+    if (
+      error instanceof SyntaxError ||
+      (error instanceof Error && error.message === "INVALID_OPENROUTER_VISION_RESPONSE")
+    ) {
+      throw new Error("INVALID_XAVANI_RESPONSE");
+    }
+    throw error;
+  }
 }

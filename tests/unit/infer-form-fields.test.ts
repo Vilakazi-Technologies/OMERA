@@ -49,6 +49,35 @@ beforeEach(() => {
   vi.mocked(screenshotPdfPages).mockResolvedValue([]);
 });
 
+it("adds printed Name: ____ blanks when the model omitted them", async () => {
+  vi.mocked(extractPdfDocument).mockResolvedValueOnce(
+    textDoc(
+      "REQUEST FOR PROPOSAL\nSBD 4\nNAME OF BIDDER: ______\nCSD number: ______\nSignature: ______",
+    ),
+  );
+  vi.mocked(completeConfiguredJson).mockImplementationOnce(
+    async (_system, _input, parse) =>
+      parse({
+        fields: [
+          {
+            label: "SBD 4",
+            prompt: "Attach or confirm the completed SBD 4.",
+            kind: "text",
+            required: true,
+          },
+        ],
+      }),
+  );
+  const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
+    languageId: "eng",
+  });
+  const labels = fields.map((field) => field.label).join(" | ");
+  expect(labels).toMatch(/SBD 4/i);
+  expect(labels).toMatch(/NAME OF BIDDER/i);
+  expect(labels).toMatch(/CSD/i);
+  expect(fields.some((field) => field.kind === "signature")).toBe(true);
+});
+
 it("maps inferred AI fields to stored session fields", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc("Application for leave\nName: ______\nSignature: ______"),

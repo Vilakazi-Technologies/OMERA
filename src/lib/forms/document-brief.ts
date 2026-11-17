@@ -44,6 +44,7 @@ export function documentBriefInstructions(languageId: string): string {
     '"whatWasRead": { "note": string } }. ' +
     `Write summary, sections, keyFacts, eligibility, actionsNow, implications, and whatWasRead.note in ${language.nativeName} (${language.name}). ` +
     "Keep organisation names, people, bid numbers, amounts, and dates exactly as printed. " +
+    "If extractedText is substantial, you MUST write a real briefing — never claim the scan is faint or that little text was extracted. " +
     "title: official name of the pack if present. " +
     "summary: several short paragraphs (3–8) proving you understood the whole extract — what it is, who it is for, scope of work, how to respond. Use \\n\\n between paragraphs. " +
     "sections: outline of the document (heading — one-line gist), in order. " +
@@ -396,7 +397,10 @@ export async function buildDocumentBrief(
       (value) => parseDocumentBrief(value, coverage),
     );
     const merged = enrichBriefFromHeuristic(brief, heuristic());
-    if (looksLikeFaintScanCopy(merged) && (readable || trimmed.length >= 80)) {
+    if (
+      !merged.summary.trim() ||
+      (looksLikeFaintScanCopy(merged) && (readable || trimmed.length >= 80))
+    ) {
       return heuristic();
     }
     return merged;

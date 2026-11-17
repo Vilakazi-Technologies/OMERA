@@ -37,6 +37,10 @@ it("keeps real tender blanks and SBD returnables", () => {
   expect(isModelFillItem("CSD number", "What is the CSD number?")).toBe(true);
 });
 
+it("keeps a box after a colon as a real fill-in", () => {
+  expect(isAnswerOrAttachItem("Consent", "Consent: [ ]")).toBe(true);
+});
+
 it("keeps ordinary form labels so generic PDFs are not over-filtered", () => {
   expect(isAnswerOrAttachItem("Full name", "Full name: ______")).toBe(true);
   expect(isAnswerOrAttachItem("Department", "Department: ______")).toBe(true);
