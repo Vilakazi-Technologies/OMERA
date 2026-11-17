@@ -1,12 +1,16 @@
 import { FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 
+/** Shown on the briefing when a readable PDF has no questions to complete. */
+export const NO_FILL_IN_PLACES_MESSAGE =
+  "Omera found no fill-in questions on this PDF. This briefing is what the document is about. Upload a form that has questions or blanks to complete.";
+
 /** User-facing copy for form API error codes. */
 export function formErrorMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "UNREADABLE_DOCUMENT":
       return "Omera could not read any text on this PDF. If it is a scan or a photo of pages, export a clearer copy or photograph each page in good light, then upload again.";
     case "NO_FILLABLE_FIELDS":
-      return "Omera did not find blanks on this PDF. Print to PDF from your reader and upload that copy, or try a clearer scan.";
+      return NO_FILL_IN_PLACES_MESSAGE;
     case "PDF_PAGE_LIMIT":
       return "This PDF is longer than Omera can fill in place (40 pages). Upload the returnable forms section, or a pack of at most 80 pages so Omera can still brief you and add an answers page.";
     case "INVALID_PDF_SIZE":

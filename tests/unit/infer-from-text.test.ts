@@ -25,6 +25,18 @@ it("ignores empty or instruction-only text", () => {
   expect(inferFieldsFromExtractedText("Please complete this form.")).toEqual([]);
 });
 
+it("skips a brochure-style narrative with no blanks", () => {
+  expect(
+    inferFieldsFromExtractedText(
+      [
+        "VILATECH company brochure",
+        "We build Omera for South African municipalities.",
+        "Contact our office for a demo of the platform.",
+      ].join("\n"),
+    ),
+  ).toEqual([]);
+});
+
 it("skips narrative paragraphs that are not fill-in lines", () => {
   const fields = inferFieldsFromExtractedText(
     [

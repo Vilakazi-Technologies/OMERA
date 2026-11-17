@@ -117,13 +117,13 @@ it("skips vision when a text PDF has extractable labels", async () => {
   expect(completeOpenRouterVisionJson).not.toHaveBeenCalled();
 });
 
-it("uses identity questions when a valid PDF has no extractable text", async () => {
+it("returns no questions when a valid PDF has no extractable text", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(textDoc(""));
   vi.mocked(screenshotPdfPages).mockResolvedValueOnce([]);
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields.map((field) => field.id)).toContain("field_1_bidder_name");
+  expect(fields).toEqual([]);
 });
 
 it("keeps a short title instead of rejecting the pack", async () => {
@@ -137,10 +137,10 @@ it("keeps a short title instead of rejecting the pack", async () => {
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields.map((field) => field.id)).toContain("field_5_what_to_complete");
+  expect(fields).toEqual([]);
 });
 
-it("uses identity questions when screenshots exist but vision finds no blanks", async () => {
+it("returns no questions when screenshots exist but vision finds no blanks", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(textDoc(""));
   vi.mocked(screenshotPdfPages).mockResolvedValueOnce([
     "data:image/png;base64,ccc",
@@ -151,7 +151,7 @@ it("uses identity questions when screenshots exist but vision finds no blanks", 
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields[0].label).toMatch(/company or bidder/i);
+  expect(fields).toEqual([]);
   expect(completeOpenRouterVisionJson).toHaveBeenCalled();
 });
 
@@ -200,7 +200,7 @@ it("starts a session from labeled blanks when AI is down", async () => {
   expect(fields.find((field) => field.kind === "signature")).toBeTruthy();
 });
 
-it("returns identity questions for readable narrative instead of rejecting the pack", async () => {
+it("returns no questions for readable narrative instead of rejecting the pack", async () => {
   vi.mocked(extractPdfDocument).mockResolvedValueOnce(
     textDoc(
       "Invitation to tender\nThe municipality seeks a registered accounting firm.\nEvaluation criteria are listed in section 4.",
@@ -213,7 +213,5 @@ it("returns identity questions for readable narrative instead of rejecting the p
   const fields = await inferFormFieldsFromDocument(PDF_BYTES, {
     languageId: "eng",
   });
-  expect(fields.map((field) => field.label)).toEqual(
-    expect.arrayContaining(["What you need to complete"]),
-  );
+  expect(fields).toEqual([]);
 });

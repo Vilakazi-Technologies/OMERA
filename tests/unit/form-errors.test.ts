@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { formErrorMessage, formUploadFailure } from "@/lib/forms/form-errors";
+import {
+  formErrorMessage,
+  formUploadFailure,
+  NO_FILL_IN_PLACES_MESSAGE,
+} from "@/lib/forms/form-errors";
 
 it("never mentions AcroForm or fillable jargon", () => {
   const codes = [
@@ -67,5 +71,15 @@ it("maps HTML platform failures to a real code instead of the old combined fallb
 it("uses a human fallback without fillable jargon", () => {
   expect(formErrorMessage("WEIRD", "Omera could not finish this upload.")).toBe(
     "Omera could not finish this upload.",
+  );
+});
+
+it("tells users to upload a form when there are no fill-in places", () => {
+  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/^Omera /);
+  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/no fill-in questions/i);
+  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/upload a form/i);
+  expect(NO_FILL_IN_PLACES_MESSAGE).not.toMatch(/Omero|Omira/);
+  expect(formErrorMessage("NO_FILLABLE_FIELDS", "fallback")).toBe(
+    NO_FILL_IN_PLACES_MESSAGE,
   );
 });

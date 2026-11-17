@@ -9,7 +9,7 @@ as the success output, no automatic speech output.
 | Class | Path | Limits |
 |---|---|---|
 | AcroForm PDF with fillable fields | C10 codec inspect (`inspectPdfFields`) → Xavani labels/prompts (`extractFormFields`) → C10 fill (`fillPdfFields`) on export | ≤ 10 000 000 byte upload (Vercel may still 413 near 4.5 MB); ≤ **40 pages** for in-place fill; ≤ 100 fillable fields; approved font `assets/fonts/NotoSans-Regular.ttf`; export response ≤ 8 000 000 bytes |
-| Mixed / flat PDF (tender, RFP, RFQ, no AcroForm, or over 40 pages) | Text extract (first **80 pages**, 80 000 characters) → document briefing → field inference (heuristic + AI; vision only when text is sparse) → answers appendix on export | Missing AcroForm is not a failure. A valid unencrypted PDF always starts a session (identity questions if blanks cannot be listed). ≤ 50 inferred fields; download adds a **Completed answers** page |
+| Mixed / flat PDF (tender, RFP, RFQ, no AcroForm, or over 40 pages) | Text extract (first **80 pages**, 80 000 characters) → document briefing → field inference (heuristic + AI; vision only when text is sparse) → answers appendix on export | Missing AcroForm is not a failure. A valid unencrypted PDF always starts a session. If there are no fill-in questions, Omera still saves the file and briefing and asks for a form that needs completing (it does not invent identity questions). ≤ 50 inferred fields; download adds a **Completed answers** page |
 | Owner flat templates (optional) | Approved fingerprint in `templates.ts` → rectangle overlay (gate G4) | Registry starts empty; unknown fingerprints are not used for inference |
 
 ### Signatures
@@ -37,7 +37,7 @@ are not analyzed on the form route in this MVP.
 - Encrypted documents (422) — never decrypted server-side.
 - Unsupported MIME types (415) — non-PDF on the analyze route.
 - Files over 10 000 000 bytes (413 `FILE_TOO_LARGE`); multipart bodies over 10 200 000 bytes (413 `REQUEST_TOO_LARGE`). A non-JSON 413 from the platform is shown as `FILE_TOO_LARGE`.
-- Malformed PDFs and bad magic bytes (422). Passworded files are `ENCRYPTED_PDF`. Long packs without AcroForm are inferred, not rejected. A valid PDF with little text still gets a briefing plus identity questions.
+- Malformed PDFs and bad magic bytes (422). Passworded files are `ENCRYPTED_PDF`. Long packs without AcroForm are inferred, not rejected. A valid PDF with no blanks still gets a briefing and is not treated as `UNREADABLE_DOCUMENT` or `STORAGE_UPLOAD_FAILED`.
 - Text that exceeds an approved rectangle (422, `VALUE_TOO_LONG`); choices
   outside the stored options (400/422, `INVALID_CHOICE`); missing required
   values (400/422, `MISSING_REQUIRED_VALUE` / `REQUIRED_FIELD`).

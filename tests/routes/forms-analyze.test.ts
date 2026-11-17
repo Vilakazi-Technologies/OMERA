@@ -171,6 +171,9 @@ it("a_valid_pdf_creates_a_session", async () => {
   expect(body.fields).toStrictEqual(INTERPRETED);
   expect(body.revision).toBe(1);
   expect(body.status).toBe("in_progress");
+  expect(
+    (body as { hasFillableQuestions?: boolean }).hasFillableQuestions,
+  ).toBe(true);
   expect(bucketState.uploaded).toHaveLength(1);
   expect(bucketState.uploaded[0]).toContain("omera-user-1/");
   const created = vi.mocked(createFormSession).mock.calls[0][0] as unknown as Record<string, unknown>;
@@ -217,12 +220,18 @@ it("a_valid_pdf_with_no_blanks_still_starts_a_session", async () => {
   });
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(201);
+  const body = (await response.json()) as {
+    hasFillableQuestions: boolean;
+    fields: unknown[];
+    message: string;
+  };
   const created = vi.mocked(createFormSession).mock.calls[0][0] as {
     fields: { id: string }[];
   };
-  expect(created.fields.map((field) => field.id)).toContain(
-    "field_1_bidder_name",
-  );
+  expect(created.fields).toEqual([]);
+  expect(body.fields).toEqual([]);
+  expect(body.hasFillableQuestions).toBe(false);
+  expect(body.message).toMatch(/no fill-in questions/i);
   expect(bucketState.uploaded).toHaveLength(1);
 });
 
@@ -259,9 +268,13 @@ it("readable_text_with_no_blanks_still_creates_a_briefing_session", async () => 
     brief: unknown;
   };
   expect(created.brief).toEqual(BRIEF);
-  expect(created.fields.map((field) => field.id)).toContain(
-    "field_1_bidder_name",
-  );
+  expect(created.fields).toEqual([]);
+  const body = (await response.json()) as {
+    hasFillableQuestions: boolean;
+    message: string;
+  };
+  expect(body.hasFillableQuestions).toBe(false);
+  expect(body.message).toMatch(/upload a form/i);
 });
 
 it("an_encrypted_pdf_is_rejected_without_inference", async () => {
@@ -272,7 +285,7 @@ it("an_encrypted_pdf_is_rejected_without_inference", async () => {
   expect(vi.mocked(inferFormFieldsFromDocument)).not.toHaveBeenCalled();
 });
 
-it("inference_busy_still_starts_a_session_with_identity_questions", async () => {
+it("inference_busy_still_starts_a_briefing_session_without_invented_questions", async () => {
   vi.mocked(inspectPdfFields).mockRejectedValueOnce(
     new Error("NO_FILLABLE_FIELDS"),
   );
@@ -283,10 +296,10 @@ it("inference_busy_still_starts_a_session_with_identity_questions", async () => 
   expect(response.status).toBe(201);
   const created = vi.mocked(createFormSession).mock.calls[0][0] as {
     fields: { id: string }[];
+    brief: unknown;
   };
-  expect(created.fields.map((field) => field.id)).toContain(
-    "field_1_bidder_name",
-  );
+  expect(created.fields).toEqual([]);
+  expect(created.brief).toEqual(BRIEF);
 });
 
 it("an_unsupported_format_returns_415", async () => {

@@ -226,6 +226,84 @@ describe("form page review flow", () => {
     await screen.findByText("What is your full name?");
   });
 
+  it("keeps a fillable form on briefing then Q&A", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return jsonResponse(analyzePayload(), 201);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.7"], "tender.pdf", { type: "application/pdf" })],
+      },
+    });
+    await screen.findByText("A staff leave form for municipal employees.");
+    expect(screen.getByRole("button", { name: "Start filling" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Start filling" }));
+    await screen.findByText("What is your full name?");
+  });
+
+  it("summarises a narrative PDF and asks for a form with questions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).endsWith("/api/forms/analyze")) {
+          return jsonResponse(
+            {
+              sessionId: "s-narrative",
+              fileName: "brochure.pdf",
+              fields: [],
+              revision: 1,
+              status: "in_progress",
+              hasFillableQuestions: false,
+              brief: {
+                ...BRIEF,
+                title: "Company brochure",
+                documentKind: "other",
+                summary: "This PDF is a product brochure about municipal accounting software.",
+                fillableSections: [],
+              },
+            },
+            201,
+          );
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["%PDF-1.7"], "brochure.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    await screen.findByText(
+      "This PDF is a product brochure about municipal accounting software.",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/no fill-in questions/i)).toBeVisible();
+    expect(screen.getByText(/Omera found no fill-in questions/i)).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Upload a form with questions" }),
+    );
+    await screen.findByText("Upload your form");
+    expect(screen.queryByText("What is your full name?")).toBeNull();
+  });
+
   it("treats a clerk 404 HTML rewrite as a sign-in problem", async () => {
     vi.stubGlobal(
       "fetch",

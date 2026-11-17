@@ -165,7 +165,9 @@ export function heuristicDocumentBrief(
   }
   if (!actionsNow.length) {
     actionsNow.push(
-      "Read the briefing, then fill in only the questions Omera asks from this document.",
+      fillableSections.length
+        ? "Read the briefing, then fill in only the questions Omera asks from this document."
+        : "If this PDF is only a brochure or spec, upload a form that has questions or blanks.",
     );
   }
 
@@ -196,7 +198,7 @@ export function heuristicDocumentBrief(
   return {
     title: firstLine.slice(0, 160),
     documentKind,
-    summary: `This looks like a ${kindLabel} pack. Omera read the extractable text so you can see what to do next, then fill only the returnable questions — not the narrative pages.`,
+    summary: `This looks like a ${kindLabel} pack. Omera read the extractable text so you can see what it is about before any questions are asked.`,
     eligibility: /(?:eligible|qualification|who may)\s*[:\s]([^\n]{8,200})/i.exec(
       sample,
     )?.[1]
@@ -214,12 +216,13 @@ export function emptyDocumentBrief(fileName: string): FormDocumentBrief {
     title: fileName.replace(/\.pdf$/i, "") || "Uploaded document",
     documentKind: "other",
     summary:
-      "Omera could extract very little text. If this is a scan, try a clearer copy. You can still continue if you know what to fill in.",
+      "Omera could extract very little text. If this is a scan, try a clearer copy. If it is a brochure or spec, upload a form that has questions or blanks.",
     eligibility: "Not stated.",
     deadlines: [],
     requiredAttachments: [],
     actionsNow: [
       "If the pages look faint, export a clearer PDF, then upload again.",
+      "If this is the wrong file, upload a form with questions or blanks.",
     ],
     implications: [
       "A poor scan may hide deadlines and returnable forms.",
