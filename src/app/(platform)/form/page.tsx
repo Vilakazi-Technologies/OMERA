@@ -15,6 +15,7 @@ import {
   formErrorMessage,
   formUploadFailure,
   missingRequiredFields,
+  NO_FILL_IN_PLACES_MESSAGE,
 } from "@/lib/forms/form-errors";
 import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
@@ -375,12 +376,20 @@ export default function FormFillPage() {
     }
   }
 
+  function startNewUpload() {
+    localStorage.removeItem(FORM_REF_KEY);
+    setSession(null);
+    setError(null);
+    setErrorCode(null);
+    setStep("upload");
+  }
+
   function startFilling() {
     if (!session) return;
     setError(null);
     setErrorCode(null);
     if (!session.fields.length) {
-      setStep("review");
+      startNewUpload();
       return;
     }
     setStep("questions");
@@ -682,19 +691,31 @@ export default function FormFillPage() {
               <p className="text-xs text-slate-500">
                 {session.fields.length
                   ? `${session.fields.length} fill-in question${session.fields.length === 1 ? "" : "s"} found. Narrative pages are skipped.`
-                  : "No fill-in blanks found yet. You can still continue, or upload a clearer copy of the returnable forms."}
+                  : NO_FILL_IN_PLACES_MESSAGE}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => startFilling()}
-              className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
-            >
-              Start filling
-            </button>
-            <p className="mt-2 text-center text-xs text-slate-500">
-              Or say “start filling” — type or tap the microphone.
-            </p>
+            {session.fields.length ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => startFilling()}
+                  className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
+                >
+                  Start filling
+                </button>
+                <p className="mt-2 text-center text-xs text-slate-500">
+                  Or say “start filling” — type or tap the microphone.
+                </p>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startNewUpload()}
+                className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
+              >
+                Upload a form with questions
+              </button>
+            )}
           </div>
         )}
 
@@ -866,7 +887,7 @@ export default function FormFillPage() {
         )}
       </div>
 
-      {!restoring && step === "briefing" && session && (
+      {!restoring && step === "briefing" && session && session.fields.length > 0 && (
         <ChatComposer
           onSend={(text) => {
             if (isStartFillingUtterance(text) || text.trim().length > 0) {

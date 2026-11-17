@@ -18,7 +18,8 @@ import {
 } from "@/lib/forms/pdf-limits";
 import type { FormDocumentKind } from "@/lib/forms/contracts";
 import type { StoredFormField } from "@/lib/db/form-sessions";
-import { identityFallbackFields } from "@/lib/forms/identity-fallback-fields";
+import { fallbackFormFields } from "@/lib/forms/field-labels";
+import { NO_FILL_IN_PLACES_MESSAGE } from "@/lib/forms/form-errors";
 import {
   FORMS_BUCKET,
   FormStorageError,
@@ -211,8 +212,7 @@ export async function POST(request: Request) {
       try {
         interpreted = await extractFormFields(inspected, { languageId });
       } catch {
-        interpreted = identityFallbackFields();
-        documentKind = "flat";
+        interpreted = fallbackFormFields(inspected);
       }
     } catch (error) {
       if (error instanceof ApiError && error.code !== "NO_FILLABLE_FIELDS") {
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
           document: extracted,
         });
       } catch {
-        interpreted = identityFallbackFields();
+        interpreted = [];
       }
       documentKind = "flat";
     }
@@ -235,9 +235,7 @@ export async function POST(request: Request) {
       languageId,
       fileName,
     });
-    if (!interpreted.length) {
-      interpreted = identityFallbackFields();
-    }
+    const hasFillableQuestions = interpreted.length > 0;
 
     const documentSha256 = createHash("sha256")
       .update(file.bytes)
@@ -289,8 +287,10 @@ export async function POST(request: Request) {
           brief: session.brief ?? brief,
           truncated: extracted.truncated,
           pageCount: extracted.totalPages,
-          message:
-            "I've read your document. Confirm to start filling — I will only ask the questions on the form.",
+          hasFillableQuestions,
+          message: hasFillableQuestions
+            ? "I've read your document. Confirm to start filling — I will only ask the questions on the form."
+            : NO_FILL_IN_PLACES_MESSAGE,
         },
         { status: 201 },
       );
