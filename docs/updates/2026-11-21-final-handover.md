@@ -33,7 +33,9 @@ Supabase project: lpnlyethmoilqwoekvmc (Omera, main, PRODUCTION)
 
 ### Security posture (verified)
 - OMERA: secret scanning, push protection, Dependabot security updates, and
-  vulnerability alerts all enabled. Open Dependabot alerts: 0.
+  vulnerability alerts all enabled. Open Dependabot alerts: 0. The one alert
+  (minimatch DoS, GHSA-g3hv-75wg-m249) was fixed by overriding the
+  typescript-eslint copy to patched 11.x; the alert state is now "fixed".
 - Xavani: secret scanning + push protection enabled; Dependabot security updates
   + alerts enabled.
 - Blocking Gitleaks CI workflow + active pre-commit hooks on both repos. The hook
@@ -44,7 +46,7 @@ Supabase project: lpnlyethmoilqwoekvmc (Omera, main, PRODUCTION)
 ## 2. Checks (all passing)
 
 - OMERA full test suite: 773 passed, 0 failed, 1 skipped.
-- Typecheck: 0 errors. Lint: 0 errors, 0 warnings.
+- Typecheck: 0 errors. Full-project lint: 0 errors (7 pre-existing warnings).
 - Production build: exit 0.
 - Live chat: Xavani returns a full, correct answer (verified in the browser).
 - PDF reading: the maths assignment PDF is read successfully.
