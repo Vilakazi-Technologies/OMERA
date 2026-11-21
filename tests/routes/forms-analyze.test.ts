@@ -292,7 +292,7 @@ it("a_valid_pdf_with_no_blanks_still_starts_a_session", async () => {
   expect(created.fields).toEqual([]);
   expect(body.fields).toEqual([]);
   expect(body.hasFillableQuestions).toBe(false);
-  expect(body.message).toMatch(/no fill-in questions/i);
+  expect(body.message).toMatch(/no fill-in blanks/i);
   expect(bucketState.uploaded).toHaveLength(1);
 });
 
@@ -335,7 +335,7 @@ it("readable_text_with_no_blanks_still_creates_a_briefing_session", async () => 
     message: string;
   };
   expect(body.hasFillableQuestions).toBe(false);
-  expect(body.message).toMatch(/upload a form/i);
+  expect(body.message).toMatch(/no fill-in blanks/i);
 });
 
 it("an_encrypted_pdf_is_rejected_without_inference", async () => {

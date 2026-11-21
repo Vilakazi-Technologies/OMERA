@@ -2,7 +2,7 @@ import { FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 
 /** Shown on the briefing when a readable PDF has no questions to complete. */
 export const NO_FILL_IN_PLACES_MESSAGE =
-  "Omera found no fill-in questions on this PDF. This briefing is what the document is about. Upload a form that has questions or blanks to complete.";
+  "Omera read this document and briefed it below. It has no fill-in blanks, so there is nothing to complete in place — the briefing explains what the document is about and what it asks.";
 
 /** User-facing copy for form API error codes. */
 export function formErrorMessage(code: string | undefined, fallback: string): string {
