@@ -68,6 +68,8 @@ const PDF_BYTES = new Uint8Array([
   0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a, 0x25, 0xe2, 0xe3,
 ]);
 
+const PRIVACY_MARKER = "SECRET_MARKER_analyze_7c2e";
+
 const DEFS = [
   { id: "full_name", kind: "text", required: true, initialValue: "" },
 ];
@@ -422,13 +424,14 @@ it("an_oversized_file_returns_413", async () => {
 
 it("a_storage_failure_returns_502", async () => {
   bucketState.failUpload = true;
+  bucketState.uploadError = new Error(PRIVACY_MARKER);
   const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
   const response = await POST(postPdf(PDF_BYTES));
   expect(response.status).toBe(502);
   expect(await response.json()).toStrictEqual({
     error: "STORAGE_UPLOAD_FAILED",
   });
-  expect(spy.mock.calls.flat().join(" ")).toMatch(/disk full/);
+  expect(spy.mock.calls.flat().map(String).join(" ")).not.toContain(PRIVACY_MARKER);
   expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
   spy.mockRestore();
 });
@@ -454,4 +457,26 @@ it("a_database_failure_returns_502", async () => {
   // The orphaned upload is cleaned up when the session write fails.
   expect(bucketState.uploaded).toHaveLength(1);
   expect(bucketState.removed).toEqual(bucketState.uploaded);
+});
+
+it("pdf_extract_failure_keeps_the_error_cause_out_of_the_log", async () => {
+  const cause = new Error(PRIVACY_MARKER);
+  vi.mocked(extractPdfDocument).mockRejectedValueOnce(
+    Object.assign(new Error("MALFORMED_PDF"), { cause }),
+  );
+  const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(201);
+  expect(spy.mock.calls.flat().map(String).join(" ")).not.toContain(PRIVACY_MARKER);
+  spy.mockRestore();
+});
+
+it("an_unexpected_error_keeps_its_message_out_of_the_log", async () => {
+  vi.mocked(requireIdentity).mockRejectedValueOnce(new Error(PRIVACY_MARKER));
+  const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const response = await POST(postPdf(PDF_BYTES));
+  expect(response.status).toBe(503);
+  expect(await response.json()).toStrictEqual({ error: "SERVICE_UNAVAILABLE" });
+  expect(spy.mock.calls.flat().map(String).join(" ")).not.toContain(PRIVACY_MARKER);
+  spy.mockRestore();
 });

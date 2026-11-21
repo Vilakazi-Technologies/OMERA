@@ -204,8 +204,7 @@ export async function POST(request: Request) {
       const code = error instanceof Error ? error.message : "MALFORMED_PDF";
       console.error(
         "[forms/analyze] PDF_TEXT_EXTRACT_FAILED",
-        code,
-        error instanceof Error ? (error.cause ?? error.message) : error,
+        error instanceof Error ? error.name : "UnknownError",
       );
       if (code === "ENCRYPTED_PDF") throw new ApiError("ENCRYPTED_PDF", 422);
       extracted = {
@@ -287,13 +286,14 @@ export async function POST(request: Request) {
         contentType: "application/pdf",
       });
     } catch (error) {
-      const detail =
+      console.error(
+        "[forms/analyze] STORAGE_UPLOAD_FAILED",
         error instanceof FormStorageError
-          ? error.detail
+          ? error.code
           : error instanceof Error
-            ? error.message
-            : String(error);
-      console.error("[forms/analyze] STORAGE_UPLOAD_FAILED", detail);
+            ? error.name
+            : "UnknownError",
+      );
       if (error instanceof FormStorageError && error.code === "FILE_TOO_LARGE") {
         throw new ApiError("FILE_TOO_LARGE", 413);
       }
@@ -340,11 +340,7 @@ export async function POST(request: Request) {
     console.error(
       "[forms/analyze]",
       code,
-      error instanceof FormStorageError
-        ? error.detail
-        : error instanceof Error
-          ? error.message
-          : error,
+      error instanceof Error ? error.name : "UnknownError",
     );
     return apiErrorResponse(error);
   }
