@@ -81,7 +81,7 @@ export async function extractPdfDocument(
   } catch (error) {
     console.error(
       "[pdf-text] extract failed",
-      error instanceof Error ? error.message : error,
+      error instanceof Error ? error.name : "UnknownError",
     );
     throw new Error(classifyPdfReadError(error), { cause: error });
   } finally {

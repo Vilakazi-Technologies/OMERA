@@ -53,3 +53,13 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Private notes, credentials, and logs
+DECISIONS.md
+credentials.json
+id_rsa
+id_ed25519
+id_ecdsa
+*.p12
+*.pfx
+logs/
