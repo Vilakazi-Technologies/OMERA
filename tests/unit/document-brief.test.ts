@@ -252,3 +252,43 @@ it("picks SBD and blank pages over narrative for vision", () => {
   expect(pages[0]).toBe(1);
   expect(pages).toContain(3);
 });
+
+const MATHS_ASSIGNMENT = [
+  "ITMTB1-44 Assignment | Eduvos",
+  "Total Marks: 100 Submission Week: Week 6",
+  "This module is presented on NQF level 5.",
+  "Section A",
+  "Learning Objective: Apply knowledge and skills relating to integration to solve problems.",
+  "Question 1 32 Marks",
+  "1.1 The velocity of a particle moving along a straight line is given by v(t) = t^2 - 4t + 3.",
+  "b) Set up and evaluate the definite integral representing the total distance travelled.",
+].join("\n");
+
+it("honestly names a maths assignment instead of rejecting it", () => {
+  const brief = heuristicDocumentBrief(
+    MATHS_ASSIGNMENT,
+    "ITMTB1-44 Assignment _ Eduvos.pdf",
+  );
+  expect(brief.summary).toMatch(/maths assignment/i);
+  expect(brief.summary).toMatch(/not a fillable form/i);
+  expect(brief.fillableSections).toEqual([]);
+  expect(brief.actionsNow.join(" ")).not.toMatch(/upload a form/i);
+});
+
+it("brief instructions cover academic documents honestly", () => {
+  const instructions = documentBriefInstructions("eng");
+  expect(instructions).toMatch(/assignment/i);
+  expect(instructions).toMatch(/maths assignment on integration/i);
+  expect(instructions).toMatch(/never tell the user to upload a different file/i);
+});
+
+it("allows a 20 MB upload and keeps the honest platform hint", async () => {
+  const {
+    FORM_PDF_FILE_LIMIT,
+    FORM_PDF_FILE_LIMIT_MB,
+    FORM_PDF_PLATFORM_HINT_MB,
+  } = await import("@/lib/forms/pdf-limits");
+  expect(FORM_PDF_FILE_LIMIT).toBe(20_000_000);
+  expect(FORM_PDF_FILE_LIMIT_MB).toBe(20);
+  expect(FORM_PDF_PLATFORM_HINT_MB).toBe(4.5);
+});

@@ -1,13 +1,13 @@
 /** Shared PDF form-fill limits. Keep in sync with docs/form-support.md. */
 
 /** Max original PDF upload (bytes). Multipart wrapper is slightly larger. */
-export const FORM_PDF_FILE_LIMIT = 10_000_000;
-export const FORM_PDF_MULTIPART_LIMIT = 10_200_000;
-export const FORM_PDF_FILE_LIMIT_MB = 10;
+export const FORM_PDF_FILE_LIMIT = 20_000_000;
+export const FORM_PDF_MULTIPART_LIMIT = 20_400_000;
+export const FORM_PDF_FILE_LIMIT_MB = 20;
 
 /**
  * Vercel Node request bodies are often capped near 4.5 MB on the platform.
- * App + bucket allow 10 MB; a platform 413 still maps to FILE_TOO_LARGE.
+ * App + bucket allow 20 MB; a platform 413 still maps to FILE_TOO_LARGE.
  */
 export const FORM_PDF_PLATFORM_HINT_MB = 4.5;
 

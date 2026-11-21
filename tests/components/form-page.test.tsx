@@ -175,7 +175,7 @@ describe("form page review flow", () => {
       },
     });
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/10 MB/i);
+    expect(alert.textContent).toMatch(/20 MB/i);
     expect(alert.textContent).toMatch(/FILE_TOO_LARGE/);
     expect(alert.textContent).not.toMatch(/password/i);
   });
@@ -352,7 +352,7 @@ describe("form page review flow", () => {
     await screen.findByText("What is your full name?");
   });
 
-  it("summarises a narrative PDF and asks for a form with questions", async () => {
+  it("summarises a narrative PDF honestly without asking for a different form", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: unknown) => {
@@ -396,8 +396,8 @@ describe("form page review flow", () => {
     );
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("What this is about")).toBeVisible();
-    expect(screen.getByText(/no fill-in questions/i)).toBeVisible();
-    expect(screen.getByText(/Omera found no fill-in questions/i)).toBeVisible();
+    expect(screen.getByText(/no fill-in blanks/i)).toBeVisible();
+    expect(screen.getByText(/Omera read this document/i)).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Start filling" }),
     ).toBeNull();

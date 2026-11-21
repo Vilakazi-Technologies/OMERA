@@ -41,8 +41,8 @@ it("keeps scan, password, size, AI, storage, and sign-in as distinct copy", () =
   expect(scan).toMatch(/scan|text/i);
   expect(scan).not.toMatch(/password/i);
   expect(password).toMatch(/password/i);
-  expect(password).not.toMatch(/4\.5 MB|10 MB/i);
-  expect(size).toMatch(/10 MB/i);
+  expect(password).not.toMatch(/4\.5 MB|20 MB/i);
+  expect(size).toMatch(/20 MB/i);
   expect(ai).toMatch(/AI is busy/i);
   expect(storage).toMatch(/database|storage/i);
   expect(signIn).toMatch(/sign in/i);
@@ -74,10 +74,11 @@ it("uses a human fallback without fillable jargon", () => {
   );
 });
 
-it("tells users to upload a form when there are no fill-in places", () => {
+it("briefs a document honestly when there are no fill-in places", () => {
   expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/^Omera /);
-  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/no fill-in questions/i);
-  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/upload a form/i);
+  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/no fill-in blanks/i);
+  expect(NO_FILL_IN_PLACES_MESSAGE).toMatch(/briefing/i);
+  expect(NO_FILL_IN_PLACES_MESSAGE).not.toMatch(/upload a form/i);
   expect(NO_FILL_IN_PLACES_MESSAGE).not.toMatch(/Omero|Omira/);
   expect(formErrorMessage("NO_FILLABLE_FIELDS", "fallback")).toBe(
     NO_FILL_IN_PLACES_MESSAGE,
