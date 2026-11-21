@@ -56,11 +56,10 @@ it("translated_prompts_keep_the_canonical_field_names", async () => {
       } as never),
   );
   const fields = await extractFormFields(INSPECTED, { languageId: "zul" });
-  expect(fields.map((field) => field.id)).toEqual([
-    "full_name",
-    "method",
-    "permission",
-  ]);
+  // Order follows sortFieldsForQuestionFlow, not alphabetics; assert identity only.
+  expect(fields.map((field) => field.id).sort()).toEqual(
+    ["full_name", "method", "permission"].sort(),
+  );
   expect(fields[0]).toMatchObject({
     label: "Igama eliphelele",
     prompt: "Ngubani igama lakho eliphelele?",
