@@ -7,6 +7,7 @@ const { mockCreateConfiguredChatStream } = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/require-identity", () => ({
   requireIdentity: vi.fn(),
+  isClerkUserId: (userId: string) => userId.startsWith("user_"),
 }));
 vi.mock("@/lib/auth/request-origin", () => ({
   requireRequestOrigin: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/lib/limits/consume-quota", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   getSupabaseAdmin: vi.fn(),
+  isSupabaseConfigured: vi.fn(() => false),
 }));
 vi.mock("@/lib/ai/xavani-client", () => ({
   getXavaniConfig: vi.fn(),
@@ -27,17 +29,24 @@ vi.mock("@/lib/ai/xavani-client", () => ({
   xavaniResearchAvailable: vi.fn(),
   xavaniReachable: vi.fn(),
 }));
+vi.mock("@clerk/nextjs/server", () => ({
+  currentUser: vi.fn(async () => null),
+  auth: vi.fn(async () => ({ userId: "user_test_clerk" })),
+}));
 vi.mock("@/lib/ai/chat-runtime", () => ({
   createConfiguredChatStream: mockCreateConfiguredChatStream,
+  resolveChatProvider: vi.fn(() => "xavani"),
+  researchHandledByXavani: vi.fn(() => false),
 }));
 vi.mock("@/lib/search/web-research", () => ({
   buildWebResearchSystemContextBounded: vi.fn(),
 }));
+import { currentUser } from "@clerk/nextjs/server";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { getConversation } from "@/lib/db/conversations";
 import { consumeQuota } from "@/lib/limits/consume-quota";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { createXavaniChatStream, getXavaniConfig, xavaniReachable, xavaniResearchAvailable } from "@/lib/ai/xavani-client";
 import { buildWebResearchSystemContextBounded } from "@/lib/search/web-research";
 import { ApiError } from "@/lib/http/api-error";
@@ -89,6 +98,7 @@ beforeEach(() => {
   vi.mocked(getConversation).mockResolvedValue({ id: CONVERSATION_ID } as never);
   vi.mocked(consumeQuota).mockResolvedValue({ allowed: true, remaining: 59 });
   vi.mocked(getSupabaseAdmin).mockReturnValue({} as never);
+  vi.mocked(isSupabaseConfigured).mockReturnValue(false);
   vi.mocked(getXavaniConfig).mockReturnValue({
     baseUrl: "https://xavani.example",
     apiKey: "test-key",
@@ -156,6 +166,112 @@ describe("chat route", () => {
     expect(text.indexOf('"token"')).toBeLessThan(text.indexOf("[DONE]"));
     expect(vi.mocked(getConversation)).not.toHaveBeenCalled();
     expect(mockCreateConfiguredChatStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes_account_memory_in_the_model_request", async () => {
+    vi.mocked(currentUser).mockResolvedValue({
+      firstName: "Ayanda",
+      fullName: "Ayanda Mkhize",
+    } as never);
+    const response = await POST(post({
+      messages: [{ role: "user", content: "What should I charge?" }],
+      replyLanguageId: "zul",
+      accountMemory: {
+        facts: ["I run a school catering business in Soweto."],
+        priorChats: [{
+          title: "First customer",
+          user: "I need my first school contract.",
+          assistant: "Start with one school you already know.",
+        }],
+      },
+    }));
+    expect(response.status).toBe(200);
+    const context = mockCreateConfiguredChatStream.mock.calls[0][4] as string;
+    expect(context).toContain("Name: Ayanda Mkhize");
+    expect(context).toContain("Reply language for this turn: isiZulu");
+    expect(context).toContain("I run a school catering business in Soweto.");
+    expect(context).toContain("I need my first school contract.");
+    expect(mockCreateConfiguredChatStream.mock.calls[0][0]).toEqual([
+      { role: "user", content: "What should I charge?" },
+    ]);
+  });
+
+  it("restores_stored_thread_and_business_facts_when_the_client_sends_one_line", async () => {
+    const env = process.env as Record<string, string | undefined>;
+    env["SUPABASE_URL"] = "https://example.supabase.co";
+    env["SUPABASE_SERVICE_ROLE_KEY"] = "service-role-test";
+    vi.mocked(isSupabaseConfigured).mockReturnValue(true);
+    vi.mocked(requireIdentity).mockResolvedValue({
+      userId: "11111111-1111-4111-8111-111111111111",
+      authUserId: "user_test_clerk",
+    });
+    vi.mocked(currentUser).mockResolvedValue(null);
+    vi.mocked(getConversation).mockResolvedValue({
+      id: CONVERSATION_ID,
+      messages: [
+        { id: "m1", role: "user", content: "I sell vetkoek at taxi ranks.", createdAt: 1 },
+        { id: "m2", role: "assistant", content: "Price the oil and the flour first.", createdAt: 2 },
+      ],
+    } as never);
+    vi.mocked(getSupabaseAdmin).mockReturnValue({
+      from(table: string) {
+        const builder = {
+          select() { return builder; },
+          eq() { return builder; },
+          order() { return builder; },
+          limit() { return builder; },
+          maybeSingle: async () => ({
+            data: table === "omera_users" ? { display_name: "Ayanda Mkhize" } : null,
+            error: null,
+          }),
+          then(
+            onFulfilled: (value: unknown) => unknown,
+            onRejected?: (reason: unknown) => unknown,
+          ) {
+            const result = table === "omera_conversations"
+              ? {
+                  data: [{
+                    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                    title: "School catering",
+                    updated_at: "2026-11-01T00:00:00.000Z",
+                    omera_messages: [{
+                      role: "user",
+                      content: "I run a school catering business in Soweto.",
+                      created_at: "2026-11-01T00:00:00.000Z",
+                    }],
+                  }],
+                  error: null,
+                }
+              : { data: null, error: null };
+            return Promise.resolve(result).then(onFulfilled, onRejected);
+          },
+        };
+        return builder;
+      },
+    } as never);
+
+    const response = await POST(post({
+      ...validBody(),
+      messages: [{ role: "user", content: "What should I charge?" }],
+      accountMemory: {
+        facts: ["Client-supplied fact that must not override the database."],
+        priorChats: [],
+      },
+    }));
+    expect(response.status).toBe(200);
+    expect(mockCreateConfiguredChatStream.mock.calls[0][0]).toEqual([
+      { role: "user", content: "I sell vetkoek at taxi ranks." },
+      { role: "assistant", content: "Price the oil and the flour first." },
+      { role: "user", content: "What should I charge?" },
+    ]);
+    const context = mockCreateConfiguredChatStream.mock.calls[0][4] as string;
+    expect(context).toContain("Name: Ayanda Mkhize");
+    expect(context).toContain("I run a school catering business in Soweto.");
+    expect(context).not.toContain("Client-supplied fact");
+    expect(context).not.toContain("I sell vetkoek at taxi ranks.");
+
+    delete env["SUPABASE_URL"];
+    delete env["SUPABASE_SERVICE_ROLE_KEY"];
   });
 });
 

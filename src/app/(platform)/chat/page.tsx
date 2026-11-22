@@ -13,6 +13,7 @@ import {
 } from "@/lib/ai/model-catalog-client";
 import { useApp } from "@/context/app-provider";
 import { consumeChatEvents } from "@/lib/ai/chat-events";
+import { localAccountMemory } from "@/lib/ai/advisor-memory";
 import { boundChatHistory } from "@/lib/ai/chat-history";
 import {
   persistCompletedAnswer,
@@ -231,6 +232,8 @@ function ChatPageContent() {
         });
 
         try {
+          const remembered =
+            persistence === "supabase" ? null : localAccountMemory(conversations, convId);
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -238,6 +241,7 @@ function ChatPageContent() {
               conversationId: persistence === "supabase" ? convId : undefined,
               modelId: chatModelForAttempt(attempt, chatModelId),
               replyLanguageId,
+              ...(remembered ? { accountMemory: remembered } : {}),
               messages: boundChatHistory(baseMessages).map((m) => ({
                 role: m.role,
                 content: m.content,

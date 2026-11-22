@@ -9,7 +9,10 @@ import { readJsonBody } from "@/lib/http/read-body";
 import { requireRequestOrigin } from "@/lib/auth/request-origin";
 import { requireIdentity } from "@/lib/auth/require-identity";
 import { usesCloudPersistence } from "@/lib/auth/cloud-persistence";
+import { combineSystemContext, type ModelTurn } from "@/lib/ai/advisor-memory";
+import { threadForModel } from "@/lib/ai/chat-history";
 import { chatRequestSchema } from "@/lib/ai/chat-request";
+import { loadAdvisorModelContext } from "@/lib/ai/load-advisor-context";
 import { getConversation } from "@/lib/db/conversations";
 import { consumeQuota } from "@/lib/limits/consume-quota";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
@@ -45,16 +48,25 @@ export async function POST(request: Request) {
     const raw = await readJsonBody(request, CHAT_BODY_LIMIT);
     const parsed = chatRequestSchema.safeParse(raw);
     if (!parsed.success) throw new ApiError("INVALID_REQUEST", 400);
-    const { conversationId, messages, replyLanguageId, modelId, webResearch } =
+    const { conversationId, messages, replyLanguageId, modelId, webResearch, accountMemory } =
       parsed.data;
     const cloud = usesCloudPersistence(identity);
 
+    let storedThread: ModelTurn[] = [];
     if (conversationId && cloud) {
       const conversation = await getConversation(
         conversationId,
         identity.userId,
       );
       if (!conversation) throw new ApiError("NOT_FOUND", 404);
+      storedThread = conversation.messages
+        .filter((message) => message.role === "user" || message.role === "assistant")
+        .filter((message) => message.content.trim().length > 0)
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((message) => ({
+          role: message.role as "user" | "assistant",
+          content: message.content,
+        }));
     }
 
     if (cloud) {
@@ -85,38 +97,43 @@ export async function POST(request: Request) {
       webResearch, provider, xavaniResearch,
     );
 
-    let webResearchContext: string | null = null;
-    if (webResearch && !researchOnXavani) {
-      const lastUser = messages.findLast((message) => message.role === "user");
-      if (lastUser) {
-        webResearchContext = await buildWebResearchSystemContextBounded(
-          lastUser.content,
-          request.signal,
-        );
-      }
-    }
+    const lastUser = messages.findLast((message) => message.role === "user");
+    const [webResearchContext, memoryContext] = await Promise.all([
+      webResearch && !researchOnXavani && lastUser
+        ? buildWebResearchSystemContextBounded(lastUser.content, request.signal)
+        : Promise.resolve(null),
+      loadAdvisorModelContext({
+        userId: identity.userId,
+        cloud,
+        conversationId,
+        replyLanguageId,
+        accountMemory: cloud ? null : accountMemory,
+      }),
+    ]);
+    const systemContext = combineSystemContext(memoryContext, webResearchContext);
+    const thread = threadForModel(
+      storedThread,
+      messages.map((message) => ({ role: message.role, content: message.content })),
+    );
 
     let stream: ReadableStream<Uint8Array>;
     try {
       stream = await createConfiguredChatStream(
-        messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
+        thread,
         replyLanguageId,
         request.signal,
         openRouterOverride,
-        webResearchContext,
+        systemContext,
         researchOnXavani ? true : undefined,
       );
     } catch {
       if (runtimeMode(process.env.XAVANI_API_KEY, process.env) !== "demo") {
         throw new ApiError("SERVICE_UNAVAILABLE", 503);
       }
-      const lastUser = [...messages]
+      const fallbackUser = [...messages]
         .reverse()
         .find((message) => message.role === "user");
-      stream = createDemoChatStream(lastUser?.content ?? "");
+      stream = createDemoChatStream(fallbackUser?.content ?? "");
     }
 
     return new NextResponse(stream, { headers: STREAM_HEADERS });

@@ -16,6 +16,18 @@ export const chatRequestSchema = z.object({
     role: z.enum(["user", "assistant"]),
     content: z.string().min(1).max(8000).refine((text) => text.trim().length > 0),
   }).strict()).min(1).max(40),
+  /**
+   * Local-mode recall of earlier chats. Ignored when the account is stored
+   * in Supabase; the server loads that memory itself.
+   */
+  accountMemory: z.object({
+    facts: z.array(z.string().min(1).max(280)).max(8),
+    priorChats: z.array(z.object({
+      title: z.string().min(1).max(80),
+      user: z.string().min(1).max(280),
+      assistant: z.string().min(1).max(280).optional(),
+    }).strict()).max(5),
+  }).strict().optional(),
 }).strict().refine(
   (body) => body.messages.at(-1)?.role === "user",
   "LAST_MESSAGE_MUST_BE_USER",

@@ -225,6 +225,57 @@ describe("chat page stream lifecycle", () => {
     expect(explicitBody.replyLanguageId).toBe("zul");
   });
 
+  it("sends earlier local chats as account memory and leaves form chats out", async () => {
+    resetAuthFixture({
+      conversations: [
+        {
+          id: "conv-1",
+          title: "New chat",
+          mode: "chat",
+          messages: [],
+          updatedAt: 3,
+        },
+        {
+          id: "conv-old",
+          title: "School catering",
+          mode: "chat",
+          messages: [{
+            id: "u1",
+            role: "user",
+            content: "I run a school catering business in Soweto.",
+            createdAt: 1,
+          }],
+          updatedAt: 2,
+        },
+        {
+          id: "form-1",
+          title: "Form fill",
+          mode: "form",
+          messages: [{
+            id: "f1",
+            role: "user",
+            content: "My ID number is 8001015800085.",
+            createdAt: 1,
+          }],
+          updatedAt: 1,
+        },
+      ],
+      activeId: "conv-1",
+    });
+    installFetchRouter(
+      async () => ({ ok: true, body: tokenStream(["Noted"]) }) as Response,
+    );
+    render(<ChatPage />);
+    await sendDraft("What should I charge?");
+    await waitFor(() => {
+      expect(chatFetchCalls()).toHaveLength(1);
+    });
+    const body = JSON.parse(chatFetchCalls()[0][1]!.body as string);
+    expect(body.accountMemory.facts.join(" ")).toContain("school catering");
+    expect(JSON.stringify(body.accountMemory)).not.toContain("8001015800085");
+    expect(body.messages.at(-1).content).toBe("What should I charge?");
+  });
+
   it("a_failed_save_is_visible_and_retryable", async () => {
     resetAuthFixture({ persistence: "supabase" });
     let persistCalls = 0;

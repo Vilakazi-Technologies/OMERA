@@ -39,6 +39,23 @@ it("accepts every registered reply language ID", () => {
   }
 });
 
+it("accepts local account memory and rejects an oversized fact", () => {
+  const messages = [{ role: "user" as const, content: "What should I charge?" }];
+  const accountMemory = {
+    facts: ["I run a school catering business in Soweto."],
+    priorChats: [{ title: "Pricing", user: "What should a plate cost?" }],
+  };
+  expect(chatRequestSchema.parse({ messages, accountMemory }).accountMemory).toEqual(accountMemory);
+  expect(chatRequestSchema.safeParse({
+    messages,
+    accountMemory: { facts: ["x".repeat(281)], priorChats: [] },
+  }).success).toBe(false);
+  expect(chatRequestSchema.safeParse({
+    messages,
+    accountMemory: { facts: [], priorChats: [], extra: true },
+  }).success).toBe(false);
+});
+
 it("accepts a valid conversation UUID", () => {
   const conversationId = "550e8400-e29b-41d4-a716-446655440000";
   expect(chatRequestSchema.parse({

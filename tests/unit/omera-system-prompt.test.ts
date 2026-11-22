@@ -15,3 +15,15 @@ it("builds the business and reply-language instructions", () => {
   }
   expect(() => buildOmeraSystemPrompt("invalid")).toThrow("INVALID_LANGUAGE");
 });
+
+it("forbids corporate filler and bullet essays", () => {
+  const prompt = buildOmeraSystemPrompt(null);
+  expect(prompt).toContain('Never open with "Certainly"');
+  expect(prompt).toContain("I'd be happy to");
+  expect(prompt).toContain("Do not answer with a bullet list unless they asked");
+  expect(prompt).toContain("Talk like a person");
+  expect(prompt).toContain("isiZulu");
+  expect(prompt).toContain("siSwati");
+  expect(prompt).not.toContain("organize the answer into current situation");
+  expect(prompt).not.toContain("Keep the tone professional");
+});
