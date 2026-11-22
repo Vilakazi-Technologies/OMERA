@@ -1,6 +1,8 @@
 import type { StoredFormField } from "@/lib/db/form-sessions";
 import { mergeFillFields } from "@/lib/forms/merge-fill-fields";
 import {
+  canonicalFillLabel,
+  declarationQuestionLabel,
   FILL_BLANK_RUN,
   humanQuestionLabel,
   isAnswerOrAttachItem,
@@ -8,6 +10,7 @@ import {
 import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
 const MAX_HEURISTIC_FIELDS = FORM_MAX_INFERRED_FIELDS;
+const SCAN_CAP = FORM_MAX_INFERRED_FIELDS + 40;
 const SKIP_LINE =
   /^(page\s+\d+\b|[-–—]\s*\d+\s*[-–—]|application(\s+form)?$|application\s+for\b.{0,60}$|form$|instructions?$|please\s+(complete|fill)\b|note:|background$|introduction$|scope of work\b|evaluation criteria\b)/i;
 const SKIP_LABEL =
@@ -70,6 +73,38 @@ function pushField(
   });
 }
 
+/** PDF text often splits leaders into ". . . ." or "_ _ _ _". Collapse those into a blank. */
+export function collapseFillLeaders(line: string): string {
+  return line
+    .replace(/\u00a0/g, " ")
+    .replace(/(?:\.\s+){3,}\.?/g, " ______ ")
+    .replace(/(?:_\s+){2,}_?/g, " ______ ")
+    .replace(/(?:[·•]\s*){4,}/g, " ______ ")
+    .replace(/(?:\u2026\s*){2,}/g, " ______ ")
+    .replace(/(?:\u22ef\s*){2,}/g, " ______ ")
+    .replace(/\.{4,}/g, " ______ ")
+    .replace(/_{2,}/g, " ______ ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function isLeaderOnly(line: string): boolean {
+  const collapsed = collapseFillLeaders(line);
+  if (!/_{3,}/.test(collapsed)) return false;
+  return collapsed.replace(/_+/g, "").replace(/[\s:.\-–—]+/g, "").length < 3;
+}
+
+function rememberLabel(
+  found: { label: string; kind: NonNullable<StoredFormField["kind"]> }[],
+  label: string,
+  kind: NonNullable<StoredFormField["kind"]>,
+): void {
+  const trimmed = label.replace(/[:.\s]+$/g, "").trim();
+  if (!trimmed || /^(code|number|no\.?|item)$/i.test(trimmed)) return;
+  if (found.some((row) => row.label.toLowerCase() === trimmed.toLowerCase())) return;
+  found.push({ label: trimmed, kind });
+}
+
 function labelsFromLine(line: string): {
   label: string;
   kind: NonNullable<StoredFormField["kind"]>;
@@ -86,35 +121,39 @@ function labelsFromLine(line: string): {
     if (!consumedBlank && after.trim()) continue;
     const label = match[1]?.replace(/[.]+$/, "").trim();
     if (!label) continue;
-    found.push({ label, kind: kindFromLabel(label) });
+    rememberLabel(found, label, kindFromLabel(label));
   }
-  if (!found.length) {
-    const underlined = new RegExp(
-      String.raw`^(.{2,80}?)\s+(?:_{3,}|\.{5,}|\u2026{3,}|[·.]{5,})`,
-    ).exec(line);
-    if (underlined) {
-      found.push({
-        label: underlined[1].replace(/[:.]+$/, "").trim(),
-        kind: kindFromLabel(underlined[1]),
-      });
-    }
+  const leader = /([A-Za-z][^_:?\n]{1,60}?)\s+_{3,}/g;
+  for (const match of line.matchAll(leader)) {
+    const label = match[1]?.trim();
+    if (!label) continue;
+    rememberLabel(found, label, kindFromLabel(label));
   }
   const checkbox = /^[\[\(][\sxX]?[\]\)]\s+(.{2,80})$/.exec(line);
   if (checkbox) {
-    found.push({
-      label: checkbox[1].replace(/[.]+$/, "").trim(),
-      kind: "checkbox",
-    });
+    rememberLabel(found, checkbox[1].replace(/[.]+$/, "").trim(), "checkbox");
   }
   if (/\bsign(ature)?\b|\bsign here\b/i.test(line) && !found.some((row) => row.kind === "signature")) {
-    found.push({ label: "Signature", kind: "signature" });
+    rememberLabel(found, "Signature", "signature");
   }
   return found;
 }
 
+function fitFieldBudget(fields: StoredFormField[]): StoredFormField[] {
+  if (fields.length <= MAX_HEURISTIC_FIELDS) return fields;
+  const returnables: StoredFormField[] = [];
+  const rest: StoredFormField[] = [];
+  for (const field of fields) {
+    if (/\b(sbd|mbd)\b/i.test(field.label)) returnables.push(field);
+    else rest.push(field);
+  }
+  const room = Math.max(0, MAX_HEURISTIC_FIELDS - returnables.length);
+  return [...rest.slice(0, room), ...returnables].slice(0, MAX_HEURISTIC_FIELDS);
+}
+
 function inferReturnableForms(text: string, fields: StoredFormField[], seen: Set<string>): void {
   for (const match of text.matchAll(/\b(SBD|MBD)\s*(\d+(?:\.\d+)?)\b/gi)) {
-    if (fields.length >= MAX_HEURISTIC_FIELDS) break;
+    if (fields.length >= SCAN_CAP) break;
     const series = match[1].toUpperCase();
     const num = match[2];
     const sbdLabel = FORM_TITLES[num];
@@ -136,38 +175,61 @@ export function inferFieldsFromExtractedText(text: string): StoredFormField[] {
   const lines = text.split(/\r?\n/);
 
   for (let index = 0; index < lines.length; index += 1) {
-    if (fields.length >= MAX_HEURISTIC_FIELDS) break;
-    const line = lines[index]!.replace(/\u00a0/g, " ").trim();
-    if (line.length < 3 || line.length > 220) continue;
-    if (SKIP_LINE.test(line)) continue;
-    const words = line.split(/\s+/).length;
+    if (fields.length >= SCAN_CAP) break;
+    const raw = lines[index]!.replace(/\u00a0/g, " ").trim();
+    if (raw.length < 3) continue;
+    const line = collapseFillLeaders(raw);
+    if (line.length < 3) continue;
+    if (line.length > 400 && !/[:_]/.test(line) && !FILL_BLANK_RUN.test(raw)) continue;
+    if (SKIP_LINE.test(line) || SKIP_LINE.test(raw)) continue;
+    const words = line.split(/\s+/).filter(Boolean).length;
     if (
-      words > 18 &&
+      words > 22 &&
       !/[:_]/.test(line) &&
       !FILL_BLANK_RUN.test(line) &&
       !/[\[\(]\s*[\]\)]/.test(line) &&
-      !/\b(sbd|mbd)\s*\d/i.test(line)
+      !/\b(sbd|mbd)\s*\d/i.test(line) &&
+      !/\byes\s*\/\s*no\b/i.test(line)
     ) {
       continue;
     }
 
-    for (const item of labelsFromLine(line)) {
-      if (fields.length >= MAX_HEURISTIC_FIELDS) break;
+    const declared = declarationQuestionLabel(raw) ?? declarationQuestionLabel(line);
+    if (declared) {
+      pushField(fields, seen, declared, "checkbox", raw);
+    }
+
+    const labeled = labelsFromLine(line);
+    for (const item of labeled) {
+      if (fields.length >= SCAN_CAP) break;
       pushField(fields, seen, item.label, item.kind, line);
     }
 
-    const next = lines[index + 1]?.replace(/\u00a0/g, " ").trim() ?? "";
+    if (!declared && labeled.length === 0) {
+      const bare = canonicalFillLabel(line);
+      if (bare) {
+        pushField(fields, seen, bare, kindFromLabel(bare), line, true);
+      }
+    }
+
+    const nextRaw = lines[index + 1]?.replace(/\u00a0/g, " ").trim() ?? "";
     if (
-      next &&
-      FILL_BLANK_RUN.test(next) &&
-      next.replace(FILL_BLANK_RUN, "").trim().length < 8 &&
+      nextRaw &&
+      isLeaderOnly(nextRaw) &&
       words <= 8 &&
-      !FILL_BLANK_RUN.test(line)
+      !FILL_BLANK_RUN.test(line) &&
+      !/_{3,}/.test(line)
     ) {
-      pushField(fields, seen, line.replace(/[:.]+$/, "").trim(), kindFromLabel(line), `${line}\n${next}`);
+      pushField(
+        fields,
+        seen,
+        line.replace(/[:.]+$/, "").trim(),
+        kindFromLabel(line),
+        `${line}\n${collapseFillLeaders(nextRaw)}`,
+      );
     }
   }
 
   inferReturnableForms(text, fields, seen);
-  return mergeFillFields(fields);
+  return mergeFillFields(fitFieldBudget(fields));
 }

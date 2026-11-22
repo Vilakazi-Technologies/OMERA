@@ -8,6 +8,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat-composer";
+import { FormAnswerComposer } from "@/components/form-answer-composer";
 import { FormDocumentBriefPanel } from "@/components/form-document-brief";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
@@ -24,6 +25,7 @@ import {
 import type { FormDocumentBrief } from "@/lib/forms/document-brief-schema";
 import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
+import { confirmedSpeechAnswer, stageSpeechTranscript } from "@/lib/forms/speech-answer";
 import { cn } from "@/lib/cn";
 
 type Step = "upload" | "briefing" | "questions" | "review" | "complete";
@@ -117,10 +119,15 @@ export default function FormFillPage() {
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
+  const [speechDraft, setSpeechDraft] = useState<string | null>(null);
   const skipRestoreRef = useRef(false);
   const flowRef = useRef(0);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setSpeechDraft(null);
+  }, [session?.sessionId, session?.currentIndex, step]);
 
   // Restore through the server session ID after a refresh. Only the session
   // reference lives in local storage — never form answers. Identity is
@@ -427,6 +434,7 @@ export default function FormFillPage() {
       const nextIndex = session.currentIndex + 1;
       const saved = await savePatch({ [field.id]: value }, nextIndex);
       if (!saved) return;
+      setSpeechDraft(null);
       if (editingFromReview) {
         setEditingFromReview(false);
         setStep("review");
@@ -776,8 +784,8 @@ export default function FormFillPage() {
                     )}
                   </div>
                   <p className="mt-3 text-xs text-slate-500">
-                    Type or tap the microphone — one question per screen
-                    (quiet for open offices).
+                    Type and send, or speak and tap Use this. A spoken answer
+                    is not saved until you confirm it.
                   </p>
                 </>
               )}
@@ -879,10 +887,19 @@ export default function FormFillPage() {
         current &&
         ((current.field as ClientField).kind === "text" ||
           (current.field as ClientField).kind === "signature") && (
-        <ChatComposer
+        <FormAnswerComposer
+          key={`${session?.sessionId ?? "form"}:${current.field.id}:${session?.currentIndex ?? 0}`}
+          speechDraft={speechDraft}
+          onSpeechDraft={(transcript) => {
+            setSpeechDraft(stageSpeechTranscript(transcript));
+          }}
+          onEditSpeechDraft={setSpeechDraft}
+          onUseSpeech={() => {
+            const answer = confirmedSpeechAnswer(speechDraft, "use");
+            if (!answer) return;
+            void submitAnswer(answer);
+          }}
           onSend={(text) => void submitAnswer(text)}
-          placeholder="Type your answer or use the microphone…"
-          showLanguage={false}
           disabled={saving}
         />
       )}

@@ -29,4 +29,5 @@ export const FORM_VISION_MAX_PAGES = 10;
 /** Title-length extracts still get a briefing instead of UNREADABLE_DOCUMENT. */
 export const FORM_MIN_READABLE_CHARS = 20;
 
-export const FORM_MAX_INFERRED_FIELDS = 50;
+/** Questions asked on one upload. Matches the 100-field PDF fill cap so a long SBD pack is not cut off at the first returnables. */
+export const FORM_MAX_INFERRED_FIELDS = 100;

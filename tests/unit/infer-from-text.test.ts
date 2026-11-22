@@ -58,6 +58,24 @@ it("reads a box after a colon as a fill-in", () => {
   expect(fields.map((field) => field.label).join(" ")).toMatch(/Yes \/ No answer/i);
 });
 
+it("keeps name, identity, and signature blanks on an insurance application", () => {
+  const fields = inferFieldsFromExtractedText(
+    [
+      "Metropolitan Life",
+      "Application for life cover",
+      "Full name: ______",
+      "ID number: ______",
+      "Signature: ______",
+    ].join("\n"),
+  );
+  expect(fields.map((field) => field.label)).toEqual(
+    expect.arrayContaining(["Full name", "ID number", "Signature"]),
+  );
+  expect(fields.find((field) => field.label === "Signature")?.kind).toBe(
+    "signature",
+  );
+});
+
 it("turns labeled blanks into a question list", () => {
   const fields = inferFieldsFromExtractedText(
     [
@@ -174,6 +192,42 @@ it("infers SBD returnables and ellipsis blanks without AcroForm", () => {
   expect(labels).toMatch(/SBD 3\.3/i);
   expect(labels).toMatch(/SBD 4/i);
   expect(fields.some((field) => field.kind === "signature")).toBe(true);
+});
+
+it("reads a long tender pack: spaced blanks, yes/no, and late SBD returnables", () => {
+  const preamble = Array.from({ length: 30 }, (_, index) =>
+    index % 2 === 0
+      ? "The service provider shall deliver the website in line with the scope of work and the evaluation criteria."
+      : "Failure to submit documents means the bid will be disqualified automatically.",
+  );
+  const dots = ". ".repeat(40);
+  const fields = inferFieldsFromExtractedText(
+    [
+      ...preamble,
+      "the paid will be disqualified automatically: ______",
+      `NAME OF BIDDER ${dots}`,
+      "Tax reference: _ _ _ _ _ _ _",
+      "E-mail address: ______ Cell number: ______",
+      "Are you or any person connected with the bidder presently employed by the state? YES / NO",
+      "INITIALS AND SURNAME",
+      "SBD 6.1",
+      "SBD 8",
+      "SBD 9",
+      "Signature of bidder",
+    ].join("\n"),
+  );
+  const labels = fields.map((field) => field.label);
+  const blob = fields.map((field) => `${field.label} ${field.prompt}`).join(" | ");
+  expect(blob).not.toMatch(/disqualif/i);
+  expect(blob).not.toMatch(/what is your paid/i);
+  expect(blob).not.toMatch(/scope of work/i);
+  expect(labels).toEqual(expect.arrayContaining(["Bidder name", "Tax reference", "Email address", "Cell number"]));
+  expect(labels.some((label) => /employed by the state/i.test(label))).toBe(true);
+  expect(labels.some((label) => /SBD 6\.1/i.test(label))).toBe(true);
+  expect(labels.some((label) => /SBD 8/i.test(label))).toBe(true);
+  expect(labels.some((label) => /SBD 9/i.test(label))).toBe(true);
+  expect(fields.some((field) => field.kind === "signature")).toBe(true);
+  expect(fields.find((field) => field.label === "Bidder name")?.prompt).toMatch(/Bidder name/i);
 });
 
 it("reads a generated flat PDF and lists the blanks", async () => {
