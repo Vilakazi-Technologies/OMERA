@@ -1,5 +1,9 @@
 import type { StoredFormField } from "@/lib/db/form-sessions";
-import { humanQuestionLabel } from "@/lib/forms/fill-item-filter";
+import {
+  askForFillItem,
+  humanQuestionLabel,
+  isModelFillItem,
+} from "@/lib/forms/fill-item-filter";
 import { sortFieldsForQuestionFlow } from "@/lib/forms/field-order";
 import { FORM_MAX_INFERRED_FIELDS } from "@/lib/forms/pdf-limits";
 
@@ -46,13 +50,27 @@ export function labelsCoverSameQuestion(existing: string, candidate: string): bo
   return shorter.every((word) => longer.includes(word));
 }
 
+const WARNING_IN_PROMPT =
+  /\b(disqualif|what is your paid|non-?compulsory briefing)\b/i;
+
 function presentField(field: StoredFormField): StoredFormField | null {
   const label = humanQuestionLabel(field.label);
   if (!label) return null;
+  const kind = field.kind ?? "text";
+  const incoming = field.prompt?.trim() ?? "";
+  const prompt =
+    incoming &&
+    incoming !== field.label &&
+    incoming !== label &&
+    !WARNING_IN_PROMPT.test(incoming) &&
+    isModelFillItem(label, incoming)
+      ? incoming
+      : askForFillItem(label, kind);
   return {
     ...field,
     label,
-    prompt: label,
+    prompt,
+    kind,
   };
 }
 

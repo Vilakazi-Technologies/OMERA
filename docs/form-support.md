@@ -9,7 +9,7 @@ as the success output, no automatic speech output.
 | Class | Path | Limits |
 |---|---|---|
 | AcroForm PDF with fillable fields | C10 codec inspect (`inspectPdfFields`) → Xavani labels/prompts (`extractFormFields`) → C10 fill (`fillPdfFields`) on export | ≤ 10 000 000 byte upload (Vercel may still 413 near 4.5 MB); ≤ **40 pages** for in-place fill; ≤ 100 fillable fields; approved font `assets/fonts/NotoSans-Regular.ttf`; export response ≤ 8 000 000 bytes |
-| Mixed / flat PDF (tender, RFP, RFQ, no AcroForm, or over 40 pages) | Text extract (first **80 pages**, 80 000 characters) → document briefing → field inference (heuristic + AI; vision only when text is sparse) → answers appendix on export | Missing AcroForm is not a failure. A valid unencrypted PDF always starts a session. If there are no fill-in questions, Omera still saves the file and briefing and asks for a form that needs completing (it does not invent identity questions). ≤ 50 inferred fields; download adds a **Completed answers** page |
+| Mixed / flat PDF (tender, RFP, RFQ, no AcroForm, or over 40 pages) | Text extract (first **80 pages**, 80 000 characters) → document briefing → field inference (heuristic + AI; vision only when text is sparse) → answers appendix on export | Missing AcroForm is not a failure. A valid unencrypted PDF always starts a session. If there are no fill-in questions, Omera still saves the file and briefing and asks for a form that needs completing (it does not invent identity questions). ≤ 100 inferred fields; download adds a **Completed answers** page |
 | Owner flat templates (optional) | Approved fingerprint in `templates.ts` → rectangle overlay (gate G4) | Registry starts empty; unknown fingerprints are not used for inference |
 
 ### Signatures
