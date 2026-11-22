@@ -6,10 +6,41 @@ export type CsvTable = {
 const MAX_ROWS = 5000;
 const MAX_COLS = 64;
 
-/** Parse a simple RFC-style CSV (comma-separated, optional quotes). */
-export function parseCsvText(raw: string): CsvTable {
+export type CsvDelimiter = "," | ";";
+
+/** Header-row sniff: semicolon wins only when it is more common than comma. */
+export function detectCsvDelimiter(raw: string): CsvDelimiter {
+  const text = raw.replace(/^\uFEFF/, "");
+  let commas = 0;
+  let semis = 0;
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        i += 1;
+      } else if (ch === '"') {
+        inQuotes = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === "\n" || ch === "\r") break;
+    if (ch === ",") commas += 1;
+    if (ch === ";") semis += 1;
+  }
+  return semis > commas ? ";" : ",";
+}
+
+/** Parse a simple RFC-style CSV (comma or semicolon, optional quotes). */
+export function parseCsvText(raw: string, delimiter?: CsvDelimiter): CsvTable {
   const text = raw.replace(/^\uFEFF/, "").trim();
   if (!text) return { headers: [], rows: [] };
+  const separator = delimiter ?? detectCsvDelimiter(text);
 
   const rows: string[][] = [];
   let row: string[] = [];
@@ -34,7 +65,7 @@ export function parseCsvText(raw: string): CsvTable {
       inQuotes = true;
       continue;
     }
-    if (ch === ",") {
+    if (ch === separator) {
       row.push(cell.trim());
       cell = "";
       continue;
@@ -73,13 +104,31 @@ export function parseCsvText(raw: string): CsvTable {
   return { headers, rows: dataRows };
 }
 
-function parseNumber(value: string): number | null {
+/** Plain amounts, ZAR prefixes, thousands separators, and comma decimals. */
+export function parseCsvNumber(value: string): number | null {
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  const cleaned = trimmed
-    .replace(/\s/g, "")
-    .replace(/^R\s*/i, "")
-    .replace(/,/g, "");
+  if (!trimmed || trimmed.includes("%")) return null;
+  let cleaned = trimmed.replace(/[\s\u00A0]/g, "").replace(/^R/i, "");
+  if (!cleaned) return null;
+
+  const lastDot = cleaned.lastIndexOf(".");
+  const lastComma = cleaned.lastIndexOf(",");
+  if (lastDot >= 0 && lastComma >= 0) {
+    if (lastComma > lastDot) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else if (lastComma >= 0) {
+    if (/^-?\d{1,3}(,\d{3})+$/.test(cleaned)) {
+      cleaned = cleaned.replace(/,/g, "");
+    } else if (/^-?\d+,\d+$/.test(cleaned)) {
+      cleaned = cleaned.replace(",", ".");
+    } else {
+      return null;
+    }
+  }
+
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
   const n = Number.parseFloat(cleaned);
   return Number.isFinite(n) ? n : null;
@@ -98,7 +147,7 @@ export function columnStatistics(table: CsvTable): ColumnStats[] {
   return table.headers.map((header, colIndex) => {
     const values = table.rows.map((row) => row[colIndex] ?? "");
     const numbers = values
-      .map(parseNumber)
+      .map(parseCsvNumber)
       .filter((n): n is number => n !== null);
     const numeric = numbers.length >= Math.max(1, Math.floor(values.length * 0.4));
     if (!numeric || numbers.length === 0) {

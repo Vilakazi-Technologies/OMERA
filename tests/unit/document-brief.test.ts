@@ -264,6 +264,23 @@ const MATHS_ASSIGNMENT = [
   "b) Set up and evaluate the definite integral representing the total distance travelled.",
 ].join("\n");
 
+it("briefs an insurance application as an application, not coursework", () => {
+  const text = [
+    "Metropolitan Life",
+    "Application for life cover",
+    "Risk assessment",
+    "Premium due date: 1 March 2026",
+    "Medical exam may be required",
+    "Full name: ______",
+    "ID number: ______",
+    "Signature: ______",
+  ].join("\n");
+  const brief = heuristicDocumentBrief(text, "life-application.pdf");
+  expect(brief.documentKind).toBe("application");
+  expect(brief.summary).not.toMatch(/not a fillable form/i);
+  expect(brief.summary).not.toMatch(/assignment/i);
+});
+
 it("honestly names a maths assignment instead of rejecting it", () => {
   const brief = heuristicDocumentBrief(
     MATHS_ASSIGNMENT,

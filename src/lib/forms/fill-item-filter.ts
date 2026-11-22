@@ -4,7 +4,9 @@ export const FILL_BLANK_RUN =
   /(?:_{2,}|\.{3,}|\u2026{1,}|\u22ef{1,}|[·.]{5,}|\[[\s_xX.]{0,8}\])/;
 
 const FILL_HINT =
-  /\b(name of bidder|bidder'?s name|bidder name|company name|trading as|full name|surname|initials|identity number|id number|csd|maaa|tax( reference| pin| number)?|vat( number)?|b-?bb+ee|cidb|contact person|e-?mail|telephone|cell(phone)?|fax|postal address|physical address|registration number|ck number|cipc|signature|signatory|capacity|date of|birth|price|amount|ceiling price|bid price|director|shareholder|witness)\b/i;
+  /\b(name of bidder|bidder'?s name|bidder name|company name|trading as|full name|surname|initials( and surname)?|identity number|id number|csd|maaa|tcs pin|tax( reference| pin| number)?|vat( registration)?( number)?|b-?bb+ee|cidb|contact person|e-?mail|telephone|cell( ?phone)?|fax|facsimile|postal address|physical address|street address|registration number|ck number|cipc|signature|signatory|name of( the)? signatory|capacity|date of|birth|price|amount|ceiling price|bid price|director|shareholder|witness)\b/i;
+
+const YES_NO = /\b(?:yes|y)\s*\/\s*(?:no|n)\b/i;
 
 const RETURNABLE_HINT =
   /\b((sbd|mbd)\s*\d|returnable|pricing schedule|bidders disclosure|preference point|central supplier database|tax compliance|company registration documents)\b/i;
@@ -28,7 +30,12 @@ const CANONICAL: Array<[RegExp, string]> = [
   [/^(name of( the)? bidder|bidder'?s name|bidder name)$/i, "Bidder name"],
   [/^(company name|name of( the)? (company|firm|supplier))$/i, "Company name"],
   [/^(trading as|trading name)$/i, "Trading name"],
-  [/^(full name|name and surname)$/i, "Full name"],
+  [/^(full name|name and surname|initials( and surname)?)$/i, "Full name"],
+  [/^(tcs pin)$/i, "TCS PIN"],
+  [/^(street address)$/i, "Street address"],
+  [/^(name of( the)? signatory)$/i, "Name of signatory"],
+  [/^(vat registration( number)?)$/i, "VAT number"],
+  [/^(signature of( the)? (bidder|applicant|signatory))$/i, "Signature"],
   [/^(contact person)$/i, "Contact person"],
   [
     /^(csd( (number|no\.?|registration))?|maaa( number)?|central supplier database( (number|registration))?)$/i,
@@ -38,7 +45,7 @@ const CANONICAL: Array<[RegExp, string]> = [
   [/^(vat( (number|no\.?))?)$/i, "VAT number"],
   [/^(id(entity)? (number|no\.?))$/i, "ID number"],
   [/^(e-?mail( address)?)$/i, "Email address"],
-  [/^(cell(phone)?( number)?|mobile( number)?)$/i, "Cell number"],
+  [/^(cell( ?phone)?( number)?|mobile( number)?)$/i, "Cell number"],
   [/^(telephone( number)?|tel(ephone)? no\.?|phone( number)?)$/i, "Telephone"],
   [/^(physical address)$/i, "Physical address"],
   [/^(postal address)$/i, "Postal address"],
@@ -112,8 +119,65 @@ function formatReturnable(series: string, num: string): string {
   return title ? `${head} — ${title}` : head;
 }
 
+/**
+ * A bidder yes/no declaration, not a warning that happens to mention yes or no.
+ * Returns null unless the line is a real question the person must answer.
+ */
+export function declarationQuestionLabel(line: string): string | null {
+  const cleaned = line.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned || cleaned.length > 280 || !YES_NO.test(cleaned)) return null;
+  if (WARNING_SCRAP.test(cleaned)) return null;
+  let label = cleaned
+    .replace(YES_NO, " ")
+    .replace(/\[[\sxX_.]*\]/g, " ")
+    .replace(/\(\s*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[:\s]+$/g, "")
+    .trim();
+  if (isBoilerplateInstruction(label, label, cleaned)) return null;
+  if (WARNING_SCRAP.test(label)) return null;
+  const words = wordCount(label.replace(/\?/g, ""));
+  if (words < 3 || words > 32) return null;
+  if (!label.endsWith("?")) label = `${label.replace(/[?.\s]+$/g, "")}?`;
+  return label;
+}
+
+/** Exact bidder label (Name of bidder, CSD number, SBD 4), not a sentence that mentions one. */
+export function canonicalFillLabel(label: string): string | null {
+  const trimmed = normalizeRawLabel(label);
+  if (!trimmed || wordCount(trimmed) > 8) return null;
+  if (
+    /\b(shall|must|will|should|submit|disqualif|please|note|failure)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return null;
+  }
+  for (const [pattern, human] of CANONICAL) {
+    if (pattern.test(trimmed)) return human;
+  }
+  const sbd = /^(sbd|mbd)\s*(\d+(?:\.\d+)?)$/i.exec(trimmed);
+  if (sbd) return formatReturnable(sbd[1], sbd[2]);
+  return null;
+}
+
 /** Bidder-facing label, or null when the text is a scrap we must not ask. */
 export function humanQuestionLabel(label: string): string | null {
+  const declared = declarationQuestionLabel(label);
+  if (declared) return declared;
+  const asked = label.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+  if (
+    /\?\s*$/.test(asked) &&
+    !WARNING_SCRAP.test(asked) &&
+    !isBoilerplateInstruction(asked, asked, "")
+  ) {
+    const body = normalizeRawLabel(asked);
+    const words = wordCount(body);
+    if (words >= 3 && words <= 32 && body && !isJunkFragment(body)) {
+      return body.endsWith("?") ? body : `${body}?`;
+    }
+  }
   const trimmed = normalizeRawLabel(label);
   if (!trimmed || isJunkFragment(trimmed)) return null;
   if (isBoilerplateInstruction(trimmed, trimmed, "")) return null;
@@ -192,6 +256,13 @@ export function isAnswerOrAttachItem(label: string, sourceLine = ""): boolean {
   const human = humanQuestionLabel(label);
   if (!human) return false;
   if (isBoilerplateInstruction(human, human, sourceLine)) return false;
+  if (
+    /\?\s*$/.test(human) &&
+    wordCount(human) <= 32 &&
+    !isBoilerplateInstruction(human, human, sourceLine)
+  ) {
+    return true;
+  }
   if (FILL_HINT.test(human) || FILL_HINT.test(sourceLine)) return true;
   if (RETURNABLE_HINT.test(human) || RETURNABLE_HINT.test(sourceLine)) return true;
   if (/\byes\s*\/\s*no\b/i.test(sourceLine) && isPlausibleFieldLabel(human)) {
@@ -224,4 +295,23 @@ export function promptForFillItem(
   _kind: "text" | "checkbox" | "choice" | "signature" = "text",
 ): string {
   return humanQuestionLabel(label) ?? "";
+}
+
+/** Question shown on the form screen. Warning prompts are never reused. */
+export function askForFillItem(
+  label: string,
+  kind: "text" | "checkbox" | "choice" | "signature" = "text",
+): string {
+  const human = humanQuestionLabel(label) ?? "";
+  if (!human) return "";
+  if (kind === "signature" || /^signature$/i.test(human)) {
+    return `Say or type the name to sign for ${human}.`;
+  }
+  if (kind === "checkbox" || human.endsWith("?")) {
+    return human.endsWith("?") ? human : `${human}?`;
+  }
+  if (/^(SBD|MBD)\b/.test(human)) {
+    return `Confirm you will attach the completed ${human}.`;
+  }
+  return `What should I enter for ${human}?`;
 }

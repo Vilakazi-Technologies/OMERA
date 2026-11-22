@@ -201,10 +201,19 @@ export type BriefFieldHint = { label: string; kind?: string };
 
 /** Detect an assignment/exam and its subject so the brief names it honestly. */
 function academicSubject(lower: string): string | null {
-  if (
-    !/\b(assignment|assessment|exam|quiz|nqf|semester|module code|total marks|submission week|due date)\b/i.test(
+  const coursework =
+    /\b(assignment|quiz|nqf|semester|module code|total marks|submission week)\b/i.test(
       lower,
-    )
+    );
+  // "assessment" and "due date" appear on insurance applications. A standalone
+  // "exam" does too (medical exam). Those are not academic work.
+  if (!coursework && !/\bexam\b/i.test(lower)) return null;
+  if (
+    !coursework &&
+    (detectFillDocumentClass(lower) === "application" ||
+      detectFillDocumentClass(lower) === "form" ||
+      detectFillDocumentClass(lower) === "proposal" ||
+      /\b(insurance|insurer|policyholder|underwrit)\b/i.test(lower))
   ) {
     return null;
   }
