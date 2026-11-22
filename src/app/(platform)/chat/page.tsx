@@ -439,13 +439,13 @@ function ChatPageContent() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-4">
+          <div className="mx-auto flex max-w-3xl flex-col gap-8">
             {messages.map((m) => (
               <MessageBubble key={m.id} message={m} />
             ))}
             {showThinking ? <OmeraThinking /> : null}
             {awaitingReply ? (
-              <div className="flex justify-start pl-9">
+              <div className="flex justify-start">
                 <button
                   type="button"
                   onClick={() => void resumePendingReply()}
