@@ -10,6 +10,7 @@ import {
 import { ChatComposer } from "@/components/chat-composer";
 import { FormAnswerComposer } from "@/components/form-answer-composer";
 import { FormDocumentBriefPanel } from "@/components/form-document-brief";
+import { PersonCsvPanel } from "@/components/person-csv-panel";
 import { LanguageSelect } from "@/components/language-select";
 import { useApp } from "@/context/app-provider";
 import { activeQuestion } from "@/lib/forms/questions";
@@ -26,6 +27,7 @@ import type { FormDocumentBrief } from "@/lib/forms/document-brief-schema";
 import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
 import { confirmedSpeechAnswer, stageSpeechTranscript } from "@/lib/forms/speech-answer";
+import { prefillForLabel, type PersonFromCsv } from "@/lib/csv/person-from-csv";
 import { cn } from "@/lib/cn";
 
 type Step = "upload" | "briefing" | "questions" | "review" | "complete";
@@ -120,6 +122,7 @@ export default function FormFillPage() {
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [speechDraft, setSpeechDraft] = useState<string | null>(null);
+  const [person, setPerson] = useState<PersonFromCsv | null>(null);
   const skipRestoreRef = useRef(false);
   const flowRef = useRef(0);
   const uploadAbortRef = useRef<AbortController | null>(null);
@@ -652,6 +655,7 @@ export default function FormFillPage() {
                 </div>
               )}
             </div>
+            <PersonCsvPanel person={person} onPerson={setPerson} />
           </div>
         )}
 
@@ -663,6 +667,7 @@ export default function FormFillPage() {
               questionCount={session.fields.length}
               fieldLabels={session.fields.map((field) => field.label)}
             />
+            <PersonCsvPanel person={person} onPerson={setPerson} />
             {session.fields.length ? (
               <>
                 <button
@@ -704,6 +709,7 @@ export default function FormFillPage() {
               <p className="mt-1 truncate text-sm font-medium text-white">
                 {session.fileName}
               </p>
+              <PersonCsvPanel person={person} onPerson={setPerson} />
               <button
                 type="button"
                 onClick={() => resetToUpload()}
@@ -901,6 +907,7 @@ export default function FormFillPage() {
           }}
           onSend={(text) => void submitAnswer(text)}
           disabled={saving}
+          seed={person ? (prefillForLabel(person, current.field.label) ?? "") : ""}
         />
       )}
     </>

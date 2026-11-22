@@ -43,6 +43,11 @@ it("classifies RFP, RFPO, RFQ, bid, quotation, application, and generic forms", 
   expect(detectFillDocumentClass("Municipal MBD 4 declaration")).toBe("bid");
   expect(detectFillDocumentClass("SBD4 bidders disclosure")).toBe("bid");
   expect(detectFillDocumentClass("Application for leave")).toBe("application");
+  expect(
+    detectFillDocumentClass(
+      "Metropolitan Life\nApplication for life cover\nRisk assessment",
+    ),
+  ).toBe("application");
   expect(detectFillDocumentClass("Full name: ______\nDate: ______")).toBe("form");
 });
 

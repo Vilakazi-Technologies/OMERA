@@ -16,6 +16,7 @@ type Props = {
   speechDraft: string | null;
   disabled?: boolean;
   placeholder?: string;
+  seed?: string;
 };
 
 export function FormAnswerComposer({
@@ -26,8 +27,9 @@ export function FormAnswerComposer({
   speechDraft,
   disabled,
   placeholder = "Type your answer or use the microphone…",
+  seed = "",
 }: Props) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(seed);
   const { languageId } = useApp();
   const dictation = useBrowserDictation(languageId);
   const { recording, error: recorderError, start, stop } = useVoiceRecorder(languageId);
