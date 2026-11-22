@@ -1,11 +1,12 @@
 /**
  * Company registration answers may include the registered name.
- * "Vilakazi Technologies" is the legal name already recorded in the advisor
- * prompt. Pair it only when a registration number is also supplied.
- * Do not invent a number, and do not place this name on the public site.
+ * The legal name is the one on the company quotation:
+ * "MPETHWA TECHNOLOGIES (Pty) Ltd". Pair it only when a registration
+ * number is also supplied. Do not invent a number, and do not place
+ * this name on the public site.
  */
 
-export const RECORDED_LEGAL_NAME = "Vilakazi Technologies";
+export const RECORDED_LEGAL_NAME = "MPETHWA TECHNOLOGIES (Pty) Ltd";
 
 const CIPC_NUMBER = /\b(\d{4}\/\d{5,7}\/\d{2})\b/;
 
