@@ -90,6 +90,8 @@ describe("advisor memory", () => {
     expect(text).toContain("Name: Ayanda Mkhize");
     expect(text).toContain("isiZulu");
     expect(text).toContain("I run a school catering business in Soweto.");
+    expect(text).toContain("Never recite their name, language, or these facts unless they explicitly ask");
+    expect(text).toContain("Do not announce this memory");
     expect(renderAdvisorMemory({
       name: null,
       languageName: null,
