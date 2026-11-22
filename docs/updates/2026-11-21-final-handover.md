@@ -93,3 +93,28 @@ alter table public.omera_form_sessions add column if not exists brief_json jsonb
 update storage.buckets set file_size_limit = 20000000 where id = 'omera-forms';
 
 Also committed as supabase/migrations/20261121120000_form_brief_and_20mb.sql.
+
+## 7. Final completion note (2026-11-22)
+
+All three OMERA branches point at 72690db (main, integration, privacy).
+Production health: ok, database reachable, webResearch configured, 0 open alerts.
+
+Real-time web research added:
+- Google Custom Search and Reddit run in parallel before the reply streams.
+- Reddit posts and comments come from the public PullPush mirror, labeled as a
+  cached snapshot with source timestamps. The model cites Reddit as opinion,
+  not verified fact.
+- Google CSE returns indexed snippets. Live crawling of all sites needs a paid
+  provider key, which was not supplied.
+- Timeouts raised: research budget 6 s -> 18 s (cap 30 s), Google query 12 s -> 15 s.
+- The 8 s Xavani reachability probe stays short on purpose.
+
+Owner integration work merged in, not discarded: CSV person prefill and spoken
+form answers. Two stale test fixtures and one React lint error were fixed.
+
+Final verification: 792 tests pass, 0 fail, 1 skipped. Typecheck 0. Lint 0 errors
+(7 warnings). Production build exit 0. gitleaks clean. Live research probe passes.
+
+Owner actions still open: run the Supabase migration; re-upload the maths
+assignment; supply a model key for the Render inference gate; replace the
+password posted in chat.
