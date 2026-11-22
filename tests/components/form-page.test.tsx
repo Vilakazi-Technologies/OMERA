@@ -126,6 +126,15 @@ afterEach(() => {
 });
 
 describe("form page review flow", () => {
+  it("accepts pdf and word files", async () => {
+    const { container } = render(<FormFillPage />);
+    await screen.findByText("Upload your form");
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.accept).toMatch(/\.pdf/);
+    expect(input.accept).toMatch(/\.doc/);
+    expect(input.accept).toMatch(/\.docx/);
+  });
+
   it("shows a human upload error without fillable jargon", async () => {
     vi.stubGlobal(
       "fetch",
@@ -147,8 +156,8 @@ describe("form page review flow", () => {
       },
     });
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/could not read any text|scan|clearer/i);
-    expect(alert.textContent).toMatch(/UNREADABLE_DOCUMENT/);
+    expect(alert.textContent).toMatch(/thin|continue/i);
+    expect(alert.textContent).not.toMatch(/could not read|can't be read|not accepted|could not save/i);
     expect(alert.textContent).not.toMatch(/password/i);
     expect(alert.textContent).not.toMatch(/acroform/i);
     expect(alert.textContent).not.toMatch(/fillable/i);
@@ -401,9 +410,7 @@ describe("form page review flow", () => {
     expect(
       screen.queryByRole("button", { name: "Start filling" }),
     ).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Upload a form with questions" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Replace document" }));
     await screen.findByText("Upload your form");
     expect(screen.queryByText("What is your full name?")).toBeNull();
   });

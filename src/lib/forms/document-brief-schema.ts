@@ -193,6 +193,44 @@ export function tryParseDocumentBrief(
   }
 }
 
+/**
+ * The file opened, but the extractable text is short.
+ * Say what was readable and leave the person free to continue.
+ */
+export function thinTextBrief(input: {
+  fileName: string;
+  excerpt?: string;
+}): FormDocumentBrief {
+  const title =
+    input.fileName.replace(/\.(pdf|docx?)$/i, "").trim() || "Uploaded document";
+  const excerpt = (input.excerpt ?? "").replace(/\s+/g, " ").trim().slice(0, 280);
+  const summary = excerpt
+    ? `Omera read this much: “${excerpt}”. The rest of the text is thin. Continue, or replace the file with a clearer copy.`
+    : "The text in this file is thin. Continue with what you know, or replace the file with a clearer copy.";
+  return {
+    title,
+    documentKind: "form",
+    summary,
+    sections: [],
+    keyFacts: excerpt ? [excerpt] : [],
+    parties: [],
+    eligibility: "Not stated in the text Omera could use.",
+    deadlines: [],
+    requiredAttachments: [],
+    actionsNow: ["Continue, or replace the file if you have a clearer copy."],
+    implications: [],
+    fillableSections: [],
+    whatWasRead: {
+      pagesRead: excerpt ? 1 : 0,
+      pageCount: 1,
+      truncated: false,
+      note: excerpt
+        ? "Omera used the short extract above. You can still continue."
+        : "The extractable text was thin. You can still continue.",
+    },
+  };
+}
+
 /** Client-safe brief when analyze omits one — never leave the briefing screen empty. */
 export function fallbackDocumentBrief(input: {
   fileName: string;
@@ -204,7 +242,7 @@ export function fallbackDocumentBrief(input: {
     .filter(Boolean)
     .slice(0, 16);
   const title =
-    input.fileName.replace(/\.pdf$/i, "").trim() || "Uploaded document";
+    input.fileName.replace(/\.(pdf|docx?)$/i, "").trim() || "Uploaded document";
   const coverage = input.coverage ?? defaultWhatWasRead();
   return {
     title,

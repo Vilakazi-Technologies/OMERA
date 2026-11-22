@@ -17,7 +17,10 @@ import { buildDocumentBrief } from "@/lib/forms/document-brief";
 import {
   defaultWhatWasRead,
   fallbackDocumentBrief,
+  type FormDocumentBrief,
 } from "@/lib/forms/document-brief-schema";
+import { classifyReceivedFile } from "@/lib/forms/received-document";
+import { prepareTextForm } from "@/lib/forms/text-session";
 import {
   FORM_PDF_FILE_LIMIT,
   FORM_PDF_MULTIPART_LIMIT,
@@ -38,19 +41,6 @@ export const maxDuration = 120;
 
 const MULTIPART_LIMIT = FORM_PDF_MULTIPART_LIMIT;
 const FILE_LIMIT = FORM_PDF_FILE_LIMIT;
-const PDF_MIMES = new Set([
-  "application/pdf",
-  "application/x-pdf",
-  "application/acrobat",
-  "application/vnd.pdf",
-  "application/octet-stream",
-]);
-
-function isPdfMime(contentType: string): boolean {
-  const base = contentType.split(";")[0].trim().toLowerCase();
-  return PDF_MIMES.has(base);
-}
-
 type UploadedFile = {
   fieldName: string;
   fileName: string;
@@ -151,6 +141,81 @@ const INFER_FALLBACK = new Set([
   "MALFORMED_PDF",
 ]);
 
+async function publishAnalyzedUpload(input: {
+  userId: string;
+  fileName: string;
+  bytes: Uint8Array;
+  contentType: string;
+  fields: StoredFormField[];
+  languageId: string;
+  documentKind: FormDocumentKind;
+  brief: FormDocumentBrief;
+  truncated: boolean;
+  pageCount: number;
+  message: string;
+}) {
+  const documentSha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const sessionId = randomUUID();
+  const bucket = getSupabaseAdmin().storage.from(FORMS_BUCKET);
+  let storagePath: string;
+  try {
+    storagePath = await storeOriginal(bucket, {
+      userId: input.userId,
+      sessionId,
+      fileName: input.fileName,
+      bytes: input.bytes,
+      contentType: input.contentType,
+    });
+  } catch (error) {
+    console.error(
+      "[forms/analyze] STORAGE_UPLOAD_FAILED",
+      error instanceof FormStorageError
+        ? error.code
+        : error instanceof Error
+          ? error.name
+          : "UnknownError",
+    );
+    if (error instanceof FormStorageError && error.code === "FILE_TOO_LARGE") {
+      throw new ApiError("FILE_TOO_LARGE", 413);
+    }
+    throw new ApiError("STORAGE_UPLOAD_FAILED", 502);
+  }
+
+  try {
+    const session = await createFormSession({
+      userId: input.userId,
+      fileName: input.fileName,
+      storagePath,
+      fields: input.fields,
+      languageId: input.languageId,
+      documentSha256,
+      documentKind: input.documentKind,
+      brief: input.brief,
+    });
+    return NextResponse.json(
+      {
+        sessionId: session.id,
+        fileName: session.fileName,
+        fields: session.fields,
+        revision: session.revision,
+        status: session.status,
+        brief: session.brief ?? input.brief,
+        truncated: input.truncated,
+        pageCount: input.pageCount,
+        hasFillableQuestions: input.fields.length > 0,
+        message: input.message,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    await removeStoredObject(bucket, storagePath).catch(() => undefined);
+    throw new ApiError(
+      error instanceof ApiError ? error.code : "SESSION_CREATE_FAILED",
+      error instanceof ApiError ? error.status : 502,
+    );
+  }
+}
+
 function classifyInspectError(error: unknown): string {
   if (error instanceof ApiError) return error.code;
   if (error instanceof Error && PDF_ERRORS.has(error.message)) return error.message;
@@ -185,18 +250,43 @@ export async function POST(request: Request) {
       throw new ApiError("FILE_TOO_LARGE", 413);
     }
     if (file.bytes.length === 0) throw new ApiError("EMPTY_FILE", 400);
-    if (!isPdfMime(file.contentType)) {
-      throw new ApiError("UNSUPPORTED_FORMAT", 415);
-    }
-    if (
-      file.bytes.length < 5 ||
-      new TextDecoder().decode(file.bytes.slice(0, 5)) !== "%PDF-"
-    ) {
-      throw new ApiError("MALFORMED_PDF", 422);
-    }
+    const received = classifyReceivedFile({
+      fileName: file.fileName,
+      contentType: file.contentType,
+      bytes: file.bytes,
+    });
+    if (!received) throw new ApiError("UNSUPPORTED_FORMAT", 415);
 
     const languageId = (fields.get("languageId") ?? "eng").trim() || "eng";
-    const fileName = file.fileName || "form.pdf";
+    const fileName =
+      file.fileName ||
+      (received.kind === "docx"
+        ? "form.docx"
+        : received.kind === "doc"
+          ? "form.doc"
+          : "form.pdf");
+
+    if (received.kind !== "pdf" || !received.trustedPdf) {
+      const prepared = await prepareTextForm({
+        kind: received.kind,
+        bytes: file.bytes,
+        fileName,
+        languageId,
+      });
+      return await publishAnalyzedUpload({
+        userId: identity.userId,
+        fileName,
+        bytes: file.bytes,
+        contentType: file.contentType,
+        fields: prepared.fields,
+        languageId,
+        documentKind: "flat",
+        brief: prepared.brief,
+        truncated: false,
+        pageCount: prepared.thin ? 0 : 1,
+        message: prepared.message,
+      });
+    }
     let extracted: Awaited<ReturnType<typeof extractPdfDocument>>;
     try {
       extracted = await extractPdfDocument(Buffer.from(file.bytes));

@@ -34,7 +34,7 @@ const FEATURES = [
     icon: FileText,
     title: "Voice-supported forms",
     body:
-      "Upload a PDF. Omera asks each question one at a time, then gives you a completed PDF.",
+      "Upload a PDF or Word file. Omera tells you what it is about, asks each question one at a time, then gives you a completed file.",
   },
   {
     icon: Mic,

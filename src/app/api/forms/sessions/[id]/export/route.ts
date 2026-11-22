@@ -10,7 +10,12 @@ import {
   updateFormSession,
 } from "@/lib/db/form-sessions";
 import { fillPdfFields } from "@/lib/forms/pdf-fields";
-import { appendAnswersSummaryPdf } from "@/lib/forms/pdf-answers-appendix";
+import {
+  appendAnswersSummaryPdf,
+  buildAnswersOnlyPdf,
+} from "@/lib/forms/pdf-answers-appendix";
+import { buildCompletedDocx } from "@/lib/forms/completed-docx";
+import { classifyReceivedFile } from "@/lib/forms/received-document";
 import {
   validateAnswerPatch,
   type CanonicalFieldDef,
@@ -48,13 +53,13 @@ const FILL_ERRORS = new Set([
   "ENCRYPTED_PDF",
 ]);
 
-function safeFileName(fileName: string): string {
+function safeFileName(fileName: string, extension: "pdf" | "docx"): string {
   const base =
     fileName
-      .replace(/\.pdf$/i, "")
+      .replace(/\.(pdf|docx?)$/i, "")
       .replace(/[^\w.\-]+/g, "_")
       .slice(0, 80) || "form";
-  return `${base}-completed.pdf`;
+  return `${base}-completed.${extension}`;
 }
 
 export async function GET(_req: Request, { params }: Params) {
@@ -113,9 +118,38 @@ export async function GET(_req: Request, { params }: Params) {
     }
 
     const fontBytes = new Uint8Array(await readFile(APPROVED_FONT_PATH));
+    const received = classifyReceivedFile({
+      fileName: session.fileName,
+      contentType: "",
+      bytes: original,
+    });
+    const word = received?.kind === "doc" || received?.kind === "docx";
+
     let filled: Uint8Array;
-    let exportMode: "acroform" | "appendix" = "acroform";
-    if (session.documentKind === "flat") {
+    let exportMode: "acroform" | "appendix" | "docx" | "answers-pdf" = "acroform";
+    let contentType = "application/pdf";
+    let downloadName = safeFileName(session.fileName, "pdf");
+
+    if (word) {
+      try {
+        filled = await buildCompletedDocx({
+          fileName: session.fileName,
+          fields: session.fields,
+          answers,
+        });
+        exportMode = "docx";
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        downloadName = safeFileName(session.fileName, "docx");
+      } catch (error) {
+        console.error(
+          "[forms/export] DOCX_EXPORT_FAILED",
+          error instanceof Error ? error.name : "UnknownError",
+        );
+        filled = await buildAnswersOnlyPdf(session.fields, answers, fontBytes);
+        exportMode = "answers-pdf";
+      }
+    } else if (session.documentKind === "flat") {
       filled = await appendAnswersSummaryPdf(
         original,
         session.fields,
@@ -135,6 +169,7 @@ export async function GET(_req: Request, { params }: Params) {
           code === "NO_FILLABLE_FIELDS" ||
           code === "PDF_PAGE_LIMIT" ||
           code === "PDF_FIELD_LIMIT" ||
+          code === "VALUE_TOO_LONG" ||
           code === "EXPORT_FAILED"
         ) {
           filled = await appendAnswersSummaryPdf(
@@ -165,8 +200,8 @@ export async function GET(_req: Request, { params }: Params) {
     return new NextResponse(Buffer.from(filled), {
       status: 200,
       headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${safeFileName(session.fileName)}"`,
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${downloadName}"`,
         "Cache-Control": "private, no-store",
         "X-Form-Export-Mode": exportMode,
         "Content-Length": String(filled.length),

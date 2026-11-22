@@ -37,7 +37,7 @@ test.describe("product claims match measured support", () => {
   test("form copy promises a completed PDF from an upload", async ({ page }) => {
     await page.goto("/");
     const copy = await page.content();
-    expect(copy).toMatch(/PDF form/i);
+    expect(copy).toMatch(/PDF or Word/i);
     expect(copy).not.toMatch(/AcroForm/i);
     expect(copy).not.toMatch(/enterprise-ready/i);
     expect(copy).not.toMatch(/POPIA-conscious/i);

@@ -25,6 +25,7 @@ import {
 import type { FormDocumentBrief } from "@/lib/forms/document-brief-schema";
 import { FORM_PDF_FILE_LIMIT, FORM_PDF_FILE_LIMIT_MB } from "@/lib/forms/pdf-limits";
 import { isStartFillingUtterance } from "@/lib/forms/start-filling";
+import { withRegistrationGuidance } from "@/lib/forms/registration-identity";
 import { confirmedSpeechAnswer, stageSpeechTranscript } from "@/lib/forms/speech-answer";
 import { cn } from "@/lib/cn";
 
@@ -567,7 +568,7 @@ export default function FormFillPage() {
         <div>
           <h1 className="text-sm font-medium text-white">Form fill</h1>
           <p className="text-xs text-slate-500">
-            Upload · briefing · fill only the questions · download PDF
+            Upload · what the form is · one question at a time · download
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -616,10 +617,11 @@ export default function FormFillPage() {
                 Upload your form
               </h2>
               <p className="mt-2 text-sm text-slate-400">
-                Tenders, RFPs, RFQs, RFB/RFI/EOI packs, applications, and
-                ordinary fillable PDFs. Omera reads the document, briefs you,
-                then asks only the fill-in questions. Max {FORM_PDF_FILE_LIMIT_MB}&nbsp;MB,
-                first 80 pages. Unlock passworded files first.
+                PDF or Word (.doc and .docx). Omera reads the file, tells you
+                what the form is about, then asks one question at a time.
+                Type or speak. A spoken answer waits until you tap Use this.
+                Max {FORM_PDF_FILE_LIMIT_MB}&nbsp;MB. The host may still stop
+                files above about 4.5&nbsp;MB. Unlock passworded PDFs first.
               </p>
               <label className="mt-6 cursor-pointer rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black hover:bg-white/90">
                 {uploading ? "Reading your form…" : "Choose file"}
@@ -627,7 +629,7 @@ export default function FormFillPage() {
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept=".pdf,application/pdf"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   disabled={uploading}
                   aria-busy={uploading}
                   onChange={(e) => {
@@ -684,13 +686,25 @@ export default function FormFillPage() {
                 </p>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={() => resetToUpload()}
-                className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
-              >
-                Upload a form with questions
-              </button>
+              <>
+                <p className="mt-4 text-center text-sm text-slate-400">
+                  You can continue from this briefing, or replace the file.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setStep("review")}
+                  className="mt-5 w-full rounded-full bg-white py-2.5 text-sm font-medium text-black hover:bg-white/90"
+                >
+                  Continue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resetToUpload()}
+                  className="mt-3 w-full rounded-full border border-white/20 py-2.5 text-sm text-white hover:bg-white/10"
+                >
+                  Replace document
+                </button>
+              </>
             )}
           </div>
         )}
@@ -722,7 +736,7 @@ export default function FormFillPage() {
                     )}
                   </p>
                   <div className="mt-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-slate-100">
-                    {current.field.prompt}
+                    {withRegistrationGuidance(current.field.label, current.field.prompt)}
                   </div>
                   {(current.field as ClientField).kind === "checkbox" ? (
                     <div className="mt-4 flex gap-2">
@@ -793,7 +807,9 @@ export default function FormFillPage() {
                 <div className="mt-6">
                   <h2 className="text-sm font-medium text-white">
                     {step === "complete"
-                      ? "Your completed PDF has downloaded."
+                      ? /\.docx?$/i.test(session.fileName)
+                        ? "Your completed Word file has downloaded."
+                        : "Your completed PDF has downloaded."
                       : "Review your answers"}
                   </h2>
                   {step === "review" && (
@@ -862,7 +878,11 @@ export default function FormFillPage() {
                   className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white py-2.5 text-sm font-medium text-black disabled:opacity-50"
                 >
                   <Download className="size-4" />
-                  {exporting ? "Preparing PDF…" : "Download completed PDF"}
+                  {exporting
+                    ? "Preparing your file…"
+                    : /\.docx?$/i.test(session.fileName)
+                      ? "Download completed Word file"
+                      : "Download completed PDF"}
                 </button>
               )}
             </div>

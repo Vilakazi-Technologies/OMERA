@@ -108,3 +108,55 @@ export async function appendAnswersSummaryPdf(
 
   return pdf.save({ updateFieldAppearances: false });
 }
+
+/** A PDF of the answers when the original file is Word and cannot be reused. */
+export async function buildAnswersOnlyPdf(
+  fields: StoredFormField[],
+  answers: Record<string, string | boolean>,
+  fontBytes: Uint8Array,
+): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  const font = await pdf.embedFont(fontBytes, { subset: true });
+  const margin = 48;
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const contentWidth = pageWidth - margin * 2;
+  let page = pdf.addPage([pageWidth, pageHeight]);
+  let y = pageHeight - margin;
+  page.drawText("Completed answers (Omera)", {
+    x: margin,
+    y,
+    size: 16,
+    font,
+    color: rgb(0, 0, 0),
+  });
+  y -= 28;
+  y = drawWrapped(
+    page,
+    "These are the answers from your conversation with Omera.",
+    margin,
+    y,
+    contentWidth,
+    font,
+    10,
+  );
+  y -= 12;
+  for (const field of fields) {
+    if (y < margin + 48) {
+      page = pdf.addPage([pageWidth, pageHeight]);
+      y = pageHeight - margin;
+    }
+    page.drawText(field.label, {
+      x: margin,
+      y,
+      size: 11,
+      font,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    y -= 16;
+    y = drawWrapped(page, displayValue(field, answers), margin, y, contentWidth, font, 11);
+    y -= 8;
+  }
+  return pdf.save({ updateFieldAppearances: false });
+}

@@ -20,16 +20,12 @@ PKI digital signature and does not use certificate signing.
 
 ## Upload MIME types
 
-Analyzed uploads must be PDF bytes (magic `%PDF-`). Accepted `Content-Type`
-values include `application/pdf`, common PDF aliases, and
-`application/octet-stream` when the bytes are still a PDF. The Supabase
-`omera-forms` bucket is **PDF-only** at 10 MB (see
-`20261116130000_form_bucket_10mb.sql` and
-`20261116220000_ensure_form_bucket.sql`). Uploads always send
-`Content-Type: application/pdf`. Apply the ensure migration on production
-Supabase (`lpnlyethmoilqwoekvmc`); until then a 4 MB bucket rejects after
-the PDF is read (`STORAGE_UPLOAD_FAILED` or `FILE_TOO_LARGE`). DOCX/images
-are not analyzed on the form route in this MVP.
+Analyzed uploads accept PDF, Word `.doc`, and Word `.docx` (by name, MIME,
+or file header). A PDF still needs `%PDF-` to be filled in place; a PDF or
+Word file with thin text is briefed and can continue. The Supabase
+`omera-forms` bucket is still uploaded as `application/pdf` so the live
+PDF-only bucket accepts the original bytes. The app limit stays 20 MB; the
+host may still stop bodies above about 4.5 MB.
 
 ## Rejected documents
 
@@ -37,7 +33,7 @@ are not analyzed on the form route in this MVP.
 - Encrypted documents (422) — never decrypted server-side.
 - Unsupported MIME types (415) — non-PDF on the analyze route.
 - Files over 10 000 000 bytes (413 `FILE_TOO_LARGE`); multipart bodies over 10 200 000 bytes (413 `REQUEST_TOO_LARGE`). A non-JSON 413 from the platform is shown as `FILE_TOO_LARGE`.
-- Malformed PDFs and bad magic bytes (422). Passworded files are `ENCRYPTED_PDF`. Long packs without AcroForm are inferred, not rejected. A valid PDF with no blanks still gets a briefing and is not treated as `UNREADABLE_DOCUMENT` or `STORAGE_UPLOAD_FAILED`.
+- Passworded files are `ENCRYPTED_PDF`. A PDF or Word file with thin or unreadable text still gets a briefing and can continue. Long packs without AcroForm are inferred, not rejected. A valid PDF with no blanks still gets a briefing.
 - Text that exceeds an approved rectangle (422, `VALUE_TOO_LONG`); choices
   outside the stored options (400/422, `INVALID_CHOICE`); missing required
   values (400/422, `MISSING_REQUIRED_VALUE` / `REQUIRED_FIELD`).

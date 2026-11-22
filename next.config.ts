@@ -32,7 +32,7 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "unpdf"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "unpdf", "mammoth", "word-extractor"],
   async headers() {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },

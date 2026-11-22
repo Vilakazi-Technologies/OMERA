@@ -38,13 +38,13 @@ it("keeps scan, password, size, AI, storage, and sign-in as distinct copy", () =
   const signIn = formErrorMessage("UNAUTHORIZED", "fallback");
   const messages = [scan, password, size, ai, storage, signIn];
   expect(new Set(messages).size).toBe(6);
-  expect(scan).toMatch(/scan|text/i);
+  expect(scan).toMatch(/thin|continue/i);
   expect(scan).not.toMatch(/password/i);
   expect(password).toMatch(/password/i);
   expect(password).not.toMatch(/4\.5 MB|20 MB/i);
   expect(size).toMatch(/20 MB/i);
-  expect(ai).toMatch(/AI is busy/i);
-  expect(storage).toMatch(/database|storage/i);
+  expect(ai).toMatch(/busy/i);
+  expect(storage).toMatch(/try again/i);
   expect(signIn).toMatch(/sign in/i);
 });
 
@@ -58,7 +58,10 @@ it("maps HTML platform failures to a real code instead of the old combined fallb
     "UNREADABLE_DOCUMENT",
   );
   expect(formUploadFailure(502, { error: "SESSION_CREATE_FAILED" }).message).toMatch(
-    /database|storage/i,
+    /try again/i,
+  );
+  expect(formUploadFailure(502, { error: "SESSION_CREATE_FAILED" }).message).not.toMatch(
+    /can't be stored|cannot be stored|could not save|format is not accepted/i,
   );
   expect(formErrorMessage("UPLOAD_FAILED", "fallback")).not.toMatch(
     /unlock|print/i,

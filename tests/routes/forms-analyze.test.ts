@@ -198,7 +198,9 @@ it("acroform_analyze_returns_brief_and_fields", async () => {
     hasFillableQuestions: boolean;
   };
   expect(body.brief).toEqual(BRIEF);
-  expect(body.fields).toStrictEqual(INTERPRETED);
+  expect(body.fields).toStrictEqual([
+    { ...INTERPRETED[0], prompt: "What should I enter for Full name?" },
+  ]);
   expect(body.hasFillableQuestions).toBe(true);
   expect(vi.mocked(buildDocumentBrief)).toHaveBeenCalled();
   expect(vi.mocked(buildDocumentBrief).mock.calls[0][1]).toMatchObject({
@@ -229,7 +231,9 @@ it("a_valid_pdf_creates_a_session", async () => {
     status: string;
   };
   expect(body.sessionId).toBe("session-1");
-  expect(body.fields).toStrictEqual(INTERPRETED);
+  expect(body.fields).toStrictEqual([
+    { ...INTERPRETED[0], prompt: "What should I enter for Full name?" },
+  ]);
   expect(body.revision).toBe(1);
   expect(body.status).toBe("in_progress");
   expect(
@@ -246,13 +250,17 @@ it("a_valid_pdf_creates_a_session", async () => {
   expect(created.brief).toEqual(BRIEF);
 });
 
-it("a_malformed_pdf_returns_422", async () => {
+it("a_pdf_with_thin_text_still_starts_a_session", async () => {
   const response = await POST(
-    postPdf(new TextEncoder().encode("definitely not a pdf")),
+    postPdf(new TextEncoder().encode("not a pdf"), { fileName: "scan.pdf" }),
   );
-  expect(response.status).toBe(422);
+  expect(response.status).toBe(201);
   expect(vi.mocked(inspectPdfFields)).not.toHaveBeenCalled();
-  expect(vi.mocked(createFormSession)).not.toHaveBeenCalled();
+  const body = (await response.json()) as { message: string; brief: { summary: string } };
+  expect(body.message).toMatch(/thin/i);
+  expect(body.brief.summary).toMatch(/thin|read this much/i);
+  expect(JSON.stringify(body)).not.toMatch(/can't be read|format is not accepted|could not save/i);
+  expect(vi.mocked(createFormSession)).toHaveBeenCalled();
 });
 
 it("a_scan_falls_back_to_inference_when_ai_finds_fields", async () => {
@@ -469,6 +477,76 @@ it("pdf_extract_failure_keeps_the_error_cause_out_of_the_log", async () => {
   expect(response.status).toBe(201);
   expect(spy.mock.calls.flat().map(String).join(" ")).not.toContain(PRIVACY_MARKER);
   spy.mockRestore();
+});
+
+it("a_docx_is_accepted_and_briefed", async () => {
+  const { Document, Packer, Paragraph, TextRun } = await import("docx");
+  const doc = new Document({
+    sections: [
+      {
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun(
+                "Leave application. Full name: ______ Company registration number: ______",
+              ),
+            ],
+          }),
+        ],
+      },
+    ],
+  });
+  const bytes = new Uint8Array(await Packer.toBuffer(doc));
+  const response = await POST(
+    postPdf(bytes, {
+      fileName: "leave.docx",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+  );
+  expect(response.status).toBe(201);
+  const body = (await response.json()) as { brief: { summary: string }; message: string };
+  expect(body.brief.summary.length).toBeGreaterThan(0);
+  expect(JSON.stringify(body)).not.toMatch(
+    /UNSUPPORTED_FORMAT|format is not accepted|can't be read|could not save/i,
+  );
+  const created = vi.mocked(createFormSession).mock.calls.at(-1)?.[0] as {
+    documentKind: string;
+    fileName: string;
+  };
+  expect(created.fileName).toBe("leave.docx");
+  expect(created.documentKind).toBe("flat");
+  expect(vi.mocked(inspectPdfFields)).not.toHaveBeenCalled();
+}, 20000);
+
+it("a_legacy_doc_is_not_rejected", async () => {
+  const bytes = new Uint8Array(64);
+  bytes.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  const response = await POST(
+    postPdf(bytes, { fileName: "tender.doc", mime: "application/msword" }),
+  );
+  expect(response.status).toBe(201);
+  const body = (await response.json()) as { message: string; brief: { summary: string } };
+  expect(body.brief.summary.length).toBeGreaterThan(0);
+  expect(body.message).not.toMatch(/format is not accepted|can't be stored|can't be read/i);
+  expect(vi.mocked(inspectPdfFields)).not.toHaveBeenCalled();
+});
+
+it("pdf_docx_and_doc_do_not_use_the_rejected_mime_path", async () => {
+  const docx = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  const cases = [
+    postPdf(PDF_BYTES, { fileName: "form.pdf", mime: "application/octet-stream" }),
+    postPdf(docx, { fileName: "form.docx", mime: "application/octet-stream" }),
+    postPdf(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0]), {
+      fileName: "form.doc",
+      mime: "application/octet-stream",
+    }),
+  ];
+  for (const request of cases) {
+    const response = await POST(request);
+    expect(response.status).not.toBe(415);
+    const body = (await response.json()) as { error?: string };
+    expect(body.error).not.toBe("UNSUPPORTED_FORMAT");
+  }
 });
 
 it("an_unexpected_error_keeps_its_message_out_of_the_log", async () => {

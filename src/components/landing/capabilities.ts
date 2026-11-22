@@ -13,10 +13,9 @@ export type Capability = {
  *
  * Language voice routes follow the documented support matrix; measured
  * speech quality is unrecorded until consented product recordings are
- * evaluated. Form support covers PDF forms: fill-in-place when the file
- * has fields, otherwise questions from the text or page images and a
- * completed PDF with an answers page. Encrypted, XFA, and blank scans
- * that cannot be read are rejected with a plain-language message. No
+ * evaluated. Form support covers PDF and Word (.doc and .docx): fill-in-place
+ * when a PDF has fields, otherwise questions from the text and a completed
+ * file. Password-protected PDFs still need to be unlocked first. No
  * enterprise, privacy, or persistence promises are made here.
  */
 export const CAPABILITIES: Capability[] = [
@@ -33,7 +32,7 @@ export const CAPABILITIES: Capability[] = [
     word: "forms",
     title: "Voice-supported paperwork",
     description:
-      "Upload a PDF form. Omera reads the questions and asks one at a time — answer by typing or speaking, then review and download a completed PDF.",
+      "Upload a PDF or Word form. Omera reads it, tells you what it is about, and asks one question at a time — answer by typing or speaking, then download the completed file.",
     hue: "from-emerald-500/35 via-teal-500/10 to-transparent",
   },
   {

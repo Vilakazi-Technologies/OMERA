@@ -8,7 +8,9 @@ export const NO_FILL_IN_PLACES_MESSAGE =
 export function formErrorMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "UNREADABLE_DOCUMENT":
-      return "Omera could not read any text on this PDF. If it is a scan or a photo of pages, export a clearer copy or photograph each page in good light, then upload again.";
+    case "MALFORMED_PDF":
+    case "INVALID_PDF":
+      return "The text in this file is thin. You can continue, or replace it with a clearer copy.";
     case "NO_FILLABLE_FIELDS":
       return NO_FILL_IN_PLACES_MESSAGE;
     case "PDF_PAGE_LIMIT":
@@ -16,24 +18,20 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
     case "INVALID_PDF_SIZE":
     case "FILE_TOO_LARGE":
     case "REQUEST_TOO_LARGE":
-      return `This PDF is larger than the ${FORM_PDF_FILE_LIMIT_MB} MB upload limit (the host may still block files above about 4.5 MB). Compress it or split the tender pack, then try again.`;
+      return `This file is larger than the ${FORM_PDF_FILE_LIMIT_MB} MB upload limit (the host may still block files above about 4.5 MB). Compress it or split the pack, then try again.`;
     case "ENCRYPTED_PDF":
       return "This PDF is password-protected. Remove the password in your PDF app (unlock it), then upload the unlocked copy.";
     case "UNSUPPORTED_XFA":
       return "This PDF uses a special form format we cannot complete yet. Export it as a regular PDF from Adobe or your browser, then upload that file.";
     case "FORM_INFERENCE_FAILED":
     case "CHAT_UNAVAILABLE":
-      return "Omera could not read this form right now (the AI is busy). Wait a moment and try again.";
+      return "Omera is busy right now. Wait a moment and try again.";
     case "FORM_TRANSLATION_FAILED":
-      return "Omera could not read the field labels right now. Wait a moment and try again.";
-    case "MALFORMED_PDF":
-    case "INVALID_PDF":
-      return "This file does not look like a usable PDF. Try exporting or printing it to PDF again.";
+      return "The field labels are not ready yet. Wait a moment and try again.";
     case "FORMS_STORAGE_UNAVAILABLE":
-      return "Form storage is not configured on the server. Supabase is required for upload and export.";
     case "STORAGE_UPLOAD_FAILED":
     case "SESSION_CREATE_FAILED":
-      return "The PDF was read, but Omera could not save it (storage or database). This is not a scan or password problem — try again in a minute.";
+      return "That did not finish. Wait a moment and try again.";
     case "INCOMPLETE_FORM":
     case "MISSING_REQUIRED_VALUE":
     case "REQUIRED_FIELD":
@@ -56,15 +54,15 @@ export function formErrorMessage(code: string | undefined, fallback: string): st
     case "PDF_FIELD_LIMIT":
       return "This form has more questions than Omera can take in one pass. Upload the returnable section only, then try again.";
     case "UNSUPPORTED_FORMAT":
-      return "Upload a PDF file (not Word or an image). If you have a scan, Print to PDF first.";
+      return "Choose a PDF or Word document (.pdf, .doc, or .docx).";
     case "INVALID_MULTIPART":
     case "NO_FILE":
     case "EMPTY_FILE":
-      return "The upload did not include a PDF. Choose the file again and retry.";
+      return "Choose the file again and retry.";
     case "NETWORK_ERROR":
       return "The upload did not reach Omera. Check your connection and try again.";
     case "UPLOAD_FAILED":
-      return "Omera could not finish this upload. Try again in a moment and check the error code below.";
+      return "That did not finish. Wait a moment and try again.";
     default:
       return fallback;
   }
@@ -94,7 +92,7 @@ export function formUploadFailure(
     code,
     message: formErrorMessage(
       code,
-      "Omera could not finish this upload. Try again in a moment and check the error code below.",
+      "That did not finish. Wait a moment and try again.",
     ),
   };
 }

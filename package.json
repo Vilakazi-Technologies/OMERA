@@ -20,8 +20,10 @@
     "@supabase/supabase-js": "2.114.0",
     "@vercel/analytics": "^2.0.1",
     "clsx": "^2.1.1",
+    "docx": "^9.16.0",
     "framer-motion": "^14.0.0",
     "lucide-react": "^1.52.0",
+    "mammoth": "^1.13.0",
     "next": "16.4.6",
     "pdf-lib": "1.17.1",
     "pdf-parse": "^2.4.5",
@@ -30,6 +32,7 @@
     "server-only": "0.0.1",
     "tailwind-merge": "^3.7.0",
     "unpdf": "^1.9.1",
+    "word-extractor": "^1.0.4",
     "zod": "4.6.7"
   },
   "devDependencies": {
