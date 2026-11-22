@@ -114,19 +114,19 @@ export function Sidebar() {
             Form fill
           </Link>
           <Link
-            href="/insights"
+            href="/numbers"
             onClick={() => {
               if (window.innerWidth < 768) setSidebarOpen(false);
             }}
             className={cn(
               "flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition hover:bg-white/8",
-              pathname === "/insights"
+              pathname === "/numbers"
                 ? "bg-white/10 text-white"
                 : "text-white/90",
             )}
           >
             <BarChart3 className="size-4 text-white/60" />
-            Spreadsheet
+            Numbers
           </Link>
         </div>
 
