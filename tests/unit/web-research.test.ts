@@ -56,6 +56,12 @@ describe("formatWebResearchContext", () => {
     expect(block).toContain("no results");
     expect(block).toContain("NEVER say you cannot browse");
   });
+
+  it("instructs the model to cite Reddit snapshots honestly", () => {
+    const block = formatWebResearchContext("calculus", [], "2026-03-20T12:00:00Z");
+    expect(block).toContain("Reddit community research");
+    expect(block).toContain("cached public opinion");
+  });
 });
 
 describe("googleCustomSearch", () => {

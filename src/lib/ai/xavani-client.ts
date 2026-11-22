@@ -118,7 +118,7 @@ export async function xavaniResearchAvailable(
   }
 }
 
-/** True when the service answers capabilities within 2 seconds. */
+/** True when the service answers capabilities within the reachability budget. */
 export async function xavaniReachable(
   requestSignal?: AbortSignal,
   config?: XavaniConfig,

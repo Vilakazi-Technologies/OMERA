@@ -4,10 +4,15 @@ import {
   isGoogleWebSearchConfigured,
   type GoogleSearchHit,
 } from "@/lib/search/google-custom-search";
+import {
+  fetchRedditResearch,
+  formatRedditResearchContext,
+} from "@/lib/search/reddit-research";
 
-export const WEB_RESEARCH_INSTRUCTIONS = `Omera runs Google Custom Search on the server before this reply.
+export const WEB_RESEARCH_INSTRUCTIONS = `Omera runs web research on the server before this reply.
 When a "Google web search" section appears below, you MUST treat it as live web research already done for the user.
 Use those snippets and URLs for facts. Cite sources as markdown links.
+When a "Reddit community research" section appears below, treat it as cached public opinion, not verified fact. Say it is a Reddit snapshot if you use it. Cite the linked thread as a markdown link.
 NEVER say you cannot browse the web, lack real-time access, or are "only trained on data" when this section is present.
 If results are empty or marked failed, answer from what you know about the topic, state that live search returned no usable hits, and do not lecture the user about AI training limits.`;
 
@@ -127,20 +132,26 @@ export async function buildWebResearchSystemContext(
   if (!isGoogleWebSearchConfigured(env)) return null;
   if (!shouldResearchOnGoogle(userMessage)) return null;
 
-  const { query, hits, status } = await runSearchWithFallbacks(
-    userMessage,
-    signal,
-    env,
-  );
+  const [search, reddit] = await Promise.all([
+    runSearchWithFallbacks(userMessage, signal, env),
+    fetchRedditResearch(userMessage, signal, env),
+  ]);
   const queriedAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-  return formatWebResearchContext(query, hits, queriedAt, status);
+  const googleBlock = formatWebResearchContext(
+    search.query,
+    search.hits,
+    queriedAt,
+    search.status,
+  );
+  const redditBlock = formatRedditResearchContext(reddit, queriedAt);
+  return redditBlock ? `${googleBlock}\n\n${redditBlock}` : googleBlock;
 }
 
 function researchWaitMs(env: NodeJS.ProcessEnv): number {
   const raw = env.GOOGLE_SEARCH_MAX_WAIT_MS?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 6000;
-  if (!Number.isFinite(parsed) || parsed < 500) return 6000;
-  return Math.min(12000, parsed);
+  const parsed = raw ? Number.parseInt(raw, 10) : 18000;
+  if (!Number.isFinite(parsed) || parsed < 2000) return 18000;
+  return Math.min(30000, parsed);
 }
 
 /** Caps Google latency so chat still streams if search is slow (demo-friendly). */

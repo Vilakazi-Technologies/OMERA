@@ -47,8 +47,8 @@ export async function googleCustomSearch(
   const response = await fetch(url, {
     method: "GET",
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(12000)])
-      : AbortSignal.timeout(12000),
+      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      : AbortSignal.timeout(15000),
     redirect: "error",
     cache: "no-store",
   });
