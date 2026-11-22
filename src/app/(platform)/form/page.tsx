@@ -128,9 +128,12 @@ export default function FormFillPage() {
   const uploadAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
+  const draftKey = `${session?.sessionId ?? ""}|${session?.currentIndex ?? ""}|${step}`;
+  const [prevDraftKey, setPrevDraftKey] = useState(draftKey);
+  if (prevDraftKey !== draftKey) {
+    setPrevDraftKey(draftKey);
     setSpeechDraft(null);
-  }, [session?.sessionId, session?.currentIndex, step]);
+  }
 
   // Restore through the server session ID after a refresh. Only the session
   // reference lives in local storage — never form answers. Identity is
