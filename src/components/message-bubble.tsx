@@ -23,33 +23,23 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   if (!isUser && !text) return null;
 
   return (
-    <div
+    <article
       className={cn(
-        "flex w-full",
-        isUser ? "justify-end" : "justify-start",
+        "flex w-full flex-col gap-1.5",
+        isUser ? "items-end" : "items-start",
       )}
     >
-      {!isUser ? (
-        <div className="flex max-w-[min(100%,44rem)] gap-2.5">
-          <span
-            className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/20 to-white/5 ring-1 ring-white/12"
-            aria-hidden
-          >
-            <span className="font-serif text-xs font-medium text-amber-100/85">O</span>
-          </span>
-          <div
-            className="liquid min-w-[12rem] flex-1 rounded-2xl border border-white/8 px-4 py-3.5 text-[15px] leading-relaxed text-white/90 whitespace-pre-wrap"
-          >
-            {renderMarkdownLite(message.content)}
-          </div>
-        </div>
-      ) : (
-        <div
-          className="max-w-[min(100%,36rem)] rounded-2xl bg-white/12 px-4 py-3 text-sm leading-relaxed text-white whitespace-pre-wrap"
-        >
-          {renderMarkdownLite(message.content)}
-        </div>
-      )}
-    </div>
+      <p className="text-xs font-medium tracking-wide text-white/35">
+        {isUser ? "You" : "Omera"}
+      </p>
+      <div
+        className={cn(
+          "max-w-[min(100%,40rem)] text-[15px] leading-relaxed whitespace-pre-wrap",
+          isUser ? "text-right text-white/70" : "text-white/90",
+        )}
+      >
+        {renderMarkdownLite(message.content)}
+      </div>
+    </article>
   );
 }
